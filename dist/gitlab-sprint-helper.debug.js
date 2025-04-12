@@ -8196,8 +8196,10 @@ window.SummaryView = class SummaryView {
      * @param {number} cardsProcessed - Number of cards processed
      * @param {number} cardsWithTime - Number of cards with time estimates
      * @param {string} currentMilestone - Current milestone name
+     * @param {Object} boardData - Data for each board
+     * @param {Object} boardAssigneeData - Assignee data for each board
      */
-    render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone) {
+    render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
         const summaryContent = document.getElementById('assignee-time-summary-content');
 
         if (!summaryContent) return;
@@ -8229,8 +8231,8 @@ window.SummaryView = class SummaryView {
             this.renderMilestoneInfo(summaryContent, currentMilestone);
         }
 
-        // Create and populate the data table
-        this.renderDataTable(summaryContent, assigneeTimeMap, totalHours);
+        // Create and populate the data table with hour distribution
+        this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData);
     }
 
     /**
@@ -8317,16 +8319,21 @@ window.SummaryView = class SummaryView {
     }
 
     /**
-     * Render data table with assignee time estimates
+     * Render data table with assignee time estimates and hour distribution
      * @param {HTMLElement} container - Container element
      * @param {Object} assigneeTimeMap - Map of assignee names to time estimates
      * @param {string} totalHours - Total hours formatted as string
+     * @param {Object} boardData - Data for each board
+     * @param {Object} boardAssigneeData - Assignee data for each board
      */
-    renderDataTable(container, assigneeTimeMap, totalHours) {
+    renderDataTableWithDistribution(container, assigneeTimeMap, totalHours, boardData, boardAssigneeData) {
         // Create table
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
+
+        // Get board names in order
+        const boardNames = Object.keys(boardData || {});
 
         // Add total row at top
         const totalRow = document.createElement('tr');
@@ -8342,8 +8349,48 @@ window.SummaryView = class SummaryView {
         totalValueCell.style.textAlign = 'right';
         totalValueCell.style.padding = '5px 0';
 
+        // Add distribution cell for total
+        const totalDistributionCell = document.createElement('td');
+        totalDistributionCell.style.textAlign = 'right';
+        totalDistributionCell.style.padding = '5px 0 5px 15px';
+        totalDistributionCell.style.color = '#666';
+        totalDistributionCell.style.fontSize = '12px';
+
+        // Create distribution for total across all boards
+        if (boardNames.length > 0 && boardData) {
+            const distributionElements = boardNames.map(boardName => {
+                const hoursFloat = parseFloat(formatHours(boardData[boardName]?.timeEstimate || 0));
+                const hours = Math.round(hoursFloat); // Round to integer
+
+                const span = document.createElement('span');
+                span.textContent = hours;
+                span.style.marginLeft = '0px';
+
+                // Style based on value
+                if (hours === 0) {
+                    span.style.color = '#aaa'; // Grey for zero values
+                }
+
+                // Make the last board green if greater than 0
+                if (boardName === boardNames[boardNames.length - 1] && hours > 0) {
+                    span.style.color = '#28a745'; // Green for last board with hours
+                }
+
+                return span;
+            });
+
+            // Add distribution elements with slashes between them
+            distributionElements.forEach((span, index) => {
+                totalDistributionCell.appendChild(span);
+                if (index < distributionElements.length - 1) {
+                    totalDistributionCell.appendChild(document.createTextNode('/'));
+                }
+            });
+        }
+
         totalRow.appendChild(totalLabelCell);
         totalRow.appendChild(totalValueCell);
+        totalRow.appendChild(totalDistributionCell);
         table.appendChild(totalRow);
 
         // Sort assignees by time (descending)
@@ -8367,8 +8414,51 @@ window.SummaryView = class SummaryView {
             timeCell.style.textAlign = 'right';
             timeCell.style.padding = '5px 0';
 
+            // Add distribution cell for this assignee
+            const distributionCell = document.createElement('td');
+            distributionCell.style.textAlign = 'right';
+            distributionCell.style.padding = '5px 0 5px 15px';
+            distributionCell.style.color = '#666';
+            distributionCell.style.fontSize = '12px';
+
+            // Create distribution for this assignee across all boards
+            if (boardNames.length > 0 && boardAssigneeData) {
+                const distributionElements = boardNames.map((boardName, index) => {
+                    const assigneeInBoard = boardAssigneeData[boardName] &&
+                        boardAssigneeData[boardName][name];
+                    const hoursFloat = assigneeInBoard ?
+                        parseFloat(formatHours(assigneeInBoard.timeEstimate)) : 0;
+                    const hours = Math.round(hoursFloat); // Round to integer
+
+                    const span = document.createElement('span');
+                    span.textContent = hours;
+                    span.style.marginLeft = '0px';
+
+                    // Style based on value
+                    if (hours === 0) {
+                        span.style.color = '#aaa'; // Grey for zero values
+                    }
+
+                    // Make the last board green if greater than 0
+                    if (index === boardNames.length - 1 && hours > 0) {
+                        span.style.color = '#28a745'; // Green for last board with hours
+                    }
+
+                    return span;
+                });
+
+                // Add distribution elements with slashes between them
+                distributionElements.forEach((span, index) => {
+                    distributionCell.appendChild(span);
+                    if (index < distributionElements.length - 1) {
+                        distributionCell.appendChild(document.createTextNode('/'));
+                    }
+                });
+            }
+
             row.appendChild(nameCell);
             row.appendChild(timeCell);
+            row.appendChild(distributionCell);
             table.appendChild(row);
         });
 
@@ -9160,7 +9250,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
         // Add custom option and manage option at the end
         assignItems.push({ value: 'custom', label: 'Custom...' });
-        assignItems.push({ value: 'manage', label: '✏️ Manage Assignees...' });
 
         // Add this log to see what will be passed to the dropdown
         console.log("Final assignItems to be used:", assignItems);
@@ -10019,9 +10108,9 @@ window.BulkCommentsView = class BulkCommentsView {
 
             this.notification.success(`Added comment to ${successCount} issues`);
 
-            // Clear the input after success
-            if (commentEl) {
-                commentEl.value = '';
+            // Clear the input after success - FIXED: use this.commentInput instead of commentEl
+            if (this.commentInput) {
+                this.commentInput.value = '';
             }
 
             // Hide progress bar after a delay
@@ -10031,9 +10120,16 @@ window.BulkCommentsView = class BulkCommentsView {
                 }
             }, 2000);
 
-            // Clear selected issues after a delay
+            // End selection overlay and clear selected issues after a delay
             setTimeout(() => {
+                // Exit selection mode if active
+                if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
+                    this.uiManager.issueSelector.exitSelectionMode();
+                }
+
+                // Clear selected issues
                 this.clearSelectedIssues();
+
                 if (statusEl) {
                     statusEl.textContent = '';
                 }
@@ -10174,34 +10270,7 @@ window.BulkCommentsView = class BulkCommentsView {
      * Refresh the GitLab board
      */
     refreshBoard() {
-        try {
-            console.log('Refreshing board...');
-            // Find and click the search button to refresh
-            const searchButton = document.querySelector('.gl-search-box-by-click-search-button');
-            if (searchButton) {
-                searchButton.click();
-                console.log('Board refreshed successfully');
-            } else {
-                console.warn('Search button not found, trying alternative refresh method');
-                // Alternative refresh method: simulate pressing Enter in the search box
-                const searchInput = document.querySelector('.gl-search-box-by-click-input');
-                if (searchInput) {
-                    const event = new KeyboardEvent('keydown', {
-                        key: 'Enter',
-                        code: 'Enter',
-                        keyCode: 13,
-                        which: 13,
-                        bubbles: true
-                    });
-                    searchInput.dispatchEvent(event);
-                    console.log('Board refreshed using alternative method');
-                } else {
-                    console.error('Could not find search elements to refresh board');
-                }
-            }
-        } catch (e) {
-            console.error('Error refreshing board:', e);
-        }
+        window.location.reload()
     }
 }
 
@@ -10691,7 +10760,17 @@ function createUIManager() {
  * @param {number} cardsWithTime - Cards with time estimates
  * @param {string} currentMilestone - Current milestone name
  */
-window.updateSummaryTab = function updateSummaryTab(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone) {
+/**
+ * Update the Summary Tab wrapper function
+ * @param {Object} assigneeTimeMap - Map of assignees to time estimates
+ * @param {number} totalEstimate - Total estimate in seconds
+ * @param {number} cardsProcessed - Total cards processed
+ * @param {number} cardsWithTime - Cards with time estimates
+ * @param {string} currentMilestone - Current milestone name
+ * @param {Object} boardData - Data for each board
+ * @param {Object} boardAssigneeData - Assignee data for each board
+ */
+window.updateSummaryTab = function updateSummaryTab(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
     // Update board stats in UI Manager (if available from dataProcessor)
     if (typeof processBoards === 'function') {
         const { closedBoardCards } = processBoards();
@@ -10704,8 +10783,16 @@ window.updateSummaryTab = function updateSummaryTab(assigneeTimeMap, totalEstima
         });
     }
 
-    // Render the summary view
-    uiManager.summaryView.render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone);
+    // Render the summary view with board data for distribution
+    uiManager.summaryView.render(
+        assigneeTimeMap,
+        totalEstimate,
+        cardsProcessed,
+        cardsWithTime,
+        currentMilestone,
+        boardData,
+        boardAssigneeData
+    );
 }
 
 /**
@@ -10953,14 +11040,16 @@ function updateSummary(forceHistoryUpdate = false) {
         const totalHours = (totalEstimate / 3600).toFixed(1);
         window.uiManager.updateHeader(`Summary ${totalHours}h`);
 
-        // Update the summary view
+        // Update the summary view with board data for distribution
         if (window.uiManager.summaryView) {
             window.uiManager.summaryView.render(
                 assigneeTimeMap,
                 totalEstimate,
                 cardsProcessed,
                 cardsWithTime,
-                currentMilestone
+                currentMilestone,
+                boardData,           // Pass boardData
+                boardAssigneeData    // Pass boardAssigneeData
             );
         }
 
@@ -10980,7 +11069,6 @@ function updateSummary(forceHistoryUpdate = false) {
         console.error('Error updating summary:', e);
     }
 }
-
 /**
  * Add change event listeners to each board
  */
