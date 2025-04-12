@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.71
 // @description  Display a summary of assignees' time estimates on GitLab boards
 // @author       You
 // @match        https://gitlab.com/*/boards/*
@@ -18,7 +18,6 @@
 
 (function() {
     'use strict';
-    alert("asd")
     // Track if board is fully loaded
     let boardFullyLoaded = false;
     let loadingTimeout;
