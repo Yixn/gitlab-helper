@@ -200,6 +200,3 @@ class UIManager {
         }
     }
 }
-
-// Export singleton instance
-const uiManager = new UIManager();
