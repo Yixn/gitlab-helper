@@ -921,7 +921,9 @@ const DEFAULT_SETTINGS = {
  * @returns {Array} Label whitelist array
  */
 window.getLabelWhitelist = function getLabelWhitelist() {
-    return loadFromStorage(STORAGE_KEYS.LABEL_WHITELIST, DEFAULT_SETTINGS.labelWhitelist);
+    const whitelist = loadFromStorage(STORAGE_KEYS.LABEL_WHITELIST, DEFAULT_SETTINGS.labelWhitelist);
+    // Ensure we always return an array
+    return Array.isArray(whitelist) ? whitelist : DEFAULT_SETTINGS.labelWhitelist;
 }
 
 /**
@@ -2152,15 +2154,26 @@ window.SelectionDisplay = class SelectionDisplay {
             // Update display
             this.updateDisplay();
 
-            // Call callback if provided
+            // Call callback if provided - this is important for syncing with IssueSelector
             if (typeof this.onRemoveIssue === 'function') {
                 this.onRemoveIssue(index);
+            } else {
+                // Fallback sync with IssueSelector if callback not provided
+                try {
+                    // Try to find IssueSelector through global uiManager
+                    if (window.uiManager && window.uiManager.issueSelector) {
+                        window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+                    }
+                } catch (e) {
+                    console.error('Error syncing with IssueSelector:', e);
+                }
             }
 
             // Log for debugging
             console.log(`Removed issue at index ${index}:`, removedIssue);
         }
     }
+
 
     /**
      * Set the selected issues
@@ -2174,7 +2187,7 @@ window.SelectionDisplay = class SelectionDisplay {
         this.updateDisplay();
 
         // Log for debugging
-        console.log(`Set ${this.selectedIssues.length} selected issues`);
+        console.log(`Set ${this.selectedIssues.length} selected issues in SelectionDisplay`);
     }
 
     /**
@@ -2219,6 +2232,13 @@ window.IssueSelector = class IssueSelector {
      */
     startSelection() {
         console.log('Starting issue selection mode');
+
+        // If already in selection mode, don't create duplicate overlays
+        if (this.isSelectingIssue) {
+            console.log('Already in selection mode, ignoring duplicate call');
+            return;
+        }
+
         this.isSelectingIssue = true;
 
         // Don't reset selected issues when starting selection mode
@@ -2251,6 +2271,14 @@ window.IssueSelector = class IssueSelector {
         // Add cancel button for clarity
         this.createCancelButton();
 
+        // Update Select Issues button if it exists
+        const selectButton = document.getElementById('select-issues-button');
+        if (selectButton) {
+            selectButton.dataset.active = 'true';
+            selectButton.style.backgroundColor = '#28a745'; // Green when active
+            selectButton.textContent = '✓ Selecting...';
+        }
+
         console.log(`Selection mode started with ${currentSelection.length} issues`);
     }
 
@@ -2263,7 +2291,7 @@ window.IssueSelector = class IssueSelector {
         cancelButton.textContent = 'DONE';
         cancelButton.style.position = 'fixed';
         cancelButton.style.bottom = '20px';
-        cancelButton.style.right = '380px'; // Position next to the summary panel
+        cancelButton.style.right = '450px'; // Position next to the summary panel
         cancelButton.style.backgroundColor = '#6c757d';
         cancelButton.style.color = 'white';
         cancelButton.style.padding = '10px 20px';
@@ -2476,22 +2504,6 @@ window.IssueSelector = class IssueSelector {
     }
 
     /**
-     * Sync selection with BulkComments view
-     */
-    syncSelectionWithBulkCommentsView() {
-        try {
-            // Update the selection display
-            if (this.uiManager && this.uiManager.bulkCommentsView) {
-                this.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
-            } else if (window.uiManager && window.uiManager.bulkCommentsView) {
-                window.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
-            }
-        } catch (error) {
-            console.error('Error syncing selection with bulk comments view:', error);
-        }
-    }
-
-    /**
      * Get issue item from card using Vue component
      * @param {HTMLElement} boardCard - DOM element representing a board card
      * @returns {Object|null} - Issue item object or null if not found
@@ -2682,6 +2694,14 @@ window.IssueSelector = class IssueSelector {
 
         // We don't clear selectedIssues as we want to keep the current selection
 
+        // Update the Select Issues button if it exists
+        const selectButton = document.getElementById('select-issues-button');
+        if (selectButton) {
+            selectButton.dataset.active = 'false';
+            selectButton.style.backgroundColor = '#6c757d'; // Gray when inactive
+            selectButton.textContent = '📎 Select Issues';
+        }
+
         // Ensure selection is synced with bulk comments view
         this.syncSelectionWithBulkCommentsView();
 
@@ -2690,21 +2710,144 @@ window.IssueSelector = class IssueSelector {
             this.onSelectionComplete(this.selectedIssues);
         }
 
-        // Update status based on whether issues were selected
         const statusMsg = document.getElementById('comment-status');
         if (statusMsg) {
             if (this.selectedIssues.length > 0) {
-                statusMsg.textContent = `${this.selectedIssues.length} issues selected. Enter your comment and click "Add Comment".`;
-                statusMsg.style.color = 'green';
+                statusMsg.textContent = `${this.selectedIssues.length} issues selected.`;
+                statusMsg.style.color = '#28a745';
+                statusMsg.style.backgroundColor = '#f8f9fa';
+                statusMsg.style.border = '1px solid #e9ecef';
             } else {
-                statusMsg.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                statusMsg.textContent = 'No issues selected. Click "Select" to choose issues.';
                 statusMsg.style.color = '#666';
+                statusMsg.style.backgroundColor = '#f8f9fa';
+                statusMsg.style.border = '1px solid #e9ecef';
             }
         }
-
         console.log(`Selection mode exited with ${this.selectedIssues.length} issues selected`);
     }
 
+
+    toggleCardSelection(card, overlay) {
+        if (!this.isSelectingIssue) return;
+
+        // Get issue data from card
+        const issueItem = this.getIssueItemFromCard(card);
+
+        if (issueItem) {
+            console.log('Toggle selection for issue:', issueItem.iid);
+
+            // Check if already selected
+            const isSelected = overlay.dataset.selected === 'true';
+
+            if (isSelected) {
+                // Deselect
+                overlay.dataset.selected = 'false';
+                overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+                overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
+                overlay.style.boxShadow = 'none';
+
+                // Remove from selected issues
+                this.selectedIssues = this.selectedIssues.filter(issue =>
+                    !(issue.iid === issueItem.iid &&
+                        issue.referencePath === issueItem.referencePath)
+                );
+
+                // Remove from selected overlays
+                this.selectedOverlays = this.selectedOverlays.filter(o => o !== overlay);
+
+                // Remove badge
+                overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
+
+                // Renumber badges on remaining selected overlays
+                this.renumberBadges();
+            } else {
+                // Select
+                overlay.dataset.selected = 'true';
+                overlay.style.backgroundColor = 'rgba(0, 177, 106, 0.3)';
+                overlay.style.borderColor = 'rgba(0, 177, 106, 0.8)';
+                overlay.style.boxShadow = '0 0 12px rgba(0, 177, 106, 0.3)';
+
+                // Add number badge to indicate selection order
+                const badgeNumber = this.selectedIssues.length + 1;
+
+                const badge = document.createElement('div');
+                badge.className = 'selection-badge';
+                badge.textContent = badgeNumber;
+                badge.style.position = 'absolute';
+                badge.style.top = '-10px';
+                badge.style.right = '-10px';
+                badge.style.width = '20px';
+                badge.style.height = '20px';
+                badge.style.borderRadius = '50%';
+                badge.style.backgroundColor = 'rgba(0, 177, 106, 1)';
+                badge.style.color = 'white';
+                badge.style.display = 'flex';
+                badge.style.alignItems = 'center';
+                badge.style.justifyContent = 'center';
+                badge.style.fontWeight = 'bold';
+                badge.style.fontSize = '12px';
+                badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+
+                // Remove existing badge if any
+                overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
+                overlay.appendChild(badge);
+
+                // Add to selected issues
+                this.selectedIssues.push(issueItem);
+
+                // Add to selected overlays
+                this.selectedOverlays.push(overlay);
+            }
+
+            // Update the selection counter
+            this.updateSelectionCounter();
+
+            // Immediately update the BulkCommentsView UI to keep it in sync
+            this.syncSelectionWithBulkCommentsView();
+        } else {
+            console.error('Failed to get issue item from card');
+
+            // Visual feedback for failure
+            overlay.style.backgroundColor = 'rgba(220, 53, 69, 0.4)';
+            overlay.style.borderColor = 'rgba(220, 53, 69, 0.8)';
+
+            setTimeout(() => {
+                overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+                overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
+            }, 500);
+
+            // Update status message
+            const statusMsg = document.getElementById('comment-status');
+            if (statusMsg) {
+                statusMsg.textContent = 'Could not extract issue data from this card. Try another one.';
+                statusMsg.style.color = '#dc3545';
+            }
+        }
+    }
+
+    /**
+     * Sync selection with BulkComments view
+     */
+    syncSelectionWithBulkCommentsView() {
+        try {
+            // Update the selection display
+            if (this.uiManager && this.uiManager.bulkCommentsView) {
+                this.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
+            } else if (window.uiManager && window.uiManager.bulkCommentsView) {
+                window.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
+            } else {
+                const bulkCommentsView = document.querySelector('.bulk-comments-view');
+                if (bulkCommentsView && bulkCommentsView.__vue__ && bulkCommentsView.__vue__.setSelectedIssues) {
+                    bulkCommentsView.__vue__.setSelectedIssues([...this.selectedIssues]);
+                } else {
+                    console.warn('BulkCommentsView not found for synchronization');
+                }
+            }
+        } catch (error) {
+            console.error('Error syncing selection with bulk comments view:', error);
+        }
+    }
     /**
      * Reposition overlays when window is scrolled or resized
      * Only necessary if selection mode is active for a long time
@@ -2752,17 +2895,106 @@ window.IssueSelector = class IssueSelector {
      * @param {Array} issues - Array of issue objects
      */
     setSelectedIssues(issues) {
-        this.selectedIssues = issues || [];
+        // Make a defensive copy to prevent reference issues
+        this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
 
-        // Update the UI in bulk comments view
+        // If we're in selection mode, update the visual overlays to match the new selection
+        if (this.isSelectingIssue && this.selectionOverlays.length > 0) {
+            this.updateOverlaysFromSelection();
+        }
+
+        // Update status message if it exists
+        const statusEl = document.getElementById('comment-status');
+        if (statusEl && !this.isSelectingIssue) { // Only update if not in selection mode
+            const count = this.selectedIssues.length;
+            if (count > 0) {
+                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
+                statusEl.style.color = 'green';
+            } else {
+                statusEl.textContent = 'No issues selected. Click "Select" to choose issues.';
+                statusEl.style.color = '#666';
+            }
+        }
+
+        // Ensure other components are updated
         this.syncSelectionWithBulkCommentsView();
 
-        // Notify listeners of selection change if active
-        if (this.onSelectionChange) {
-            this.onSelectionChange(this.selectedIssues);
+        // Log for debugging
+        console.log(`IssueSelector: Set ${this.selectedIssues.length} selected issues`);
+    }
+    updateOverlaysFromSelection() {
+        if (!this.isSelectingIssue) return;
+
+        try {
+            // Reset all card overlays to unselected state
+            const cardOverlays = this.selectionOverlays.filter(o => o.className === 'card-selection-overlay');
+
+            cardOverlays.forEach(overlay => {
+                if (overlay.dataset && overlay.originalCard) {
+                    // Set to unselected state
+                    overlay.dataset.selected = 'false';
+                    overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+                    overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
+                    overlay.style.boxShadow = 'none';
+
+                    // Remove any existing badges
+                    overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
+                }
+            });
+
+            // Clear selected overlays
+            this.selectedOverlays = [];
+
+            // Now go through selected issues and update corresponding overlays
+            this.selectedIssues.forEach((issue, index) => {
+                if (!issue) return;
+
+                // Find the corresponding overlay for this issue
+                const matchingOverlay = cardOverlays.find(overlay => {
+                    if (!overlay.dataset || !overlay.dataset.issueId) return false;
+                    return overlay.dataset.issueId === `${issue.iid}-${issue.referencePath}`;
+                });
+
+                if (matchingOverlay) {
+                    // Mark as selected
+                    matchingOverlay.dataset.selected = 'true';
+                    matchingOverlay.style.backgroundColor = 'rgba(0, 177, 106, 0.3)';
+                    matchingOverlay.style.borderColor = 'rgba(0, 177, 106, 0.8)';
+                    matchingOverlay.style.boxShadow = '0 0 12px rgba(0, 177, 106, 0.3)';
+
+                    // Add badge with selection order
+                    const badgeNumber = index + 1;
+                    const badge = document.createElement('div');
+                    badge.className = 'selection-badge';
+                    badge.textContent = badgeNumber;
+                    badge.style.position = 'absolute';
+                    badge.style.top = '-10px';
+                    badge.style.right = '-10px';
+                    badge.style.width = '20px';
+                    badge.style.height = '20px';
+                    badge.style.borderRadius = '50%';
+                    badge.style.backgroundColor = 'rgba(0, 177, 106, 1)';
+                    badge.style.color = 'white';
+                    badge.style.display = 'flex';
+                    badge.style.alignItems = 'center';
+                    badge.style.justifyContent = 'center';
+                    badge.style.fontWeight = 'bold';
+                    badge.style.fontSize = '12px';
+                    badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+
+                    matchingOverlay.appendChild(badge);
+
+                    // Add to selected overlays
+                    this.selectedOverlays.push(matchingOverlay);
+                }
+            });
+
+            // Update the selection counter
+            this.updateSelectionCounter();
+        } catch (error) {
+            console.error('Error updating overlays from selection:', error);
         }
     }
-
     /**
      * Clear selected issues
      */
@@ -3734,6 +3966,11 @@ window.LabelManager = class LabelManager {
      * @returns {boolean} True if label matches whitelist
      */
     isLabelInWhitelist(labelName, whitelist = this.labelWhitelist) {
+        if (!Array.isArray(whitelist)) {
+            console.warn("Whitelist is not an array, using empty array instead");
+            whitelist = [];
+        }
+
         const lowerName = labelName.toLowerCase();
         return whitelist.some(term => lowerName.includes(term.toLowerCase()));
     }
@@ -5828,6 +6065,9 @@ window.SettingsManager = class SettingsManager {
      * @param {boolean} startExpanded - Whether section should start expanded
      */
     createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
+        // Always start collapsed regardless of passed parameter
+        startExpanded = false;
+
         // Create section container
         const section = document.createElement('div');
         section.className = 'settings-section';
@@ -5889,8 +6129,8 @@ window.SettingsManager = class SettingsManager {
         content.style.display = startExpanded ? 'block' : 'none';
         content.style.backgroundColor = 'white';
 
-        // Build content using the provided function
-        contentBuilder(content);
+        // Build content using the provided function (lazily load content only when opened)
+        let contentBuilt = false;
 
         // Add toggle behavior
         header.addEventListener('click', () => {
@@ -5898,6 +6138,12 @@ window.SettingsManager = class SettingsManager {
             content.style.display = isExpanded ? 'none' : 'block';
             toggle.textContent = isExpanded ? '▶' : '▼';
             header.style.borderBottom = isExpanded ? 'none' : '1px solid #ddd';
+
+            // Build content if this is the first time opening
+            if (!contentBuilt && !isExpanded) {
+                contentBuilder(content);
+                contentBuilt = true;
+            }
         });
 
         // Assemble section
@@ -5959,8 +6205,8 @@ window.SettingsManager = class SettingsManager {
         tabsContainer.style.marginBottom = '15px';
 
         const tabs = [
-            { id: 'whitelisted', label: 'My Assignees', active: true },
-            { id: 'available', label: 'Available Users', active: false }
+            {id: 'whitelisted', label: 'My Assignees', active: true},
+            {id: 'available', label: 'Available Users', active: false}
         ];
 
         const tabElements = {};
@@ -6304,12 +6550,12 @@ window.SettingsManager = class SettingsManager {
             if (pathInfo.type === 'project') {
                 users = await this.gitlabApi.callGitLabApi(
                     `projects/${pathInfo.encodedPath}/members`,
-                    { params: { per_page: 100 } }
+                    {params: {per_page: 100}}
                 );
             } else if (pathInfo.type === 'group') {
                 users = await this.gitlabApi.callGitLabApi(
                     `groups/${pathInfo.encodedPath}/members`,
-                    { params: { per_page: 100 } }
+                    {params: {per_page: 100}}
                 );
             }
 
@@ -6767,6 +7013,10 @@ window.SettingsManager = class SettingsManager {
      * Create whitelist editor with checkboxes for all available labels
      * @param {HTMLElement} container - Container to add whitelist editor to
      */
+    /**
+     * Create whitelist editor with checkboxes for all available labels
+     * @param {HTMLElement} container - Container to add whitelist editor to
+     */
     createWhitelistEditor(container) {
         // Add loading message
         const loadingMessage = document.createElement('div');
@@ -6788,20 +7038,31 @@ window.SettingsManager = class SettingsManager {
         // Load current whitelist
         const currentWhitelist = getLabelWhitelist();
 
+        // Fix: Ensure currentWhitelist is an array
+        if (!Array.isArray(currentWhitelist)) {
+            console.warn("Whitelist is not an array, using default");
+            currentWhitelist = [];
+        }
+
         // Get all available labels from API
         if (this.labelManager) {
             this.labelManager.fetchAllLabels().then(allLabels => {
                 // Remove loading message
                 loadingMessage.remove();
 
-                if (allLabels.length === 0) {
+                if (!allLabels || allLabels.length === 0) {
                     const noLabelsMessage = document.createElement('div');
-                    noLabelsMessage.textContent = 'No labels found. Try refreshing the page.';
+                    noLabelsMessage.textContent = 'No labels found. Showing whitelist terms instead.';
                     noLabelsMessage.style.width = '100%';
+                    noLabelsMessage.style.marginBottom = '15px';
                     whitelistContainer.appendChild(noLabelsMessage);
+
+                    // Show the current whitelist terms as checkboxes
+                    this.showWhitelistTermsOnly(whitelistContainer, currentWhitelist);
                     return;
                 }
 
+                // Continue with original code for showing labels...
                 // Sort labels alphabetically
                 allLabels.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -6866,11 +7127,22 @@ window.SettingsManager = class SettingsManager {
                 customInput.style.borderRadius = '4px';
                 customInput.style.border = '1px solid #ccc';
 
-                // Add custom terms from whitelist that aren't in labels
+                // Fixed - Add custom terms from whitelist that aren't in labels
                 const labelTerms = Array.from(seenLabels);
-                const customTerms = currentWhitelist.filter(term =>
-                    !labelTerms.some(label => label.includes(term))
-                );
+
+                // Filter custom terms safely with appropriate checks
+                let customTerms = [];
+                if (Array.isArray(currentWhitelist)) {
+                    customTerms = currentWhitelist.filter(term => {
+                        // Make sure term is a string
+                        if (typeof term !== 'string') return false;
+
+                        // Check if any label includes this term
+                        return !labelTerms.some(label =>
+                            label.includes(term.toLowerCase())
+                        );
+                    });
+                }
 
                 customInput.value = customTerms.join(', ');
 
@@ -6879,13 +7151,97 @@ window.SettingsManager = class SettingsManager {
                 whitelistContainer.appendChild(customInputContainer);
             }).catch(error => {
                 console.error('Error fetching labels for whitelist editor:', error);
-                loadingMessage.textContent = 'Error loading labels. Try refreshing the page.';
+                loadingMessage.textContent = 'Error loading labels. Using whitelist terms instead.';
                 loadingMessage.style.color = '#dc3545';
+
+                // Show the current whitelist terms
+                this.showWhitelistTermsOnly(whitelistContainer, currentWhitelist);
             });
         } else {
-            loadingMessage.textContent = 'Label manager not available.';
+            loadingMessage.textContent = 'Label manager not available. Using whitelist terms instead.';
             loadingMessage.style.color = '#dc3545';
+
+            // Show the current whitelist terms
+            this.showWhitelistTermsOnly(whitelistContainer, currentWhitelist);
         }
+    }
+
+    /*** Display only the whitelist terms when label manager isn't available
+     * @param {HTMLElement} container - Container element
+     * @param {Array} whitelist - Whitelist terms
+     */
+    showWhitelistTermsOnly(container, whitelist) {
+        // Ensure whitelist is an array
+        if (!Array.isArray(whitelist)) {
+            console.warn("Whitelist is not an array in showWhitelistTermsOnly");
+            whitelist = [];
+        }
+
+        // Create checkboxes for each whitelist term
+        whitelist.forEach(term => {
+            // Skip invalid terms
+            if (typeof term !== 'string') return;
+
+            // Create checkbox container
+            const checkboxContainer = document.createElement('div');
+            checkboxContainer.style.display = 'flex';
+            checkboxContainer.style.alignItems = 'center';
+            checkboxContainer.style.marginBottom = '10px';
+            checkboxContainer.style.width = 'calc(33.33% - 10px)'; // 3 columns with gap
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `label-${term}`;
+            checkbox.dataset.label = term.toLowerCase();
+            checkbox.style.marginRight = '8px';
+            checkbox.checked = true;
+
+            // Create label element
+            const labelElement = document.createElement('span');
+            labelElement.textContent = term;
+            labelElement.style.padding = '4px 8px';
+            labelElement.style.borderRadius = '100px';
+            labelElement.style.fontSize = '12px';
+            labelElement.style.fontWeight = '500';
+            labelElement.style.display = 'inline-block';
+            labelElement.style.margin = '2px';
+            labelElement.style.backgroundColor = generateColorFromString(term);
+            labelElement.style.color = getContrastColor(labelElement.style.backgroundColor);
+
+            // Make the label clickable to toggle the checkbox
+            labelElement.style.cursor = 'pointer';
+            labelElement.onclick = () => {
+                checkbox.checked = !checkbox.checked;
+            };
+
+            checkboxContainer.appendChild(checkbox);
+            checkboxContainer.appendChild(labelElement);
+            container.appendChild(checkboxContainer);
+        });
+
+        // Add custom input for adding custom terms
+        const customInputContainer = document.createElement('div');
+        customInputContainer.style.width = '100%';
+        customInputContainer.style.marginTop = '20px';
+        customInputContainer.style.padding = '15px';
+        customInputContainer.style.borderTop = '1px solid #ddd';
+
+        const customInputLabel = document.createElement('div');
+        customInputLabel.textContent = 'Add custom terms (comma separated):';
+        customInputLabel.style.marginBottom = '8px';
+        customInputLabel.style.fontWeight = 'bold';
+
+        const customInput = document.createElement('input');
+        customInput.type = 'text';
+        customInput.id = 'custom-whitelist-terms';
+        customInput.style.width = '100%';
+        customInput.style.padding = '8px';
+        customInput.style.borderRadius = '4px';
+        customInput.style.border = '1px solid #ccc';
+
+        customInputContainer.appendChild(customInputLabel);
+        customInputContainer.appendChild(customInput);
+        container.appendChild(customInputContainer);
     }
 
     /**
@@ -6893,12 +7249,17 @@ window.SettingsManager = class SettingsManager {
      */
     saveWhitelistSettings() {
         const newWhitelist = [];
+        const addedTerms = new Set(); // Track already added terms to prevent duplicates
 
         // Get all checked labels
         const checkboxes = document.querySelectorAll('#whitelist-container input[type="checkbox"]');
         checkboxes.forEach(checkbox => {
             if (checkbox.checked) {
-                newWhitelist.push(checkbox.dataset.label.toLowerCase());
+                const term = checkbox.dataset.label.toLowerCase();
+                if (!addedTerms.has(term)) {
+                    newWhitelist.push(term);
+                    addedTerms.add(term);
+                }
             }
         });
 
@@ -6907,8 +7268,9 @@ window.SettingsManager = class SettingsManager {
         if (customInput && customInput.value) {
             const customTerms = customInput.value.split(',').map(term => term.trim().toLowerCase());
             customTerms.forEach(term => {
-                if (term && !newWhitelist.includes(term)) {
+                if (term && !addedTerms.has(term)) {
                     newWhitelist.push(term);
+                    addedTerms.add(term);
                 }
             });
         }
@@ -6919,6 +7281,11 @@ window.SettingsManager = class SettingsManager {
         // Update label manager if available
         if (this.labelManager) {
             this.labelManager.saveWhitelist(newWhitelist);
+        }
+
+        // Show success notification
+        if (this.notification) {
+            this.notification.success(`Saved ${newWhitelist.length} whitelist terms`);
         }
 
         // Notify of change
@@ -7720,6 +8087,14 @@ window.BulkCommentsView = class BulkCommentsView {
     updateAssignShortcut(items) {
         if (!this.commandShortcuts) return;
 
+        // Store current selected value if there is one
+        let currentValue = null;
+        if (this.commandShortcuts.shortcuts &&
+            this.commandShortcuts.shortcuts['assign'] &&
+            this.commandShortcuts.shortcuts['assign'].dropdown) {
+            currentValue = this.commandShortcuts.shortcuts['assign'].dropdown.value;
+        }
+
         // First remove existing shortcut if it exists
         if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['assign']) {
             this.commandShortcuts.removeShortcut('assign');
@@ -7764,6 +8139,12 @@ window.BulkCommentsView = class BulkCommentsView {
                 }
             }
         });
+
+        // Restore selected value if it existed and is in the new items
+        if (currentValue && this.commandShortcuts.shortcuts['assign'] &&
+            this.commandShortcuts.shortcuts['assign'].dropdown) {
+            this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
+        }
     }
 
     /**
@@ -7818,41 +8199,6 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
     /**
-     * Handler when an issue is removed from the selection
-     * @param {number} index - Index of the removed issue
-     */
-    onRemoveIssue(index) {
-        if (this.selectedIssues.length > index) {
-            // Store the removed issue for debugging
-            const removedIssue = this.selectedIssues[index];
-
-            // Remove the issue
-            this.selectedIssues.splice(index, 1);
-
-            // Update UI manager's issue selector if available
-            if (this.uiManager && this.uiManager.issueSelector) {
-                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
-            }
-        }
-
-        // Update status message if it exists
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            const count = this.selectedIssues.length;
-            if (count > 0) {
-                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
-                statusEl.style.color = 'green';
-            } else {
-                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
-                statusEl.style.color = '#666';
-            }
-        }
-
-        // Log for debugging
-        console.log(`Removed issue at index ${index}, remaining: ${this.selectedIssues.length}`);
-    }
-
-    /**
      * Set multiple selected issues
      * @param {Array} issues - Array of selected issue objects
      */
@@ -7873,7 +8219,7 @@ window.BulkCommentsView = class BulkCommentsView {
                 statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected. Enter your comment and click "Add Comment".`;
                 statusEl.style.color = 'green';
             } else if (!this.isLoading) {
-                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                statusEl.textContent = 'No issues selected. Click "Select Issues".';
                 statusEl.style.color = '#666';
             }
         }
@@ -7881,6 +8227,46 @@ window.BulkCommentsView = class BulkCommentsView {
         // Log for debugging
         console.log(`BulkCommentsView: Set ${this.selectedIssues.length} selected issues`);
     }
+
+
+    /**
+     * Handler when an issue is removed from the selection
+     * @param {number} index - Index of the removed issue
+     */
+    onRemoveIssue(index) {
+        if (this.selectedIssues.length > index) {
+            // Store the removed issue for debugging
+            const removedIssue = this.selectedIssues[index];
+
+            // Remove the issue
+            this.selectedIssues.splice(index, 1);
+
+            // Update UI manager's issue selector if available
+            if (this.uiManager && this.uiManager.issueSelector) {
+                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+            } else if (window.uiManager && window.uiManager.issueSelector) {
+                // Try global uiManager as fallback
+                window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+            }
+        }
+
+        // Update status message if it exists
+        const statusEl = document.getElementById('comment-status');
+        if (statusEl) {
+            const count = this.selectedIssues.length;
+            if (count > 0) {
+                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
+                statusEl.style.color = 'green';
+            } else {
+                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                statusEl.style.color = '#666';
+            }
+        }
+
+        // Log for debugging
+        console.log(`Removed issue at index ${index}, remaining: ${this.selectedIssues.length}`);
+    }
+
 
     /**
      * Create action buttons (select, submit, clear)
@@ -7893,11 +8279,12 @@ window.BulkCommentsView = class BulkCommentsView {
         buttonContainer.style.gap = '8px';
         buttonContainer.style.marginBottom = '8px';
 
-        // Add select issues button
+        // Add select issues button with toggle functionality
         const selectBtn = document.createElement('button');
-        selectBtn.textContent = '📎 Select Issues';
+        selectBtn.id = 'select-issues-button';
+        selectBtn.textContent = 'Select'; // Simplified text
         selectBtn.style.padding = '8px 12px';
-        selectBtn.style.backgroundColor = '#6c757d';
+        selectBtn.style.backgroundColor = '#6c757d';  // Default gray
         selectBtn.style.color = 'white';
         selectBtn.style.border = 'none';
         selectBtn.style.borderRadius = '4px';
@@ -7907,20 +8294,38 @@ window.BulkCommentsView = class BulkCommentsView {
         selectBtn.style.display = 'flex';
         selectBtn.style.alignItems = 'center';
         selectBtn.style.justifyContent = 'center';
+        selectBtn.style.minWidth = '80px'; // Ensure consistent widths
 
         // Add hover effect
         selectBtn.addEventListener('mouseenter', () => {
-            selectBtn.style.backgroundColor = '#5a6268';
+            selectBtn.style.backgroundColor = selectBtn.dataset.active === 'true' ? '#218838' : '#5a6268';
         });
         selectBtn.addEventListener('mouseleave', () => {
-            selectBtn.style.backgroundColor = '#6c757d';
+            selectBtn.style.backgroundColor = selectBtn.dataset.active === 'true' ? '#28a745' : '#6c757d';
         });
 
         selectBtn.onclick = () => {
             if (this.uiManager && this.uiManager.issueSelector) {
-                // Pass the current selection to maintain it
-                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
-                this.uiManager.issueSelector.startSelection();
+                // Toggle selection mode
+                if (this.uiManager.issueSelector.isSelectingIssue) {
+                    // Currently active, so exit selection mode
+                    this.uiManager.issueSelector.exitSelectionMode();
+
+                    // Update button styling
+                    selectBtn.dataset.active = 'false';
+                    selectBtn.style.backgroundColor = '#6c757d'; // Gray when inactive
+                    selectBtn.textContent = 'Select';
+                } else {
+                    // Not active, so start selection mode
+                    // Pass the current selection to maintain it
+                    this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+                    this.uiManager.issueSelector.startSelection();
+
+                    // Update button styling
+                    selectBtn.dataset.active = 'true';
+                    selectBtn.style.backgroundColor = '#28a745'; // Green when active
+                    selectBtn.textContent = 'Done'; // Changed to "Done" when active
+                }
             } else {
                 console.error('Issue selector not initialized');
                 const statusEl = document.getElementById('comment-status');
@@ -7932,9 +8337,9 @@ window.BulkCommentsView = class BulkCommentsView {
         };
         buttonContainer.appendChild(selectBtn);
 
-        // Add comment button
+        // Add Save button (renamed from "Add Comment")
         const submitBtn = document.createElement('button');
-        submitBtn.textContent = '💬 Add Comment';
+        submitBtn.textContent = 'Send';  // Changed to clearer "Save" label
         submitBtn.style.padding = '8px 12px';
         submitBtn.style.backgroundColor = '#1f75cb';
         submitBtn.style.color = 'white';
@@ -7947,6 +8352,7 @@ window.BulkCommentsView = class BulkCommentsView {
         submitBtn.style.alignItems = 'center';
         submitBtn.style.justifyContent = 'center';
         submitBtn.style.flex = '1';
+        submitBtn.style.minWidth = '80px'; // Ensure consistent widths
 
         // Add hover effect
         submitBtn.addEventListener('mouseenter', () => {
@@ -7959,41 +8365,11 @@ window.BulkCommentsView = class BulkCommentsView {
         submitBtn.onclick = () => this.submitComments();
         buttonContainer.appendChild(submitBtn);
 
-        // Clear selection button
-        const clearBtn = document.createElement('button');
-        clearBtn.textContent = '🗑️ Clear';
-        clearBtn.style.padding = '8px 12px';
-        clearBtn.style.backgroundColor = '#dc3545';
-        clearBtn.style.color = 'white';
-        clearBtn.style.border = 'none';
-        clearBtn.style.borderRadius = '4px';
-        clearBtn.style.cursor = 'pointer';
-        clearBtn.style.fontSize = '14px';
-        clearBtn.style.transition = 'background-color 0.2s ease';
-        clearBtn.style.display = 'flex';
-        clearBtn.style.alignItems = 'center';
-        clearBtn.style.justifyContent = 'center';
-
-        // Add hover effect
-        clearBtn.addEventListener('mouseenter', () => {
-            clearBtn.style.backgroundColor = '#c82333';
-        });
-        clearBtn.addEventListener('mouseleave', () => {
-            clearBtn.style.backgroundColor = '#dc3545';
-        });
-
-        clearBtn.onclick = () => {
-            this.clearSelectedIssues();
-
-            // Also clear the selection in IssueSelector
-            if (this.uiManager && this.uiManager.issueSelector) {
-                this.uiManager.issueSelector.clearSelection();
-            }
-        };
-        buttonContainer.appendChild(clearBtn);
+        // Remove Clear button as requested
 
         container.appendChild(buttonContainer);
     }
+
 
     /**
      * Clear selected issues
@@ -8222,34 +8598,45 @@ window.BulkCommentsView = class BulkCommentsView {
      * @param {HTMLElement} container - Container element
      */
     createStatusElements(container) {
-        // Status message
+        // Status message with improved styling
         const statusMsg = document.createElement('div');
         statusMsg.id = 'comment-status';
-        statusMsg.style.fontSize = '12px';
-        statusMsg.style.marginTop = '5px';
-        statusMsg.style.fontStyle = 'italic';
+        statusMsg.style.fontSize = '13px';
+        statusMsg.style.marginTop = '10px';
+        statusMsg.style.padding = '8px 12px';
+        statusMsg.style.borderRadius = '4px';
+        statusMsg.style.backgroundColor = '#f8f9fa';
+        statusMsg.style.border = '1px solid #e9ecef';
+        statusMsg.style.textAlign = 'center';
+        statusMsg.style.color = '#666';
         statusMsg.textContent = 'Loading shortcuts...';
-        statusMsg.style.color = '#1f75cb';
         container.appendChild(statusMsg);
 
         // Progress bar container
         const progressContainer = document.createElement('div');
         progressContainer.id = 'comment-progress-container';
         progressContainer.style.display = 'none';
-        progressContainer.style.marginTop = '10px';
+        progressContainer.style.marginTop = '15px';
+        progressContainer.style.padding = '10px';
+        progressContainer.style.backgroundColor = '#f8f9fa';
+        progressContainer.style.borderRadius = '4px';
+        progressContainer.style.border = '1px solid #e9ecef';
 
         const progressLabel = document.createElement('div');
         progressLabel.id = 'comment-progress-label';
         progressLabel.textContent = 'Submitting comments...';
-        progressLabel.style.fontSize = '12px';
-        progressLabel.style.marginBottom = '5px';
+        progressLabel.style.fontSize = '13px';
+        progressLabel.style.marginBottom = '8px';
+        progressLabel.style.textAlign = 'center';
+        progressLabel.style.fontWeight = 'bold';
         progressContainer.appendChild(progressLabel);
 
         const progressBarOuter = document.createElement('div');
-        progressBarOuter.style.height = '10px';
+        progressBarOuter.style.height = '12px';
         progressBarOuter.style.backgroundColor = '#e9ecef';
-        progressBarOuter.style.borderRadius = '5px';
+        progressBarOuter.style.borderRadius = '6px';
         progressBarOuter.style.overflow = 'hidden';
+        progressBarOuter.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.1)';
 
         const progressBarInner = document.createElement('div');
         progressBarInner.id = 'comment-progress-bar';
@@ -8262,7 +8649,6 @@ window.BulkCommentsView = class BulkCommentsView {
         progressContainer.appendChild(progressBarOuter);
         container.appendChild(progressContainer);
     }
-
     /**
      * Show loading state for shortcuts
      */
@@ -8271,6 +8657,8 @@ window.BulkCommentsView = class BulkCommentsView {
         if (statusEl) {
             statusEl.textContent = 'Loading shortcuts...';
             statusEl.style.color = '#1f75cb';
+            statusEl.style.backgroundColor = '#f8f9fa';
+            statusEl.style.border = '1px solid #e9ecef';
         }
 
         // Disable comment input while loading
@@ -8299,10 +8687,14 @@ window.BulkCommentsView = class BulkCommentsView {
             const count = this.selectedIssues.length;
             if (count > 0) {
                 statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
-                statusEl.style.color = 'green';
-            } else {
-                statusEl.textContent = 'Ready. Select issues to add comments.';
                 statusEl.style.color = '#28a745';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
+            } else {
+                statusEl.textContent = 'Select issues to add comments.';
+                statusEl.style.color = '#666';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
             }
         }
 
@@ -8326,6 +8718,9 @@ window.BulkCommentsView = class BulkCommentsView {
     /**
      * Submit comments to all selected issues
      */
+    /**
+     * Submit comments to all selected issues
+     */
     async submitComments() {
         const commentEl = document.getElementById('issue-comment-input');
         const statusEl = document.getElementById('comment-status');
@@ -8338,6 +8733,9 @@ window.BulkCommentsView = class BulkCommentsView {
             if (statusEl) {
                 statusEl.textContent = 'Error: No issues selected.';
                 statusEl.style.color = '#dc3545';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
+                statusEl.style.textAlign = 'center';
             }
             return;
         }
@@ -8348,6 +8746,9 @@ window.BulkCommentsView = class BulkCommentsView {
             if (statusEl) {
                 statusEl.textContent = 'Error: Comment cannot be empty.';
                 statusEl.style.color = '#dc3545';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
+                statusEl.style.textAlign = 'center';
             }
             return;
         }
@@ -8356,6 +8757,9 @@ window.BulkCommentsView = class BulkCommentsView {
         if (statusEl) {
             statusEl.textContent = `Submitting comments to ${this.selectedIssues.length} issues...`;
             statusEl.style.color = '#1f75cb';
+            statusEl.style.backgroundColor = '#f8f9fa';
+            statusEl.style.border = '1px solid #e9ecef';
+            statusEl.style.textAlign = 'center';
         }
 
         progressContainer.style.display = 'block';
@@ -8363,7 +8767,7 @@ window.BulkCommentsView = class BulkCommentsView {
 
         // Disable submit button during operation
         const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
-            b.textContent && b.textContent.includes('Add Comment'));
+            b.textContent && b.textContent.includes('Send'));
 
         if (submitBtn) {
             submitBtn.disabled = true;
@@ -8382,6 +8786,9 @@ window.BulkCommentsView = class BulkCommentsView {
             if (statusEl) {
                 statusEl.textContent = 'Error: GitLab API not available.';
                 statusEl.style.color = '#dc3545';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
+                statusEl.style.textAlign = 'center';
             }
 
             if (submitBtn) {
@@ -8426,7 +8833,10 @@ window.BulkCommentsView = class BulkCommentsView {
         if (successCount === this.selectedIssues.length) {
             if (statusEl) {
                 statusEl.textContent = `Successfully added comment to all ${successCount} issues!`;
-                statusEl.style.color = 'green';
+                statusEl.style.color = '#28a745';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
+                statusEl.style.textAlign = 'center';
             }
 
             this.notification.success(`Added comment to ${successCount} issues`);
@@ -8446,15 +8856,28 @@ window.BulkCommentsView = class BulkCommentsView {
                     statusEl.textContent = '';
                 }
             }, 3000);
+
+            // Refresh the board by clicking the search button
+            setTimeout(() => {
+                this.refreshBoard();
+            }, 1000);
         } else {
             if (statusEl) {
                 statusEl.textContent = `Added comment to ${successCount} issues, failed for ${failCount} issues.`;
                 statusEl.style.color = successCount > 0 ? '#ff9900' : '#dc3545';
+                statusEl.style.backgroundColor = '#f8f9fa';
+                statusEl.style.border = '1px solid #e9ecef';
+                statusEl.style.textAlign = 'center';
             }
 
             // Show appropriate notification
             if (successCount > 0) {
                 this.notification.warning(`Added comment to ${successCount} issues, failed for ${failCount}`);
+
+                // Refresh the board even on partial success
+                setTimeout(() => {
+                    this.refreshBoard();
+                }, 1000);
             } else {
                 this.notification.error(`Failed to add comments to all ${failCount} issues`);
             }
@@ -8470,6 +8893,14 @@ window.BulkCommentsView = class BulkCommentsView {
      */
     addLabelShortcut(customLabels) {
         if (!this.commandShortcuts) return;
+
+        // Store current selected value if there is one
+        let currentValue = null;
+        if (this.commandShortcuts.shortcuts &&
+            this.commandShortcuts.shortcuts['label'] &&
+            this.commandShortcuts.shortcuts['label'].dropdown) {
+            currentValue = this.commandShortcuts.shortcuts['label'].dropdown.value;
+        }
 
         // Use provided labels, or try to get them from labelManager, or use fallbacks
         let labelItems;
@@ -8492,8 +8923,29 @@ window.BulkCommentsView = class BulkCommentsView {
             // Add custom option
             labelItems.push({ value: 'custom', label: 'Custom...' });
         } else {
-            // Fallback if no labels available
-            labelItems = this.getFallbackLabels();
+            // Try to get whitelist directly from settings storage
+            try {
+                const whitelist = getLabelWhitelist();
+                if (whitelist && whitelist.length > 0) {
+                    labelItems = [{ value: '', label: 'Add Label' }];
+
+                    // Convert whitelist terms to dropdown items
+                    const whitelistItems = whitelist.map(term => ({
+                        value: term,
+                        label: term
+                    }));
+
+                    labelItems = labelItems.concat(whitelistItems);
+                    labelItems.push({ value: 'custom', label: 'Custom...' });
+                } else {
+                    // Fallback if no whitelist available
+                    labelItems = this.getFallbackLabels();
+                }
+            } catch (e) {
+                console.error('Error getting label whitelist:', e);
+                // Fallback if error
+                labelItems = this.getFallbackLabels();
+            }
         }
 
         // First remove existing shortcut if it exists
@@ -8525,6 +8977,43 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.notification.info(`Label added: ${value}`);
             }
         });
+
+        // Restore selected value if it existed
+        if (currentValue && this.commandShortcuts.shortcuts['label'] &&
+            this.commandShortcuts.shortcuts['label'].dropdown) {
+            this.commandShortcuts.shortcuts['label'].dropdown.value = currentValue;
+        }
+    }
+
+    refreshBoard() {
+        try {
+            console.log('Refreshing board...');
+            // Find and click the search button to refresh
+            const searchButton = document.querySelector('.gl-search-box-by-click-search-button');
+            if (searchButton) {
+                searchButton.click();
+                console.log('Board refreshed successfully');
+            } else {
+                console.warn('Search button not found, trying alternative refresh method');
+                // Alternative refresh method: simulate pressing Enter in the search box
+                const searchInput = document.querySelector('.gl-search-box-by-click-input');
+                if (searchInput) {
+                    const event = new KeyboardEvent('keydown', {
+                        key: 'Enter',
+                        code: 'Enter',
+                        keyCode: 13,
+                        which: 13,
+                        bubbles: true
+                    });
+                    searchInput.dispatchEvent(event);
+                    console.log('Board refreshed using alternative method');
+                } else {
+                    console.error('Could not find search elements to refresh board');
+                }
+            }
+        } catch (e) {
+            console.error('Error refreshing board:', e);
+        }
     }
 }
 
