@@ -1,18 +1,25 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.9.2
+// @version      1.0.0
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration
 // @author       You
 // @match        https://gitlab.com/*/boards/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-idle
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui.js
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/dataProcessor.js
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/history.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/utils.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/api.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/dataProcessor.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/history.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/UIManager.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/TabManager.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/SummaryTabView.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/BoardsTabView.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/HistoryTabView.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/ApiTabView.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/IssueSelector.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui.js
 // @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
 // @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
 // ==/UserScript==
@@ -175,6 +182,7 @@
     // Expose functions globally for easier debugging
     window.gitlabHelper = {
         updateSummary,
-        gitlabApi
+        gitlabApi,
+        uiManager
     };
 })();
