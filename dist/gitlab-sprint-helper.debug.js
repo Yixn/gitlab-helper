@@ -1967,11 +1967,7 @@ window.CommandShortcut = class CommandShortcut {
 }
 
 // File: lib/ui/components/SelectionDisplay.js
-// SelectionDisplay.js - Handles display and management of selected issues
-
-/**
- * Component to display and manage selected issues
- */
+// SelectionDisplay.js - Improved to handle UI updates better
 window.SelectionDisplay = class SelectionDisplay {
     /**
      * Constructor for SelectionDisplay
@@ -1983,6 +1979,7 @@ window.SelectionDisplay = class SelectionDisplay {
         this.selectedIssues = options.selectedIssues || [];
         this.onRemoveIssue = options.onRemoveIssue || null;
         this.container = null;
+        this.issuesList = null;
     }
 
     /**
@@ -2014,13 +2011,11 @@ window.SelectionDisplay = class SelectionDisplay {
         selectedIssuesList.id = 'selected-issues-list';
         selectedIssuesList.style.fontSize = '14px';
 
+        // Store reference to the list for updates
+        this.issuesList = selectedIssuesList;
+
         // Display "No issues selected" initially
-        const noIssuesSelected = document.createElement('div');
-        noIssuesSelected.id = 'no-issues-selected';
-        noIssuesSelected.textContent = 'No issues selected';
-        noIssuesSelected.style.color = '#666';
-        noIssuesSelected.style.fontStyle = 'italic';
-        selectedIssuesList.appendChild(noIssuesSelected);
+        this.displayNoIssuesMessage();
 
         selectedIssuesContainer.appendChild(selectedIssuesList);
         container.appendChild(selectedIssuesContainer);
@@ -2030,27 +2025,42 @@ window.SelectionDisplay = class SelectionDisplay {
     }
 
     /**
+     * Display "No issues selected" message
+     */
+    displayNoIssuesMessage() {
+        if (!this.issuesList) return;
+
+        // Check if message already exists
+        const existingMessage = this.issuesList.querySelector('#no-issues-selected');
+        if (existingMessage) return;
+
+        const noIssuesSelected = document.createElement('div');
+        noIssuesSelected.id = 'no-issues-selected';
+        noIssuesSelected.textContent = 'No issues selected';
+        noIssuesSelected.style.color = '#666';
+        noIssuesSelected.style.fontStyle = 'italic';
+        this.issuesList.appendChild(noIssuesSelected);
+    }
+
+    /**
      * Update the display of selected issues
      */
     updateDisplay() {
-        const listEl = document.getElementById('selected-issues-list');
-        if (!listEl) return;
+        if (!this.issuesList) {
+            console.error('Issues list not initialized');
+            return;
+        }
 
         // Clear existing list
-        listEl.innerHTML = '';
+        this.issuesList.innerHTML = '';
 
         // If no issues are selected
         if (!this.selectedIssues || this.selectedIssues.length === 0) {
             // Show "No issues selected" message
-            const noIssues = document.createElement('div');
-            noIssues.id = 'no-issues-selected';
-            noIssues.textContent = 'No issues selected';
-            noIssues.style.color = '#666';
-            noIssues.style.fontStyle = 'italic';
-            listEl.appendChild(noIssues);
+            this.displayNoIssuesMessage();
 
             // Reset container styling
-            const container = listEl.parentElement;
+            const container = this.issuesList.parentElement;
             if (container) {
                 container.style.borderColor = '#ccc';
                 container.style.backgroundColor = '#f9f9f9';
@@ -2060,7 +2070,7 @@ window.SelectionDisplay = class SelectionDisplay {
         }
 
         // Enhance container styling when issues are selected
-        const container = listEl.parentElement;
+        const container = this.issuesList.parentElement;
         if (container) {
             container.style.borderColor = '#1f75cb';
             container.style.backgroundColor = 'rgba(31, 117, 203, 0.05)';
@@ -2068,6 +2078,9 @@ window.SelectionDisplay = class SelectionDisplay {
 
         // Create list of issues
         this.selectedIssues.forEach((issue, index) => {
+            // Skip null or undefined issues
+            if (!issue) return;
+
             const issueItem = document.createElement('div');
             issueItem.className = 'selected-issue-item';
             issueItem.style.padding = '5px';
@@ -2079,7 +2092,10 @@ window.SelectionDisplay = class SelectionDisplay {
             issueItem.style.alignItems = 'center';
 
             const issueInfo = document.createElement('div');
-            issueInfo.innerHTML = `<strong>#${issue.iid}</strong> - ${issue.title || 'Untitled Issue'}`;
+            // Use safe access to issue properties
+            const issueId = issue.iid || 'Unknown';
+            const issueTitle = issue.title || 'Untitled Issue';
+            issueInfo.innerHTML = `<strong>#${issueId}</strong> - ${issueTitle}`;
             issueInfo.style.overflow = 'hidden';
             issueInfo.style.textOverflow = 'ellipsis';
             issueInfo.style.whiteSpace = 'nowrap';
@@ -2114,8 +2130,11 @@ window.SelectionDisplay = class SelectionDisplay {
             };
 
             issueItem.appendChild(removeBtn);
-            listEl.appendChild(issueItem);
+            this.issuesList.appendChild(issueItem);
         });
+
+        // Log for debugging
+        console.log(`Updated selection display with ${this.selectedIssues.length} issues`);
     }
 
     /**
@@ -2124,13 +2143,22 @@ window.SelectionDisplay = class SelectionDisplay {
      */
     removeIssue(index) {
         if (index >= 0 && index < this.selectedIssues.length) {
+            // Store the issue before removing for logging
+            const removedIssue = this.selectedIssues[index];
+
+            // Remove the issue
             this.selectedIssues.splice(index, 1);
+
+            // Update display
             this.updateDisplay();
 
             // Call callback if provided
             if (typeof this.onRemoveIssue === 'function') {
                 this.onRemoveIssue(index);
             }
+
+            // Log for debugging
+            console.log(`Removed issue at index ${index}:`, removedIssue);
         }
     }
 
@@ -2139,8 +2167,14 @@ window.SelectionDisplay = class SelectionDisplay {
      * @param {Array} issues - Array of issue objects to display
      */
     setSelectedIssues(issues) {
-        this.selectedIssues = issues || [];
+        // Make a copy of the array to avoid reference issues
+        this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
+
+        // Update the display
         this.updateDisplay();
+
+        // Log for debugging
+        console.log(`Set ${this.selectedIssues.length} selected issues`);
     }
 
     /**
@@ -2148,16 +2182,12 @@ window.SelectionDisplay = class SelectionDisplay {
      * @returns {Array} Currently selected issues
      */
     getSelectedIssues() {
-        return this.selectedIssues;
+        return [...this.selectedIssues];
     }
 }
 
 // File: lib/ui/components/IssueSelector.js
-// IssueSelector.js - Handles multi-issue selection from board cards
-
-/**
- * Component for selecting multiple issues from GitLab board cards
- */
+// Complete IssueSelector with UI update fixes
 window.IssueSelector = class IssueSelector {
     /**
      * Constructor for IssueSelector
@@ -2167,6 +2197,7 @@ window.IssueSelector = class IssueSelector {
      * @param {Array} options.initialSelection - Initial selection of issues
      */
     constructor(options = {}) {
+        this.uiManager = options.uiManager;
         this.onSelectionChange = options.onSelectionChange || null;
         this.onSelectionComplete = options.onSelectionComplete || null;
 
@@ -2283,29 +2314,6 @@ window.IssueSelector = class IssueSelector {
 
         document.body.appendChild(selectionCounter);
         this.selectionOverlays.push(selectionCounter);
-    }
-
-    /**
-     * Update selection counter
-     */
-    updateSelectionCounter() {
-        const counter = document.getElementById('selection-counter');
-        if (counter) {
-            const count = this.selectedIssues.length;
-            counter.textContent = `${count} issue${count !== 1 ? 's' : ''} selected`;
-
-            // Change color based on selection count
-            if (count > 0) {
-                counter.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
-            } else {
-                counter.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-            }
-        }
-
-        // Notify listeners of selection change
-        if (typeof this.onSelectionChange === 'function') {
-            this.onSelectionChange(this.selectedIssues);
-        }
     }
 
     /**
@@ -2439,6 +2447,48 @@ window.IssueSelector = class IssueSelector {
         this.updateSelectionCounter();
 
         console.log(`Created ${this.selectionOverlays.length} selection overlays`);
+    }
+
+    /**
+     * Update selection counter
+     */
+    updateSelectionCounter() {
+        const counter = document.getElementById('selection-counter');
+        if (counter) {
+            const count = this.selectedIssues.length;
+            counter.textContent = `${count} issue${count !== 1 ? 's' : ''} selected`;
+
+            // Change color based on selection count
+            if (count > 0) {
+                counter.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
+            } else {
+                counter.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            }
+        }
+
+        // Notify listeners of selection change
+        if (typeof this.onSelectionChange === 'function') {
+            this.onSelectionChange(this.selectedIssues);
+        }
+
+        // Update the selection display in bulk comments view
+        this.syncSelectionWithBulkCommentsView();
+    }
+
+    /**
+     * Sync selection with BulkComments view
+     */
+    syncSelectionWithBulkCommentsView() {
+        try {
+            // Update the selection display
+            if (this.uiManager && this.uiManager.bulkCommentsView) {
+                this.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
+            } else if (window.uiManager && window.uiManager.bulkCommentsView) {
+                window.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
+            }
+        } catch (error) {
+            console.error('Error syncing selection with bulk comments view:', error);
+        }
     }
 
     /**
@@ -2632,6 +2682,9 @@ window.IssueSelector = class IssueSelector {
 
         // We don't clear selectedIssues as we want to keep the current selection
 
+        // Ensure selection is synced with bulk comments view
+        this.syncSelectionWithBulkCommentsView();
+
         // Call completion callback if provided
         if (typeof this.onSelectionComplete === 'function') {
             this.onSelectionComplete(this.selectedIssues);
@@ -2701,6 +2754,9 @@ window.IssueSelector = class IssueSelector {
     setSelectedIssues(issues) {
         this.selectedIssues = issues || [];
 
+        // Update the UI in bulk comments view
+        this.syncSelectionWithBulkCommentsView();
+
         // Notify listeners of selection change if active
         if (this.onSelectionChange) {
             this.onSelectionChange(this.selectedIssues);
@@ -2713,20 +2769,12 @@ window.IssueSelector = class IssueSelector {
     clearSelection() {
         this.selectedIssues = [];
 
+        // Update the UI in bulk comments view
+        this.syncSelectionWithBulkCommentsView();
+
         // Notify listeners of selection change
         if (this.onSelectionChange) {
             this.onSelectionChange(this.selectedIssues);
-        }
-    }
-    /**
-     * Sync selection with BulkComments tab (previously API tab)
-     */
-    syncSelectionWithApiTab() {
-        // Pass the selected issues to the BulkComments tab in real-time
-        if (this.uiManager && this.uiManager.bulkCommentsView) {
-            this.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
-        } else {
-            console.warn('Failed to sync with BulkComments tab - bulkCommentsView not found');
         }
     }
 }
@@ -3644,7 +3692,8 @@ window.LabelManager = class LabelManager {
      * @param {GitLabAPI} options.gitlabApi - GitLab API instance
      */
     constructor(options = {}) {
-        this.gitlabApi = options.gitlabApi;
+        // Try to get gitlabApi from options or from window global
+        this.gitlabApi = options.gitlabApi || window.gitlabApi;
         this.onLabelsLoaded = options.onLabelsLoaded || null;
 
         // Load saved whitelist
@@ -3721,6 +3770,11 @@ window.LabelManager = class LabelManager {
             this.isLoading = true;
 
             // Check if GitLab API instance is available
+            // If not, try to get it from the window object as a last resort
+            if (!this.gitlabApi) {
+                this.gitlabApi = window.gitlabApi;
+            }
+
             if (!this.gitlabApi) {
                 console.warn('GitLab API instance not available, using fallback labels');
                 this.isLoading = false;
@@ -3728,6 +3782,7 @@ window.LabelManager = class LabelManager {
                 return this.addFallbackLabels();
             }
 
+            // Rest of the method remains the same...
             // Get path info (project or group)
             const pathInfo = getPathFromUrl();
 
@@ -3759,7 +3814,6 @@ window.LabelManager = class LabelManager {
             return this.addFallbackLabels();
         }
     }
-
     /**
      * Get labels for dropdown
      * @param {boolean} includeEmpty - Whether to include empty option
@@ -5606,11 +5660,13 @@ window.SettingsManager = class SettingsManager {
      * @param {Object} options - Configuration options
      * @param {Object} options.labelManager - Label manager instance
      * @param {Object} options.assigneeManager - Assignee manager instance
+     * @param {Object} options.gitlabApi - GitLab API instance
      * @param {Function} options.onSettingsChanged - Callback when settings change
      */
     constructor(options = {}) {
         this.labelManager = options.labelManager;
         this.assigneeManager = options.assigneeManager;
+        this.gitlabApi = options.gitlabApi || window.gitlabApi;
         this.onSettingsChanged = options.onSettingsChanged || null;
 
         // Create notification instance for feedback
@@ -5618,49 +5674,14 @@ window.SettingsManager = class SettingsManager {
             position: 'bottom-right',
             duration: 3000
         });
+
+        // Store fetched assignees
+        this.availableAssignees = [];
+        this.isLoadingAssignees = false;
     }
 
     /**
-     * Add settings button to the UI
-     * @param {HTMLElement} container - Container to add settings button to
-     * @returns {HTMLElement} The created settings button
-     */
-    addSettingsButton(container) {
-        const settingsButton = document.createElement('button');
-        settingsButton.textContent = '⚙️ Settings';
-        settingsButton.style.padding = '6px 10px';
-        settingsButton.style.backgroundColor = '#6c757d';
-        settingsButton.style.color = 'white';
-        settingsButton.style.border = 'none';
-        settingsButton.style.borderRadius = '4px';
-        settingsButton.style.cursor = 'pointer';
-        settingsButton.style.fontSize = '12px';
-        settingsButton.style.display = 'flex';
-        settingsButton.style.alignItems = 'center';
-        settingsButton.style.marginLeft = 'auto';
-
-        // Add hover effect
-        settingsButton.addEventListener('mouseenter', () => {
-            settingsButton.style.backgroundColor = '#5a6268';
-        });
-
-        settingsButton.addEventListener('mouseleave', () => {
-            settingsButton.style.backgroundColor = '#6c757d';
-        });
-
-        // Open settings modal on click
-        settingsButton.onclick = () => this.openSettingsModal();
-
-        // Add to container if provided
-        if (container) {
-            container.appendChild(settingsButton);
-        }
-
-        return settingsButton;
-    }
-
-    /**
-     * Create and open settings modal
+     * Create and open settings modal with enhanced UI
      */
     openSettingsModal() {
         // Create modal overlay (background)
@@ -5713,85 +5734,33 @@ window.SettingsManager = class SettingsManager {
         modalHeader.appendChild(modalTitle);
         modalHeader.appendChild(closeButton);
 
-        // Create tabs for different settings categories
-        const tabsContainer = document.createElement('div');
-        tabsContainer.style.display = 'flex';
-        tabsContainer.style.borderBottom = '1px solid #dee2e6';
-        tabsContainer.style.marginBottom = '20px';
+        // Create content container
+        const contentContainer = document.createElement('div');
 
-        const tabs = [
-            { id: 'labels', label: 'Labels', active: true },
-            { id: 'assignees', label: 'Assignees', active: false },
-            { id: 'appearance', label: 'Appearance', active: false }
-        ];
+        // Create collapsible sections
+        this.createCollapsibleSection(
+            contentContainer,
+            'Assignees',
+            'Manage assignees for quick access in comments',
+            (container) => this.createAssigneeSettings(container),
+            true // Start expanded
+        );
 
-        const tabElements = {};
-        const contentElements = {};
+        this.createCollapsibleSection(
+            contentContainer,
+            'Labels',
+            'Manage which labels appear in the dropdown menus',
+            (container) => this.createLabelWhitelistSettings(container),
+            false // Start collapsed
+        );
 
-        // Create tab elements
-        tabs.forEach(tab => {
-            const tabElement = document.createElement('div');
-            tabElement.textContent = tab.label;
-            tabElement.style.padding = '10px 15px';
-            tabElement.style.cursor = 'pointer';
-            tabElement.style.transition = 'all 0.2s ease';
-
-            if (tab.active) {
-                tabElement.style.borderBottom = '2px solid #1f75cb';
-                tabElement.style.fontWeight = 'bold';
-            }
-
-            // Add hover effect
-            tabElement.addEventListener('mouseenter', () => {
-                if (!tab.active) {
-                    tabElement.style.backgroundColor = '#f5f5f5';
-                }
-            });
-
-            tabElement.addEventListener('mouseleave', () => {
-                if (!tab.active) {
-                    tabElement.style.backgroundColor = '';
-                }
-            });
-
-            // Add click handler
-            tabElement.addEventListener('click', () => {
-                // Deactivate all tabs
-                tabs.forEach(t => {
-                    tabElements[t.id].style.borderBottom = 'none';
-                    tabElements[t.id].style.fontWeight = 'normal';
-                    tabElements[t.id].style.backgroundColor = '';
-                    contentElements[t.id].style.display = 'none';
-                    t.active = false;
-                });
-
-                // Activate clicked tab
-                tabElement.style.borderBottom = '2px solid #1f75cb';
-                tabElement.style.fontWeight = 'bold';
-                contentElements[tab.id].style.display = 'block';
-                tab.active = true;
-            });
-
-            tabsContainer.appendChild(tabElement);
-            tabElements[tab.id] = tabElement;
-        });
-
-        // Create content containers for each tab
-        tabs.forEach(tab => {
-            const contentElement = document.createElement('div');
-            contentElement.style.display = tab.active ? 'block' : 'none';
-
-            contentElements[tab.id] = contentElement;
-        });
-
-        // Add content to label tab
-        this.createLabelWhitelistSettings(contentElements['labels']);
-
-        // Add content to assignee tab
-        this.createAssigneeSettings(contentElements['assignees']);
-
-        // Add content to appearance tab
-        this.createAppearanceSettings(contentElements['appearance']);
+        this.createCollapsibleSection(
+            contentContainer,
+            'Appearance',
+            'Customize the appearance of GitLab Sprint Helper',
+            (container) => this.createAppearanceSettings(container),
+            false // Start collapsed
+        );
 
         // Add button container at bottom
         const buttonContainer = document.createElement('div');
@@ -5837,13 +5806,7 @@ window.SettingsManager = class SettingsManager {
 
         // Assemble the modal
         modalContent.appendChild(modalHeader);
-        modalContent.appendChild(tabsContainer);
-
-        // Add content elements to modal
-        Object.values(contentElements).forEach(element => {
-            modalContent.appendChild(element);
-        });
-
+        modalContent.appendChild(contentContainer);
         modalContent.appendChild(buttonContainer);
         modalOverlay.appendChild(modalContent);
         document.body.appendChild(modalOverlay);
@@ -5854,6 +5817,804 @@ window.SettingsManager = class SettingsManager {
                 modalOverlay.remove();
             }
         });
+    }
+
+    /**
+     * Create a collapsible section
+     * @param {HTMLElement} container - Parent container
+     * @param {string} title - Section title
+     * @param {string} description - Section description
+     * @param {Function} contentBuilder - Function that builds the section content
+     * @param {boolean} startExpanded - Whether section should start expanded
+     */
+    createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
+        // Create section container
+        const section = document.createElement('div');
+        section.className = 'settings-section';
+        section.style.marginBottom = '15px';
+        section.style.border = '1px solid #ddd';
+        section.style.borderRadius = '6px';
+        section.style.overflow = 'hidden';
+
+        // Create header/toggle
+        const header = document.createElement('div');
+        header.className = 'settings-section-header';
+        header.style.padding = '12px 15px';
+        header.style.backgroundColor = '#f8f9fa';
+        header.style.borderBottom = startExpanded ? '1px solid #ddd' : 'none';
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+        header.style.cursor = 'pointer';
+        header.style.transition = 'background-color 0.2s ease';
+
+        // Add hover effect
+        header.addEventListener('mouseenter', () => {
+            header.style.backgroundColor = '#e9ecef';
+        });
+        header.addEventListener('mouseleave', () => {
+            header.style.backgroundColor = '#f8f9fa';
+        });
+
+        // Title container
+        const titleContainer = document.createElement('div');
+
+        const titleEl = document.createElement('h4');
+        titleEl.textContent = title;
+        titleEl.style.margin = '0';
+        titleEl.style.fontSize = '16px';
+
+        const descEl = document.createElement('div');
+        descEl.textContent = description;
+        descEl.style.fontSize = '13px';
+        descEl.style.color = '#6c757d';
+        descEl.style.marginTop = '4px';
+
+        titleContainer.appendChild(titleEl);
+        titleContainer.appendChild(descEl);
+
+        // Toggle indicator
+        const toggle = document.createElement('span');
+        toggle.textContent = startExpanded ? '▼' : '▶';
+        toggle.style.fontSize = '14px';
+        toggle.style.transition = 'transform 0.3s ease';
+
+        header.appendChild(titleContainer);
+        header.appendChild(toggle);
+
+        // Create content container
+        const content = document.createElement('div');
+        content.className = 'settings-section-content';
+        content.style.padding = '15px';
+        content.style.display = startExpanded ? 'block' : 'none';
+        content.style.backgroundColor = 'white';
+
+        // Build content using the provided function
+        contentBuilder(content);
+
+        // Add toggle behavior
+        header.addEventListener('click', () => {
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            toggle.textContent = isExpanded ? '▶' : '▼';
+            header.style.borderBottom = isExpanded ? 'none' : '1px solid #ddd';
+        });
+
+        // Assemble section
+        section.appendChild(header);
+        section.appendChild(content);
+        container.appendChild(section);
+
+        return section;
+    }
+
+    /**
+     * Create enhanced assignee settings section
+     * @param {HTMLElement} container - Container to add settings to
+     */
+    createAssigneeSettings(container) {
+        const assigneeSection = document.createElement('div');
+
+        // Create top actions row
+        const actionsRow = document.createElement('div');
+        actionsRow.style.display = 'flex';
+        actionsRow.style.justifyContent = 'space-between';
+        actionsRow.style.marginBottom = '15px';
+        actionsRow.style.gap = '10px';
+
+        // Create search input
+        const searchContainer = document.createElement('div');
+        searchContainer.style.flex = '1';
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search assignees...';
+        searchInput.style.width = '100%';
+        searchInput.style.padding = '8px 10px';
+        searchInput.style.borderRadius = '4px';
+        searchInput.style.border = '1px solid #ccc';
+
+        searchContainer.appendChild(searchInput);
+
+        // Create fetch button
+        const fetchButton = document.createElement('button');
+        fetchButton.textContent = 'Fetch GitLab Users';
+        fetchButton.style.padding = '8px 12px';
+        fetchButton.style.backgroundColor = '#1f75cb';
+        fetchButton.style.color = 'white';
+        fetchButton.style.border = 'none';
+        fetchButton.style.borderRadius = '4px';
+        fetchButton.style.cursor = 'pointer';
+        fetchButton.onclick = () => this.fetchGitLabUsers(assigneeListContainer);
+
+        actionsRow.appendChild(searchContainer);
+        actionsRow.appendChild(fetchButton);
+
+        assigneeSection.appendChild(actionsRow);
+
+        // Create tabs for Whitelisted vs. Available
+        const tabsContainer = document.createElement('div');
+        tabsContainer.style.display = 'flex';
+        tabsContainer.style.borderBottom = '1px solid #dee2e6';
+        tabsContainer.style.marginBottom = '15px';
+
+        const tabs = [
+            { id: 'whitelisted', label: 'My Assignees', active: true },
+            { id: 'available', label: 'Available Users', active: false }
+        ];
+
+        const tabElements = {};
+        const tabContents = {};
+
+        // Create tab buttons
+        tabs.forEach(tab => {
+            const tabElement = document.createElement('div');
+            tabElement.textContent = tab.label;
+            tabElement.style.padding = '8px 15px';
+            tabElement.style.cursor = 'pointer';
+            tabElement.style.transition = 'all 0.2s ease';
+
+            if (tab.active) {
+                tabElement.style.borderBottom = '2px solid #1f75cb';
+                tabElement.style.fontWeight = 'bold';
+            }
+
+            // Add hover effect
+            tabElement.addEventListener('mouseenter', () => {
+                if (!tab.active) {
+                    tabElement.style.backgroundColor = '#f5f5f5';
+                }
+            });
+
+            tabElement.addEventListener('mouseleave', () => {
+                if (!tab.active) {
+                    tabElement.style.backgroundColor = '';
+                }
+            });
+
+            // Handle tab clicks
+            tabElement.addEventListener('click', () => {
+                // Deactivate all tabs
+                tabs.forEach(t => {
+                    t.active = false;
+                    tabElements[t.id].style.borderBottom = 'none';
+                    tabElements[t.id].style.fontWeight = 'normal';
+                    tabElements[t.id].style.backgroundColor = '';
+                    tabContents[t.id].style.display = 'none';
+                });
+
+                // Activate clicked tab
+                tab.active = true;
+                tabElement.style.borderBottom = '2px solid #1f75cb';
+                tabElement.style.fontWeight = 'bold';
+                tabContents[tab.id].style.display = 'block';
+
+                // Special handling for available users tab - fetch if empty
+                if (tab.id === 'available' && this.availableAssignees.length === 0) {
+                    this.fetchGitLabUsers(availableListContainer);
+                }
+            });
+
+            tabElements[tab.id] = tabElement;
+            tabsContainer.appendChild(tabElement);
+        });
+
+        assigneeSection.appendChild(tabsContainer);
+
+        // Create content containers for each tab
+        const whitelistedContent = document.createElement('div');
+        whitelistedContent.style.display = 'block';
+
+        const availableContent = document.createElement('div');
+        availableContent.style.display = 'none';
+
+        // Populate whitelisted assignees
+        const assigneeListContainer = document.createElement('div');
+        assigneeListContainer.style.maxHeight = '300px';
+        assigneeListContainer.style.overflowY = 'auto';
+        assigneeListContainer.style.border = '1px solid #eee';
+        assigneeListContainer.style.borderRadius = '4px';
+
+        // Create empty message function
+        const createEmptyMessage = () => {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
+            emptyMessage.style.padding = '15px';
+            emptyMessage.style.color = '#666';
+            emptyMessage.style.fontStyle = 'italic';
+            emptyMessage.style.textAlign = 'center';
+            return emptyMessage;
+        };
+
+        // Get whitelist from the assignee manager if available
+        let assignees = [];
+        if (this.assigneeManager) {
+            assignees = this.assigneeManager.getAssigneeWhitelist();
+        } else {
+            assignees = getAssigneeWhitelist();
+        }
+
+        // Populate whitelist
+        if (assignees.length > 0) {
+            assignees.forEach((assignee, index) => {
+                assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
+            });
+        } else {
+            assigneeListContainer.appendChild(createEmptyMessage());
+        }
+
+        whitelistedContent.appendChild(assigneeListContainer);
+
+        // Add manual assignee form to whitelisted tab
+        whitelistedContent.appendChild(this.createAddAssigneeForm(assigneeListContainer, createEmptyMessage));
+
+        // Create available users container
+        const availableListContainer = document.createElement('div');
+        availableListContainer.className = 'available-assignees-list';
+        availableListContainer.style.maxHeight = '400px';
+        availableListContainer.style.overflowY = 'auto';
+        availableListContainer.style.border = '1px solid #eee';
+        availableListContainer.style.borderRadius = '4px';
+
+        // Add loading or empty message initially
+        const availableEmptyMessage = document.createElement('div');
+        availableEmptyMessage.textContent = 'Click "Fetch GitLab Users" to load available assignees.';
+        availableEmptyMessage.style.padding = '15px';
+        availableEmptyMessage.style.color = '#666';
+        availableEmptyMessage.style.fontStyle = 'italic';
+        availableEmptyMessage.style.textAlign = 'center';
+
+        availableListContainer.appendChild(availableEmptyMessage);
+        availableContent.appendChild(availableListContainer);
+
+        // Store references to content containers
+        tabContents['whitelisted'] = whitelistedContent;
+        tabContents['available'] = availableContent;
+
+        // Add content containers to section
+        assigneeSection.appendChild(whitelistedContent);
+        assigneeSection.appendChild(availableContent);
+
+        // Add search functionality
+        searchInput.addEventListener('input', () => {
+            const searchText = searchInput.value.toLowerCase();
+            const activeTab = tabs.find(t => t.active).id;
+
+            // Determine which list to search based on active tab
+            const list = activeTab === 'whitelisted' ? assigneeListContainer : availableListContainer;
+            const items = list.querySelectorAll('.assignee-item');
+
+            // Filter items
+            items.forEach(item => {
+                const nameEl = item.querySelector('.assignee-name');
+                const usernameEl = item.querySelector('.assignee-username');
+
+                if (!nameEl || !usernameEl) return;
+
+                const name = nameEl.textContent.toLowerCase();
+                const username = usernameEl.textContent.toLowerCase();
+
+                if (name.includes(searchText) || username.includes(searchText)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+
+        container.appendChild(assigneeSection);
+    }
+
+    /**
+     * Create form to add assignees manually
+     * @param {HTMLElement} listContainer - Container for assignee list
+     * @param {Function} createEmptyMessage - Function to create empty message
+     * @returns {HTMLElement} Form container
+     */
+    createAddAssigneeForm(listContainer, createEmptyMessage) {
+        const addForm = document.createElement('div');
+        addForm.style.marginTop = '15px';
+        addForm.style.padding = '15px';
+        addForm.style.backgroundColor = '#f8f9fa';
+        addForm.style.borderRadius = '4px';
+
+        const formTitle = document.createElement('h5');
+        formTitle.textContent = 'Add New Assignee';
+        formTitle.style.marginTop = '0';
+        formTitle.style.marginBottom = '10px';
+
+        // Create name field
+        const nameContainer = document.createElement('div');
+        nameContainer.style.marginBottom = '10px';
+
+        const nameLabel = document.createElement('label');
+        nameLabel.textContent = 'Display Name:';
+        nameLabel.style.display = 'block';
+        nameLabel.style.marginBottom = '5px';
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'John Doe';
+        nameInput.style.width = '100%';
+        nameInput.style.padding = '6px 10px';
+        nameInput.style.borderRadius = '4px';
+        nameInput.style.border = '1px solid #ccc';
+
+        nameContainer.appendChild(nameLabel);
+        nameContainer.appendChild(nameInput);
+
+        // Create username field
+        const usernameContainer = document.createElement('div');
+        usernameContainer.style.marginBottom = '15px';
+
+        const usernameLabel = document.createElement('label');
+        usernameLabel.textContent = 'GitLab Username:';
+        usernameLabel.style.display = 'block';
+        usernameLabel.style.marginBottom = '5px';
+
+        const usernameInput = document.createElement('input');
+        usernameInput.type = 'text';
+        usernameInput.placeholder = 'username (without @)';
+        usernameInput.style.width = '100%';
+        usernameInput.style.padding = '6px 10px';
+        usernameInput.style.borderRadius = '4px';
+        usernameInput.style.border = '1px solid #ccc';
+
+        usernameContainer.appendChild(usernameLabel);
+        usernameContainer.appendChild(usernameInput);
+
+        // Create button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.justifyContent = 'flex-end';
+
+        const addButton = document.createElement('button');
+        addButton.textContent = 'Add Assignee';
+        addButton.style.padding = '6px 12px';
+        addButton.style.backgroundColor = '#28a745';
+        addButton.style.color = 'white';
+        addButton.style.border = 'none';
+        addButton.style.borderRadius = '4px';
+        addButton.style.cursor = 'pointer';
+
+        addButton.onclick = () => {
+            const name = nameInput.value.trim();
+            const username = usernameInput.value.trim();
+
+            if (!username) {
+                this.notification.error('Username is required');
+                return;
+            }
+
+            // Add to whitelist
+            const newAssignee = {
+                name: name || username,
+                username: username
+            };
+
+            // Check if we should use the assigneeManager
+            if (this.assigneeManager) {
+                this.assigneeManager.addAssignee(newAssignee);
+            } else {
+                // Direct add to whitelist
+                const assignees = getAssigneeWhitelist();
+                const existingIndex = assignees.findIndex(a => a.username === username);
+
+                if (existingIndex >= 0) {
+                    // Update existing
+                    assignees[existingIndex] = newAssignee;
+                } else {
+                    // Add new
+                    assignees.push(newAssignee);
+                }
+
+                // Save whitelist
+                saveAssigneeWhitelist(assignees);
+            }
+
+            // Refresh the list
+            const emptyMessage = listContainer.querySelector('div[style*="italic"]');
+            if (emptyMessage) {
+                emptyMessage.remove();
+            }
+
+            // Add the new assignee to the list
+            const assignees = getAssigneeWhitelist();
+            listContainer.appendChild(this.createAssigneeListItem(
+                newAssignee,
+                assignees.length - 1,
+                listContainer,
+                createEmptyMessage
+            ));
+
+            // Clear inputs
+            nameInput.value = '';
+            usernameInput.value = '';
+
+            // Show success message
+            this.notification.success(`Added assignee: ${newAssignee.name}`);
+
+            // Notify of change
+            if (this.onSettingsChanged) {
+                this.onSettingsChanged('assignees');
+            }
+        };
+
+        buttonContainer.appendChild(addButton);
+
+        // Assemble the form
+        addForm.appendChild(formTitle);
+        addForm.appendChild(nameContainer);
+        addForm.appendChild(usernameContainer);
+        addForm.appendChild(buttonContainer);
+
+        return addForm;
+    }
+
+    /**
+     * Fetch GitLab users from API
+     * @param {HTMLElement} container - Container to display users in
+     */
+    async fetchGitLabUsers(container) {
+        if (!this.gitlabApi) {
+            this.notification.error('GitLab API not available');
+            return;
+        }
+
+        // Show loading state
+        this.isLoadingAssignees = true;
+        container.innerHTML = '';
+
+        const loadingMessage = document.createElement('div');
+        loadingMessage.textContent = 'Loading users from GitLab...';
+        loadingMessage.style.padding = '15px';
+        loadingMessage.style.textAlign = 'center';
+        container.appendChild(loadingMessage);
+
+        try {
+            // Get path info for current project/group
+            const pathInfo = getPathFromUrl();
+
+            if (!pathInfo) {
+                throw new Error('Could not determine project/group path');
+            }
+
+            // Fetch users based on path info
+            let users = [];
+            if (pathInfo.type === 'project') {
+                users = await this.gitlabApi.callGitLabApi(
+                    `projects/${pathInfo.encodedPath}/members`,
+                    { params: { per_page: 100 } }
+                );
+            } else if (pathInfo.type === 'group') {
+                users = await this.gitlabApi.callGitLabApi(
+                    `groups/${pathInfo.encodedPath}/members`,
+                    { params: { per_page: 100 } }
+                );
+            }
+
+            // Process and store users
+            this.availableAssignees = users.map(user => ({
+                id: user.id,
+                name: user.name,
+                username: user.username,
+                avatar_url: user.avatar_url
+            }));
+
+            // Display users
+            this.renderAvailableUsers(container);
+
+        } catch (error) {
+            console.error('Error fetching GitLab users:', error);
+
+            container.innerHTML = '';
+            const errorMessage = document.createElement('div');
+            errorMessage.textContent = `Error loading users: ${error.message}`;
+            errorMessage.style.padding = '15px';
+            errorMessage.style.color = '#dc3545';
+            errorMessage.style.textAlign = 'center';
+            container.appendChild(errorMessage);
+
+            this.notification.error('Failed to load GitLab users');
+        } finally {
+            this.isLoadingAssignees = false;
+        }
+    }
+
+    /**
+     * Render available users in container
+     * @param {HTMLElement} container - Container to render users in
+     */
+    renderAvailableUsers(container) {
+        // Clear container
+        container.innerHTML = '';
+
+        // Get current whitelist for comparison
+        const whitelist = getAssigneeWhitelist();
+        const whitelistUsernames = whitelist.map(a => a.username.toLowerCase());
+
+        if (this.availableAssignees.length === 0) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.textContent = 'No users found. Try fetching again.';
+            emptyMessage.style.padding = '15px';
+            emptyMessage.style.color = '#666';
+            emptyMessage.style.fontStyle = 'italic';
+            emptyMessage.style.textAlign = 'center';
+            container.appendChild(emptyMessage);
+            return;
+        }
+
+        // Sort users alphabetically
+        this.availableAssignees.sort((a, b) => a.name.localeCompare(b.name));
+
+        // Create user items
+        this.availableAssignees.forEach(user => {
+            const isWhitelisted = whitelistUsernames.includes(user.username.toLowerCase());
+
+            const userItem = document.createElement('div');
+            userItem.className = 'assignee-item';
+            userItem.style.display = 'flex';
+            userItem.style.justifyContent = 'space-between';
+            userItem.style.alignItems = 'center';
+            userItem.style.padding = '10px 15px';
+            userItem.style.borderBottom = '1px solid #eee';
+            userItem.style.backgroundColor = isWhitelisted ? 'rgba(40, 167, 69, 0.05)' : '';
+
+            // User info section
+            const userInfo = document.createElement('div');
+            userInfo.style.display = 'flex';
+            userInfo.style.alignItems = 'center';
+
+            // Avatar
+            if (user.avatar_url) {
+                const avatar = document.createElement('img');
+                avatar.src = user.avatar_url;
+                avatar.style.width = '30px';
+                avatar.style.height = '30px';
+                avatar.style.borderRadius = '50%';
+                avatar.style.marginRight = '10px';
+                userInfo.appendChild(avatar);
+            } else {
+                // Placeholder avatar
+                const avatarPlaceholder = document.createElement('div');
+                avatarPlaceholder.style.width = '30px';
+                avatarPlaceholder.style.height = '30px';
+                avatarPlaceholder.style.borderRadius = '50%';
+                avatarPlaceholder.style.backgroundColor = '#e0e0e0';
+                avatarPlaceholder.style.display = 'flex';
+                avatarPlaceholder.style.alignItems = 'center';
+                avatarPlaceholder.style.justifyContent = 'center';
+                avatarPlaceholder.style.marginRight = '10px';
+                avatarPlaceholder.style.fontWeight = 'bold';
+                avatarPlaceholder.style.color = '#666';
+
+                // Get initials
+                const name = user.name || user.username;
+                const initials = name.split(' ')
+                    .map(part => part.charAt(0))
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase();
+
+                avatarPlaceholder.textContent = initials;
+                userInfo.appendChild(avatarPlaceholder);
+            }
+
+            // User details
+            const userDetails = document.createElement('div');
+
+            const userName = document.createElement('div');
+            userName.className = 'assignee-name';
+            userName.textContent = user.name;
+            userName.style.fontWeight = 'bold';
+
+            const userUsername = document.createElement('div');
+            userUsername.className = 'assignee-username';
+            userUsername.textContent = `@${user.username}`;
+            userUsername.style.fontSize = '12px';
+            userUsername.style.color = '#666';
+
+            userDetails.appendChild(userName);
+            userDetails.appendChild(userUsername);
+            userInfo.appendChild(userDetails);
+
+            // Action button
+            const actionButton = document.createElement('button');
+
+            if (isWhitelisted) {
+                actionButton.textContent = 'Added ✓';
+                actionButton.style.backgroundColor = '#e9ecef';
+                actionButton.style.color = '#28a745';
+                actionButton.style.cursor = 'default';
+            } else {
+                actionButton.textContent = 'Add';
+                actionButton.style.backgroundColor = '#28a745';
+                actionButton.style.color = 'white';
+                actionButton.style.cursor = 'pointer';
+
+                // Add event listener
+                actionButton.addEventListener('click', () => {
+                    // Add to whitelist
+                    const assignee = {
+                        name: user.name,
+                        username: user.username
+                    };
+
+                    if (this.assigneeManager) {
+                        this.assigneeManager.addAssignee(assignee);
+                    } else {
+                        const whitelist = getAssigneeWhitelist();
+                        whitelist.push(assignee);
+                        saveAssigneeWhitelist(whitelist);
+                    }
+
+                    // Update UI
+                    actionButton.textContent = 'Added ✓';
+                    actionButton.style.backgroundColor = '#e9ecef';
+                    actionButton.style.color = '#28a745';
+                    actionButton.style.cursor = 'default';
+                    userItem.style.backgroundColor = 'rgba(40, 167, 69, 0.05)';
+
+                    // Show notification
+                    this.notification.success(`Added ${user.name} to assignees`);
+
+                    // Notify of change
+                    if (this.onSettingsChanged) {
+                        this.onSettingsChanged('assignees');
+                    }
+                });
+            }
+
+            actionButton.style.padding = '5px 10px';
+            actionButton.style.border = 'none';
+            actionButton.style.borderRadius = '4px';
+            actionButton.style.fontSize = '12px';
+
+            userItem.appendChild(userInfo);
+            userItem.appendChild(actionButton);
+            container.appendChild(userItem);
+        });
+    }
+
+    /**
+     * Create an assignee list item
+     * @param {Object} assignee - Assignee object
+     * @param {number} index - Index in the list
+     * @param {HTMLElement} listContainer - List container
+     * @param {Function} createEmptyMessage - Function to create empty message
+     * @returns {HTMLElement} Assignee list item
+     */
+    createAssigneeListItem(assignee, index, listContainer, createEmptyMessage) {
+        const item = document.createElement('div');
+        item.className = 'assignee-item';
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
+        item.style.padding = '10px 15px';
+        item.style.borderBottom = '1px solid #eee';
+
+        // Create assignee info
+        const info = document.createElement('div');
+        info.style.display = 'flex';
+        info.style.alignItems = 'center';
+
+        // Create avatar placeholder
+        const avatar = document.createElement('div');
+        avatar.style.width = '30px';
+        avatar.style.height = '30px';
+        avatar.style.borderRadius = '50%';
+        avatar.style.backgroundColor = '#e0e0e0';
+        avatar.style.display = 'flex';
+        avatar.style.alignItems = 'center';
+        avatar.style.justifyContent = 'center';
+        avatar.style.marginRight = '10px';
+        avatar.style.fontWeight = 'bold';
+        avatar.style.color = '#666';
+
+        // Get initials
+        const name = assignee.name || assignee.username;
+        const initials = name.split(' ')
+            .map(part => part.charAt(0))
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
+
+        avatar.textContent = initials;
+        info.appendChild(avatar);
+
+        // Create name container
+        const nameContainer = document.createElement('div');
+
+        const displayName = document.createElement('div');
+        displayName.className = 'assignee-name';
+        displayName.textContent = assignee.name || assignee.username;
+        displayName.style.fontWeight = 'bold';
+
+        const username = document.createElement('div');
+        username.className = 'assignee-username';
+        username.textContent = `@${assignee.username}`;
+        username.style.fontSize = '12px';
+        username.style.color = '#666';
+
+        nameContainer.appendChild(displayName);
+        nameContainer.appendChild(username);
+        info.appendChild(nameContainer);
+
+        // Create buttons container
+        const buttons = document.createElement('div');
+
+        const removeButton = document.createElement('button');
+        removeButton.textContent = 'Remove';
+        removeButton.style.padding = '5px 10px';
+        removeButton.style.backgroundColor = '#dc3545';
+        removeButton.style.color = 'white';
+        removeButton.style.border = 'none';
+        removeButton.style.borderRadius = '4px';
+        removeButton.style.cursor = 'pointer';
+        removeButton.style.fontSize = '12px';
+
+        removeButton.onclick = () => {
+            // Get current assignees
+            let assignees = [];
+
+            if (this.assigneeManager) {
+                this.assigneeManager.removeAssignee(assignee.username);
+                assignees = this.assigneeManager.getAssigneeWhitelist();
+            } else {
+                assignees = getAssigneeWhitelist();
+                // Remove assignee
+                const filteredAssignees = assignees.filter(a =>
+                    a.username.toLowerCase() !== assignee.username.toLowerCase()
+                );
+                // Save whitelist
+                saveAssigneeWhitelist(filteredAssignees);
+                assignees = filteredAssignees;
+            }
+
+            // Remove from list
+            item.remove();
+
+            // Show empty message if no assignees left
+            if (assignees.length === 0) {
+                listContainer.appendChild(createEmptyMessage());
+            }
+
+            // Show success message
+            this.notification.info(`Removed assignee: ${assignee.name || assignee.username}`);
+
+            // Notify of change
+            if (this.onSettingsChanged) {
+                this.onSettingsChanged('assignees');
+            }
+        };
+
+        buttons.appendChild(removeButton);
+
+        // Assemble item
+        item.appendChild(info);
+        item.appendChild(buttons);
+
+        return item;
     }
 
     /**
@@ -5934,303 +6695,6 @@ window.SettingsManager = class SettingsManager {
         whitelistSection.appendChild(labelButtonContainer);
 
         container.appendChild(whitelistSection);
-    }
-
-    /**
-     * Create assignee settings section
-     * @param {HTMLElement} container - Container to add settings to
-     */
-    createAssigneeSettings(container) {
-        const assigneeSection = document.createElement('div');
-
-        const title = document.createElement('h4');
-        title.textContent = 'Manage Assignees';
-        title.style.marginBottom = '10px';
-
-        const description = document.createElement('p');
-        description.textContent = 'Add assignees that will appear in the assignee dropdown. These users will be available for quick assignment to issues.';
-        description.style.marginBottom = '15px';
-        description.style.fontSize = '14px';
-        description.style.color = '#666';
-
-        assigneeSection.appendChild(title);
-        assigneeSection.appendChild(description);
-
-        // Get assignee whitelist
-        const assignees = getAssigneeWhitelist();
-
-        // Create assignee list
-        const assigneeList = document.createElement('div');
-        assigneeList.style.marginBottom = '20px';
-        assigneeList.style.maxHeight = '300px';
-        assigneeList.style.overflowY = 'auto';
-        assigneeList.style.border = '1px solid #eee';
-        assigneeList.style.borderRadius = '4px';
-
-        // Create function for empty message
-        const createEmptyMessage = () => {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.textContent = 'No assignees added yet. Add some below.';
-            emptyMessage.style.padding = '10px';
-            emptyMessage.style.fontStyle = 'italic';
-            emptyMessage.style.color = '#666';
-            return emptyMessage;
-        };
-
-        // Add assignees to list
-        if (assignees.length > 0) {
-            assignees.forEach((assignee, index) => {
-                assigneeList.appendChild(this.createAssigneeListItem(assignee, index, assigneeList, createEmptyMessage));
-            });
-        } else {
-            assigneeList.appendChild(createEmptyMessage());
-        }
-
-        assigneeSection.appendChild(assigneeList);
-
-        // Create add assignee form
-        const addForm = document.createElement('div');
-        addForm.style.marginTop = '20px';
-        addForm.style.padding = '15px';
-        addForm.style.backgroundColor = '#f8f9fa';
-        addForm.style.borderRadius = '4px';
-
-        const formTitle = document.createElement('h5');
-        formTitle.textContent = 'Add New Assignee';
-        formTitle.style.marginBottom = '10px';
-
-        // Create name field
-        const nameContainer = document.createElement('div');
-        nameContainer.style.marginBottom = '10px';
-
-        const nameLabel = document.createElement('label');
-        nameLabel.textContent = 'Display Name:';
-        nameLabel.style.display = 'block';
-        nameLabel.style.marginBottom = '5px';
-
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.placeholder = 'John Doe';
-        nameInput.style.width = '100%';
-        nameInput.style.padding = '6px 8px';
-        nameInput.style.borderRadius = '4px';
-        nameInput.style.border = '1px solid #ccc';
-
-        nameContainer.appendChild(nameLabel);
-        nameContainer.appendChild(nameInput);
-
-        // Create username field
-        const usernameContainer = document.createElement('div');
-        usernameContainer.style.marginBottom = '15px';
-
-        const usernameLabel = document.createElement('label');
-        usernameLabel.textContent = 'GitLab Username:';
-        usernameLabel.style.display = 'block';
-        usernameLabel.style.marginBottom = '5px';
-
-        const usernameInput = document.createElement('input');
-        usernameInput.type = 'text';
-        usernameInput.placeholder = 'username (without @)';
-        usernameInput.style.width = '100%';
-        usernameInput.style.padding = '6px 8px';
-        usernameInput.style.borderRadius = '4px';
-        usernameInput.style.border = '1px solid #ccc';
-
-        usernameContainer.appendChild(usernameLabel);
-        usernameContainer.appendChild(usernameInput);
-
-        // Create button container
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
-
-        const addButton = document.createElement('button');
-        addButton.textContent = 'Add Assignee';
-        addButton.style.padding = '6px 12px';
-        addButton.style.backgroundColor = '#28a745';
-        addButton.style.color = 'white';
-        addButton.style.border = 'none';
-        addButton.style.borderRadius = '4px';
-        addButton.style.cursor = 'pointer';
-
-        addButton.onclick = () => {
-            const name = nameInput.value.trim();
-            const username = usernameInput.value.trim();
-
-            if (!username) {
-                this.notification.error('Username is required');
-                return;
-            }
-
-            // Add to whitelist
-            const newAssignee = {
-                name: name || username,
-                username: username
-            };
-
-            // Check if already exists
-            const assignees = getAssigneeWhitelist();
-            const existingIndex = assignees.findIndex(a => a.username === username);
-
-            if (existingIndex >= 0) {
-                // Update existing
-                assignees[existingIndex] = newAssignee;
-            } else {
-                // Add new
-                assignees.push(newAssignee);
-            }
-
-            // Save whitelist
-            saveAssigneeWhitelist(assignees);
-
-            // Refresh the list
-            const emptyMessage = assigneeList.querySelector('div[style*="italic"]');
-            if (emptyMessage) {
-                assigneeList.removeChild(emptyMessage);
-            }
-
-            // Add the new assignee to the list
-            assigneeList.appendChild(this.createAssigneeListItem(
-                newAssignee,
-                assignees.length - 1,
-                assigneeList,
-                createEmptyMessage
-            ));
-
-            // Clear inputs
-            nameInput.value = '';
-            usernameInput.value = '';
-
-            // Show success message
-            this.notification.success(`Added assignee: ${newAssignee.name}`);
-
-            // Notify of change
-            if (this.onSettingsChanged) {
-                this.onSettingsChanged('assignees');
-            }
-        };
-
-        buttonContainer.appendChild(addButton);
-
-        // Assemble the form
-        addForm.appendChild(formTitle);
-        addForm.appendChild(nameContainer);
-        addForm.appendChild(usernameContainer);
-        addForm.appendChild(buttonContainer);
-
-        assigneeSection.appendChild(addForm);
-
-        container.appendChild(assigneeSection);
-    }
-
-    /**
-     * Create an assignee list item
-     * @param {Object} assignee - Assignee object
-     * @param {number} index - Index in the list
-     * @param {HTMLElement} listContainer - List container
-     * @param {Function} createEmptyMessage - Function to create empty message
-     * @returns {HTMLElement} Assignee list item
-     */
-    createAssigneeListItem(assignee, index, listContainer, createEmptyMessage) {
-        const item = document.createElement('div');
-        item.style.display = 'flex';
-        item.style.justifyContent = 'space-between';
-        item.style.alignItems = 'center';
-        item.style.padding = '10px';
-        item.style.borderBottom = '1px solid #eee';
-
-        // Create assignee info
-        const info = document.createElement('div');
-        info.style.display = 'flex';
-        info.style.alignItems = 'center';
-
-        // Create avatar placeholder
-        const avatar = document.createElement('div');
-        avatar.style.width = '32px';
-        avatar.style.height = '32px';
-        avatar.style.borderRadius = '50%';
-        avatar.style.backgroundColor = '#e0e0e0';
-        avatar.style.display = 'flex';
-        avatar.style.alignItems = 'center';
-        avatar.style.justifyContent = 'center';
-        avatar.style.marginRight = '10px';
-        avatar.style.fontWeight = 'bold';
-        avatar.style.color = '#666';
-
-        // Get initials
-        const name = assignee.name || assignee.username;
-        const initials = name.split(' ')
-            .map(part => part.charAt(0))
-            .slice(0, 2)
-            .join('')
-            .toUpperCase();
-
-        avatar.textContent = initials;
-
-        // Create name container
-        const nameContainer = document.createElement('div');
-
-        const displayName = document.createElement('div');
-        displayName.textContent = assignee.name || assignee.username;
-        displayName.style.fontWeight = 'bold';
-
-        const username = document.createElement('div');
-        username.textContent = `@${assignee.username}`;
-        username.style.fontSize = '12px';
-        username.style.color = '#666';
-
-        nameContainer.appendChild(displayName);
-        nameContainer.appendChild(username);
-
-        info.appendChild(avatar);
-        info.appendChild(nameContainer);
-
-        // Create buttons
-        const buttons = document.createElement('div');
-
-        const removeButton = document.createElement('button');
-        removeButton.textContent = 'Remove';
-        removeButton.style.padding = '3px 8px';
-        removeButton.style.backgroundColor = '#dc3545';
-        removeButton.style.color = 'white';
-        removeButton.style.border = 'none';
-        removeButton.style.borderRadius = '3px';
-        removeButton.style.cursor = 'pointer';
-
-        removeButton.onclick = () => {
-            // Get current assignees
-            const assignees = getAssigneeWhitelist();
-
-            // Remove assignee
-            assignees.splice(index, 1);
-
-            // Save whitelist
-            saveAssigneeWhitelist(assignees);
-
-            // Remove from list
-            item.remove();
-
-            // Show empty message if no assignees left
-            if (assignees.length === 0) {
-                listContainer.appendChild(createEmptyMessage());
-            }
-
-            // Show success message
-            this.notification.info(`Removed assignee: ${assignee.name || assignee.username}`);
-
-            // Notify of change
-            if (this.onSettingsChanged) {
-                this.onSettingsChanged('assignees');
-            }
-        };
-
-        buttons.appendChild(removeButton);
-
-        // Assemble item
-        item.appendChild(info);
-        item.appendChild(buttons);
-
-        return item;
     }
 
     /**
@@ -6496,13 +6960,6 @@ window.SettingsManager = class SettingsManager {
         }
     }
 
-    /**
-     * Show notification that settings were saved
-     * @param {string} message - Message to display
-     */
-    showSettingsSavedNotification(message = 'Settings saved successfully!') {
-        this.notification.success(message);
-    }
 }
 
 // File: lib/ui/views/SummaryView.js
@@ -7063,6 +7520,10 @@ window.BulkCommentsView = class BulkCommentsView {
      * Constructor for BulkCommentsView
      * @param {Object} uiManager - Reference to the main UI manager
      */
+    /**
+     * Constructor for BulkCommentsView
+     * @param {Object} uiManager - Reference to the main UI manager
+     */
     constructor(uiManager) {
         this.uiManager = uiManager;
         this.selectedIssues = []; // Store selected issues
@@ -7071,7 +7532,7 @@ window.BulkCommentsView = class BulkCommentsView {
         this.initializedShortcuts = new Set(); // Track which shortcuts have been initialized
 
         // Get the GitLab API instance from the window object or uiManager
-        const gitlabApi = window.gitlabApi || (uiManager && uiManager.gitlabApi);
+        this.gitlabApi = window.gitlabApi || (uiManager && uiManager.gitlabApi);
 
         // Create a notification instance
         this.notification = new Notification({
@@ -7079,167 +7540,33 @@ window.BulkCommentsView = class BulkCommentsView {
             duration: 3000
         });
 
-        // Initialize managers with proper dependencies
-        this.labelManager = new LabelManager({
-            gitlabApi: gitlabApi,
-            onLabelsLoaded: (labels) => {
-                console.log('Labels loaded:', labels.length);
-                // Refresh shortcuts when labels are loaded
-                if (this.commandShortcuts) {
-                    this.addLabelShortcut();
+        // Important: Initialize labelManager manually if it's not in uiManager
+        if (uiManager && uiManager.labelManager) {
+            this.labelManager = uiManager.labelManager;
+        } else if (typeof LabelManager === 'function') {
+            // Make sure LabelManager is imported and available
+            this.labelManager = new LabelManager({
+                gitlabApi: this.gitlabApi,
+                onLabelsLoaded: (labels) => {
+                    if (this.commandShortcuts) {
+                        this.addLabelShortcut();
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            // Create a simple placeholder that won't cause errors
+            this.labelManager = {
+                filteredLabels: [],
+                fetchAllLabels: () => Promise.resolve([])
+            };
+        }
 
-        // Initialize the selection display with proper configuration
+        // Initialize the selection display
         this.selectionDisplay = new SelectionDisplay({
             selectedIssues: this.selectedIssues,
             onRemoveIssue: (index) => this.onRemoveIssue(index)
         });
     }
-
-    /**
-     * Handler when an issue is removed from the selection
-     * @param {number} index - Index of the removed issue
-     */
-    onRemoveIssue(index) {
-        if (this.selectedIssues.length > index) {
-            this.selectedIssues.splice(index, 1);
-        }
-
-        // Update status message if it exists
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            const count = this.selectedIssues.length;
-            if (count > 0) {
-                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
-                statusEl.style.color = 'green';
-            } else {
-                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
-                statusEl.style.color = '#666';
-            }
-        }
-    }
-
-    /**
-     * Render the Bulk Comments tab
-     */
-    render() {
-        const bulkCommentsContent = document.getElementById('bulk-comments-content');
-        if (!bulkCommentsContent) return;
-
-        // Clear previous content
-        bulkCommentsContent.innerHTML = '';
-
-        // Add comment section
-        this.addCommentSection(bulkCommentsContent);
-    }
-
-    /**
-     * Add comment utility section to Bulk Comments tab
-     * @param {HTMLElement} container - Container element
-     */
-    addCommentSection(container) {
-        // Create comment tool section
-        const commentSection = document.createElement('div');
-        commentSection.classList.add('api-section');
-        commentSection.style.marginBottom = '15px';
-        commentSection.style.padding = '10px';
-        commentSection.style.backgroundColor = '#f5f5f5';
-        commentSection.style.borderRadius = '8px';
-        commentSection.style.border = '1px solid #e0e0e0';
-
-        // Add selected issues container
-        this.selectionDisplay.createSelectionContainer(commentSection);
-
-        // Add comment input with shortcuts
-        this.createCommentInput(commentSection);
-
-        // Add action buttons
-        this.createActionButtons(commentSection);
-
-        // Add status and progress elements
-        this.createStatusElements(commentSection);
-
-        // Show loading state
-        this.isLoading = true;
-        this.showLoadingState();
-
-        // Initialize the shortcuts
-        setTimeout(() => {
-            this.initializeAllShortcuts();
-
-            // Fetch labels in the background
-            this.labelManager.fetchAllLabels()
-                .then(() => {
-                    // Once labels are loaded, refresh the label shortcut
-                    this.addLabelShortcut();
-                    this.isLoading = false;
-                    this.hideLoadingState();
-                })
-                .catch(error => {
-                    console.error('Error loading labels:', error);
-                    this.isLoading = false;
-                    this.hideLoadingState();
-                });
-        }, 100);
-
-        container.appendChild(commentSection);
-    }
-
-    /**
-     * Create comment input and initialize shortcuts
-     * @param {HTMLElement} container - Container element
-     */
-    createCommentInput(container) {
-        // Create a wrapper for shortcuts that's full width
-        const shortcutsWrapper = document.createElement('div');
-        shortcutsWrapper.id = 'shortcuts-wrapper';
-        shortcutsWrapper.style.width = '100%';
-        shortcutsWrapper.style.marginBottom = '15px';
-        container.appendChild(shortcutsWrapper);
-
-        // Comment textarea with improved styling
-        const commentInput = document.createElement('textarea');
-        commentInput.id = 'issue-comment-input';
-        commentInput.placeholder = 'Enter your comment here...';
-        commentInput.style.width = '100%';
-        commentInput.style.padding = '8px';
-        commentInput.style.marginBottom = '12px';
-        commentInput.style.borderRadius = '4px';
-        commentInput.style.border = '1px solid #ccc';
-        commentInput.style.minHeight = '60px';
-        commentInput.style.fontSize = '14px';
-        commentInput.style.transition = 'border-color 0.2s ease';
-        commentInput.style.resize = 'vertical';
-
-        // Add focus effect
-        commentInput.addEventListener('focus', () => {
-            commentInput.style.borderColor = '#1f75cb';
-            commentInput.style.outline = 'none';
-            commentInput.style.boxShadow = '0 0 0 2px rgba(31, 117, 203, 0.2)';
-        });
-
-        commentInput.addEventListener('blur', () => {
-            commentInput.style.borderColor = '#ccc';
-            commentInput.style.boxShadow = 'none';
-        });
-
-        // Add the textarea after the shortcuts wrapper
-        container.appendChild(commentInput);
-
-        // Initialize CommandShortcut with the newly created textarea
-        this.commandShortcuts = new CommandShortcut({
-            targetElement: commentInput,
-            onShortcutInsert: (type, value) => {
-                console.log(`Shortcut inserted: ${type} with value ${value}`);
-            }
-        });
-
-        // Initialize shortcuts container in the wrapper
-        this.commandShortcuts.initialize(shortcutsWrapper);
-    }
-
     /**
      * Initialize all shortcut types
      */
@@ -7255,66 +7582,8 @@ window.BulkCommentsView = class BulkCommentsView {
         // Add assign shortcut
         this.addAssignShortcut();
 
-        // Add due date shortcut
-        this.addDueDateShortcut();
-
-        // Add weight shortcut
-        this.addWeightShortcut();
-    }
-
-    /**
-     * Add label shortcut using available labels or fallbacks
-     */
-    addLabelShortcut() {
-        if (!this.commandShortcuts) return;
-
-        // Get labels from label manager if available
-        let labelItems = [{ value: '', label: 'Add Label' }];
-
-        if (this.labelManager && this.labelManager.filteredLabels && this.labelManager.filteredLabels.length) {
-            // Add actual labels from label manager
-            const labels = this.labelManager.filteredLabels.map(label => ({
-                value: label.name,
-                label: label.name
-            }));
-
-            labelItems = labelItems.concat(labels);
-        } else {
-            // Add fallback labels
-            labelItems = labelItems.concat([
-                { value: 'bug', label: 'Bug' },
-                { value: 'feature', label: 'Feature' },
-                { value: 'enhancement', label: 'Enhancement' },
-                { value: 'documentation', label: 'Documentation' }
-            ]);
-        }
-
-        // Add custom label option
-        labelItems.push({ value: 'custom', label: 'Custom...' });
-
-        this.commandShortcuts.addCustomShortcut({
-            type: 'label',
-            label: '/label',
-            items: labelItems,
-            onSelect: (value) => {
-                if (!value) return;
-
-                if (value === 'custom') {
-                    const customLabel = prompt('Enter custom label name:');
-                    if (!customLabel) return;
-                    value = customLabel;
-                }
-
-                const textarea = document.getElementById('issue-comment-input');
-                if (!textarea) return;
-
-                // Create the label command
-                const labelText = `/label ~"${value}"`;
-
-                this.insertTextAtCursor(textarea, labelText);
-                this.notification.info(`Label added: ${value}`);
-            }
-        });
+        // We no longer add due date and weight shortcuts
+        // This is part of the fix requested by the user
     }
 
     /**
@@ -7368,17 +7637,101 @@ window.BulkCommentsView = class BulkCommentsView {
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
 
+        // Start with basic assign items
+        let assignItems = [
+            { value: '', label: 'Assign to...' },
+            { value: '@me', label: 'Myself' },
+            { value: 'none', label: 'Unassign' }
+        ];
+
+        // Show loading state initially
         this.commandShortcuts.addCustomShortcut({
             type: 'assign',
             label: '/assign',
             items: [
-                { value: '', label: 'Assign to...' },
-                { value: '@me', label: 'Myself' },
-                { value: 'none', label: 'Unassign' },
-                { value: 'custom', label: 'Custom User...' }
+                { value: '', label: 'Loading assignees...' }
             ],
+            onSelect: () => {} // No-op while loading
+        });
+
+        // Try to fetch group members in the background
+        this.fetchGroupMembers()
+            .then(members => {
+                // Add whitelisted assignees if available
+                if (this.assigneeManager) {
+                    const whitelistedAssignees = this.assigneeManager.getAssigneeWhitelist();
+
+                    if (whitelistedAssignees.length > 0) {
+                        // Add a separator
+                        assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
+
+                        // Add whitelisted assignees
+                        const whitelistItems = whitelistedAssignees.map(assignee => ({
+                            value: assignee.username,
+                            label: assignee.name || assignee.username
+                        }));
+
+                        assignItems = assignItems.concat(whitelistItems);
+                    }
+                }
+
+                // Add fetched group members if available
+                if (members && members.length > 0) {
+                    // Add a separator
+                    assignItems.push({ value: 'separator2', label: '────── Group Members ──────' });
+
+                    // Add group members
+                    const memberItems = members.map(member => ({
+                        value: member.username,
+                        label: member.name || member.username
+                    }));
+
+                    assignItems = assignItems.concat(memberItems);
+                }
+
+                // Update the shortcut with all the items
+                this.updateAssignShortcut(assignItems);
+            })
+            .catch(error => {
+                console.error('Error fetching group members:', error);
+
+                // Fallback to just whitelisted assignees
+                if (this.assigneeManager) {
+                    const whitelistedAssignees = this.assigneeManager.getAssigneeWhitelist();
+
+                    if (whitelistedAssignees.length > 0) {
+                        const whitelistItems = whitelistedAssignees.map(assignee => ({
+                            value: assignee.username,
+                            label: assignee.name || assignee.username
+                        }));
+
+                        assignItems = assignItems.concat(whitelistItems);
+                    }
+                }
+
+                // Update with fallback items
+                this.updateAssignShortcut(assignItems);
+            });
+    }
+    /**
+     * Update assign shortcut with the provided items
+     * @param {Array} items - Items to show in the assign dropdown
+     */
+    updateAssignShortcut(items) {
+        if (!this.commandShortcuts) return;
+
+        // First remove existing shortcut if it exists
+        if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['assign']) {
+            this.commandShortcuts.removeShortcut('assign');
+        }
+
+        // Then add the new shortcut
+        this.commandShortcuts.addCustomShortcut({
+            type: 'assign',
+            label: '/assign',
+            items: items,
             onSelect: (value) => {
-                if (!value) return;
+                if (!value || value === 'separator' || value === 'separator2') return;
 
                 if (value === 'custom') {
                     const customUser = prompt('Enter GitLab username (without @):');
@@ -7414,168 +7767,119 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
     /**
-     * Add due date shortcut
+     * Fetch members from the current group/project
+     * @returns {Promise<Array>} Promise resolving to array of members
      */
-    addDueDateShortcut() {
-        if (!this.commandShortcuts) return;
-
-        // Calculate some common dates
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const nextWeek = new Date(today);
-        nextWeek.setDate(nextWeek.getDate() + 7);
-
-        // Format the dates
-        const formatDate = (date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
-
-        this.commandShortcuts.addCustomShortcut({
-            type: 'due',
-            label: '/due',
-            items: [
-                { value: '', label: 'Set Due Date' },
-                { value: formatDate(today), label: 'Today' },
-                { value: formatDate(tomorrow), label: 'Tomorrow' },
-                { value: formatDate(nextWeek), label: 'Next Week' },
-                { value: 'none', label: 'Remove Due Date' },
-                { value: 'custom', label: 'Custom Date...' }
-            ],
-            onSelect: (value) => {
-                if (!value) return;
-
-                if (value === 'custom') {
-                    const customDate = prompt('Enter due date (YYYY-MM-DD):', formatDate(today));
-                    if (!customDate) return;
-
-                    // Validate date format
-                    if (!/^\d{4}-\d{2}-\d{2}$/.test(customDate)) {
-                        this.notification.error('Invalid date format. Please use YYYY-MM-DD');
-                        return;
-                    }
-
-                    value = customDate;
-                }
-
-                const textarea = document.getElementById('issue-comment-input');
-                if (!textarea) return;
-
-                // Create the due date command
-                let dueText = '/due ';
-
-                if (value === 'none') {
-                    dueText += 'none';
-                } else {
-                    dueText += value;
-                }
-
-                this.insertTextAtCursor(textarea, dueText);
-
-                if (value === 'none') {
-                    this.notification.info('Due date will be removed');
-                } else {
-                    this.notification.info(`Due date set to ${value}`);
-                }
+    async fetchGroupMembers() {
+        try {
+            // First, ensure we have an API instance
+            if (!this.gitlabApi) {
+                this.gitlabApi = window.gitlabApi;
             }
-        });
+
+            if (!this.gitlabApi) {
+                throw new Error('GitLab API not available');
+            }
+
+            // Get path info to determine project or group
+            const pathInfo = getPathFromUrl();
+
+            if (!pathInfo) {
+                throw new Error('Could not determine project/group path');
+            }
+
+            // Fetch members based on path type
+            let members;
+            if (pathInfo.type === 'project') {
+                members = await this.gitlabApi.callGitLabApi(
+                    `projects/${pathInfo.encodedPath}/members`,
+                    { params: { per_page: 100 } }
+                );
+            } else if (pathInfo.type === 'group') {
+                members = await this.gitlabApi.callGitLabApi(
+                    `groups/${pathInfo.encodedPath}/members`,
+                    { params: { per_page: 100 } }
+                );
+            } else {
+                throw new Error('Unsupported path type: ' + pathInfo.type);
+            }
+
+            // Process members
+            return members.map(member => ({
+                id: member.id,
+                name: member.name,
+                username: member.username,
+                avatar_url: member.avatar_url
+            }));
+        } catch (error) {
+            console.error('Error fetching group members:', error);
+            return [];
+        }
     }
 
     /**
-     * Add weight shortcut
+     * Handler when an issue is removed from the selection
+     * @param {number} index - Index of the removed issue
      */
-    addWeightShortcut() {
-        if (!this.commandShortcuts) return;
+    onRemoveIssue(index) {
+        if (this.selectedIssues.length > index) {
+            // Store the removed issue for debugging
+            const removedIssue = this.selectedIssues[index];
 
-        this.commandShortcuts.addCustomShortcut({
-            type: 'weight',
-            label: '/weight',
-            items: [
-                { value: '', label: 'Set Weight' },
-                { value: '1', label: '1 (Trivial)' },
-                { value: '2', label: '2 (Small)' },
-                { value: '3', label: '3 (Medium)' },
-                { value: '5', label: '5 (Large)' },
-                { value: '8', label: '8 (Very Large)' },
-                { value: 'none', label: 'Remove Weight' },
-                { value: 'custom', label: 'Custom Weight...' }
-            ],
-            onSelect: (value) => {
-                if (!value) return;
+            // Remove the issue
+            this.selectedIssues.splice(index, 1);
 
-                if (value === 'custom') {
-                    const customWeight = prompt('Enter weight (number):', '');
-                    if (!customWeight) return;
-
-                    // Validate weight
-                    const weight = parseInt(customWeight, 10);
-                    if (isNaN(weight) || weight < 0) {
-                        this.notification.error('Invalid weight. Please enter a positive number');
-                        return;
-                    }
-
-                    value = customWeight;
-                }
-
-                const textarea = document.getElementById('issue-comment-input');
-                if (!textarea) return;
-
-                // Create the weight command
-                let weightText = '/weight ';
-
-                if (value === 'none') {
-                    weightText += 'none';
-                } else {
-                    weightText += value;
-                }
-
-                this.insertTextAtCursor(textarea, weightText);
-
-                if (value === 'none') {
-                    this.notification.info('Weight will be removed');
-                } else {
-                    this.notification.info(`Weight set to ${value}`);
-                }
+            // Update UI manager's issue selector if available
+            if (this.uiManager && this.uiManager.issueSelector) {
+                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
             }
-        });
-    }
-
-    /**
-     * Insert text at cursor position in textarea
-     * @param {HTMLElement} textarea - The textarea element
-     * @param {string} text - Text to insert
-     */
-    insertTextAtCursor(textarea, text) {
-        if (!textarea) return;
-
-        // Get current text
-        const currentText = textarea.value;
-
-        // Get cursor position
-        const startPos = textarea.selectionStart;
-        const endPos = textarea.selectionEnd;
-
-        // Check if we need to add a new line before the text
-        let insertText = text;
-        if (startPos > 0 && currentText.charAt(startPos - 1) !== '\n' && currentText.length > 0) {
-            insertText = '\n' + insertText;
         }
 
-        // Insert text at cursor position
-        textarea.value = currentText.substring(0, startPos) +
-            insertText +
-            currentText.substring(endPos);
+        // Update status message if it exists
+        const statusEl = document.getElementById('comment-status');
+        if (statusEl) {
+            const count = this.selectedIssues.length;
+            if (count > 0) {
+                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
+                statusEl.style.color = 'green';
+            } else {
+                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                statusEl.style.color = '#666';
+            }
+        }
 
-        // Set cursor position after inserted text
-        const newCursorPos = startPos + insertText.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        // Log for debugging
+        console.log(`Removed issue at index ${index}, remaining: ${this.selectedIssues.length}`);
+    }
 
-        // Focus textarea
-        textarea.focus();
+    /**
+     * Set multiple selected issues
+     * @param {Array} issues - Array of selected issue objects
+     */
+    setSelectedIssues(issues) {
+        // Make a defensive copy to prevent reference issues
+        this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
+
+        // Update the SelectionDisplay with the new issues
+        if (this.selectionDisplay) {
+            this.selectionDisplay.setSelectedIssues(this.selectedIssues);
+        }
+
+        // Update status message if it exists
+        const statusEl = document.getElementById('comment-status');
+        if (statusEl) {
+            const count = this.selectedIssues.length;
+            if (count > 0) {
+                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected. Enter your comment and click "Add Comment".`;
+                statusEl.style.color = 'green';
+            } else if (!this.isLoading) {
+                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                statusEl.style.color = '#666';
+            }
+        }
+
+        // Log for debugging
+        console.log(`BulkCommentsView: Set ${this.selectedIssues.length} selected issues`);
     }
 
     /**
@@ -7614,6 +7918,8 @@ window.BulkCommentsView = class BulkCommentsView {
 
         selectBtn.onclick = () => {
             if (this.uiManager && this.uiManager.issueSelector) {
+                // Pass the current selection to maintain it
+                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
                 this.uiManager.issueSelector.startSelection();
             } else {
                 console.error('Issue selector not initialized');
@@ -7676,10 +7982,239 @@ window.BulkCommentsView = class BulkCommentsView {
             clearBtn.style.backgroundColor = '#dc3545';
         });
 
-        clearBtn.onclick = () => this.clearSelectedIssues();
+        clearBtn.onclick = () => {
+            this.clearSelectedIssues();
+
+            // Also clear the selection in IssueSelector
+            if (this.uiManager && this.uiManager.issueSelector) {
+                this.uiManager.issueSelector.clearSelection();
+            }
+        };
         buttonContainer.appendChild(clearBtn);
 
         container.appendChild(buttonContainer);
+    }
+
+    /**
+     * Clear selected issues
+     */
+    clearSelectedIssues() {
+        // Clear local selection
+        this.selectedIssues = [];
+
+        // Update the selection display
+        if (this.selectionDisplay) {
+            this.selectionDisplay.setSelectedIssues([]);
+        }
+
+        // Update status message
+        const statusEl = document.getElementById('comment-status');
+        if (statusEl) {
+            statusEl.textContent = 'Selection cleared.';
+            statusEl.style.color = '#666';
+        }
+
+        // Show notification
+        if (this.notification) {
+            this.notification.info('Selection cleared');
+        }
+
+        // Log for debugging
+        console.log('Cleared selected issues');
+    }
+
+    /**
+     * For backwards compatibility - set a single selected issue
+     * @param {Object} issue - Selected issue object
+     */
+    setSelectedIssue(issue) {
+        this.setSelectedIssues(issue ? [issue] : []);
+    }
+
+    /**
+     * Render the Bulk Comments tab
+     */
+    render() {
+        const bulkCommentsContent = document.getElementById('bulk-comments-content');
+        if (!bulkCommentsContent) return;
+
+        // Clear previous content
+        bulkCommentsContent.innerHTML = '';
+
+        // Add comment section
+        this.addCommentSection(bulkCommentsContent);
+    }
+
+    /**
+     * Add comment utility section to Bulk Comments tab
+     * @param {HTMLElement} container - Container element
+     */
+    addCommentSection(container) {
+        // Create comment tool section
+        const commentSection = document.createElement('div');
+        commentSection.classList.add('api-section');
+        commentSection.style.marginBottom = '15px';
+        commentSection.style.padding = '10px';
+        commentSection.style.backgroundColor = '#f5f5f5';
+        commentSection.style.borderRadius = '8px';
+        commentSection.style.border = '1px solid #e0e0e0';
+
+        // Add selected issues container
+        this.selectionDisplay.createSelectionContainer(commentSection);
+
+        // Add comment input with shortcuts - initially with loading state
+        this.createCommentInput(commentSection);
+
+        // Add action buttons
+        this.createActionButtons(commentSection);
+
+        // Add status and progress elements
+        this.createStatusElements(commentSection);
+
+        // Show loading state
+        this.isLoading = true;
+        this.showLoadingState();
+
+        // Initialize the shortcuts with placeholder labels
+        try {
+            this.initializeAllShortcuts();
+
+            // Show initial label shortcut with "Loading..." state
+            this.addLabelShortcut([
+                { value: '', label: 'Loading labels...' }
+            ]);
+
+            // Now try to fetch labels asynchronously
+            if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
+                // Try to fetch labels in the background
+                this.labelManager.fetchAllLabels()
+                    .then(labels => {
+                        // Update the label shortcut with fetched labels
+                        this.addLabelShortcut();
+                        this.isLoading = false;
+                        this.hideLoadingState();
+                    })
+                    .catch(error => {
+                        console.error('Error loading labels:', error);
+                        // If fetching fails, update with fallback labels
+                        this.addLabelShortcut(this.getFallbackLabels());
+                        this.isLoading = false;
+                        this.hideLoadingState();
+                    });
+            } else {
+                // No label manager, just use fallbacks
+                console.warn('Label manager not available, using fallback labels');
+                this.addLabelShortcut(this.getFallbackLabels());
+                this.isLoading = false;
+                this.hideLoadingState();
+            }
+        } catch (error) {
+            console.error('Error initializing shortcuts:', error);
+            this.isLoading = false;
+            this.hideLoadingState();
+        }
+
+        container.appendChild(commentSection);
+    }
+    /**
+     * Get fallback labels when fetching fails
+     * @returns {Array} Array of fallback label items
+     */
+    getFallbackLabels() {
+        return [
+            { value: '', label: 'Add Label' },
+            { value: 'bug', label: 'Bug' },
+            { value: 'feature', label: 'Feature' },
+            { value: 'enhancement', label: 'Enhancement' },
+            { value: 'documentation', label: 'Documentation' },
+            { value: 'custom', label: 'Custom...' }
+        ];
+    }
+    /**
+     * Create comment input and initialize shortcuts
+     * @param {HTMLElement} container - Container element
+     */
+    createCommentInput(container) {
+        // Create a wrapper for shortcuts that's full width
+        const shortcutsWrapper = document.createElement('div');
+        shortcutsWrapper.id = 'shortcuts-wrapper';
+        shortcutsWrapper.style.width = '100%';
+        shortcutsWrapper.style.marginBottom = '15px';
+        container.appendChild(shortcutsWrapper);
+
+        // Comment textarea with improved styling
+        const commentInput = document.createElement('textarea');
+        commentInput.id = 'issue-comment-input';
+        commentInput.placeholder = 'Enter your comment here...';
+        commentInput.style.width = '100%';
+        commentInput.style.padding = '8px';
+        commentInput.style.marginBottom = '12px';
+        commentInput.style.borderRadius = '4px';
+        commentInput.style.border = '1px solid #ccc';
+        commentInput.style.minHeight = '60px';
+        commentInput.style.fontSize = '14px';
+        commentInput.style.transition = 'border-color 0.2s ease';
+        commentInput.style.resize = 'vertical';
+
+        // Add focus effect
+        commentInput.addEventListener('focus', () => {
+            commentInput.style.borderColor = '#1f75cb';
+            commentInput.style.outline = 'none';
+            commentInput.style.boxShadow = '0 0 0 2px rgba(31, 117, 203, 0.2)';
+        });
+
+        commentInput.addEventListener('blur', () => {
+            commentInput.style.borderColor = '#ccc';
+            commentInput.style.boxShadow = 'none';
+        });
+
+        // Add the textarea after the shortcuts wrapper
+        container.appendChild(commentInput);
+
+        // Initialize CommandShortcut with the newly created textarea
+        this.commandShortcuts = new CommandShortcut({
+            targetElement: commentInput,
+            onShortcutInsert: (type, value) => {
+                console.log(`Shortcut inserted: ${type} with value ${value}`);
+            }
+        });
+
+        // Initialize shortcuts container in the wrapper
+        this.commandShortcuts.initialize(shortcutsWrapper);
+    }
+
+    /**
+     * Insert text at cursor position in textarea
+     * @param {HTMLElement} textarea - The textarea element
+     * @param {string} text - Text to insert
+     */
+    insertTextAtCursor(textarea, text) {
+        if (!textarea) return;
+
+        // Get current text
+        const currentText = textarea.value;
+
+        // Get cursor position
+        const startPos = textarea.selectionStart;
+        const endPos = textarea.selectionEnd;
+
+        // Check if we need to add a new line before the text
+        let insertText = text;
+        if (startPos > 0 && currentText.charAt(startPos - 1) !== '\n' && currentText.length > 0) {
+            insertText = '\n' + insertText;
+        }
+
+        // Insert text at cursor position
+        textarea.value = currentText.substring(0, startPos) +
+            insertText +
+            currentText.substring(endPos);
+
+        // Set cursor position after inserted text
+        const newCursorPos = startPos + insertText.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+
+        // Focus textarea
+        textarea.focus();
     }
 
     /**
@@ -7786,26 +8321,6 @@ window.BulkCommentsView = class BulkCommentsView {
             button.style.opacity = '1';
             button.style.cursor = 'pointer';
         });
-    }
-
-    /**
-     * Clear selected issues
-     */
-    clearSelectedIssues() {
-        this.selectedIssues = [];
-
-        // Update the selection display
-        if (this.selectionDisplay) {
-            this.selectionDisplay.setSelectedIssues([]);
-        }
-
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            statusEl.textContent = 'Selection cleared.';
-            statusEl.style.color = '#666';
-        }
-
-        this.notification.info('Selection cleared');
     }
 
     /**
@@ -7950,36 +8465,66 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
     /**
-     * Set multiple selected issues
-     * @param {Array} issues - Array of selected issue objects
+     * Add label shortcut using provided labels or from label manager
+     * @param {Array} customLabels - Optional custom labels to use instead of from labelManager
      */
-    setSelectedIssues(issues) {
-        this.selectedIssues = issues || [];
+    addLabelShortcut(customLabels) {
+        if (!this.commandShortcuts) return;
 
-        // Update the SelectionDisplay with the new issues
-        if (this.selectionDisplay) {
-            this.selectionDisplay.setSelectedIssues(this.selectedIssues);
+        // Use provided labels, or try to get them from labelManager, or use fallbacks
+        let labelItems;
+
+        if (customLabels) {
+            // Use provided custom labels
+            labelItems = customLabels;
+        } else if (this.labelManager && this.labelManager.filteredLabels && this.labelManager.filteredLabels.length) {
+            // Get labels from label manager if available
+            labelItems = [{ value: '', label: 'Add Label' }];
+
+            // Add actual labels from label manager
+            const labels = this.labelManager.filteredLabels.map(label => ({
+                value: label.name,
+                label: label.name
+            }));
+
+            labelItems = labelItems.concat(labels);
+
+            // Add custom option
+            labelItems.push({ value: 'custom', label: 'Custom...' });
+        } else {
+            // Fallback if no labels available
+            labelItems = this.getFallbackLabels();
         }
 
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            const count = this.selectedIssues.length;
-            if (count > 0) {
-                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected. Enter your comment and click "Add Comment".`;
-                statusEl.style.color = 'green';
-            } else if (!this.isLoading) {
-                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
-                statusEl.style.color = '#666';
+        // First remove existing shortcut if it exists
+        if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['label']) {
+            this.commandShortcuts.removeShortcut('label');
+        }
+
+        // Then add the new shortcut
+        this.commandShortcuts.addCustomShortcut({
+            type: 'label',
+            label: '/label',
+            items: labelItems,
+            onSelect: (value) => {
+                if (!value) return;
+
+                if (value === 'custom') {
+                    const customLabel = prompt('Enter custom label name:');
+                    if (!customLabel) return;
+                    value = customLabel;
+                }
+
+                const textarea = document.getElementById('issue-comment-input');
+                if (!textarea) return;
+
+                // Create the label command
+                const labelText = `/label ~"${value}"`;
+
+                this.insertTextAtCursor(textarea, labelText);
+                this.notification.info(`Label added: ${value}`);
             }
-        }
-    }
-
-    /**
-     * For backwards compatibility - set a single selected issue
-     * @param {Object} issue - Selected issue object
-     */
-    setSelectedIssue(issue) {
-        this.setSelectedIssues(issue ? [issue] : []);
+        });
     }
 }
 
@@ -8057,13 +8602,20 @@ window.UIManager = class UIManager {
         // Add container to body
         document.body.appendChild(this.container);
 
-        // Add click event to container to abort selection mode if active
+        // Modified click event handler to exclude select issues function
+        // and to exclude the selection overlays and badges
         this.container.addEventListener('click', (e) => {
             // If issue selection is active and the click is inside our container
-            // (but not on the selection overlays themselves)
+            // (but not on the selection overlays themselves or buttons from the bulk comments tab)
             if (this.issueSelector.isSelectingIssue &&
                 !e.target.classList.contains('card-selection-overlay') &&
-                !e.target.classList.contains('selection-badge')) {
+                !e.target.classList.contains('selection-badge') &&
+                // Don't abort when clicking these elements
+                !e.target.closest('#bulk-comments-content button') &&
+                !e.target.closest('#issue-comment-input') &&
+                !e.target.closest('#shortcuts-wrapper') &&
+                !e.target.closest('#selected-issues-list') &&
+                !e.target.closest('#selection-cancel-button')) {
                 this.issueSelector.exitSelectionMode();
             }
         });
@@ -8076,7 +8628,6 @@ window.UIManager = class UIManager {
             this.container.style.height = 'auto';
         }
     }
-
     /**
      * Create header with title and buttons
      */
@@ -8135,7 +8686,7 @@ window.UIManager = class UIManager {
             }, 1000);
         };
 
-        // Create settings button
+        // Create settings button with proper handler
         this.settingsBtn = document.createElement('button');
         this.settingsBtn.textContent = '⚙️';
         this.settingsBtn.title = 'Settings';
@@ -8148,10 +8699,7 @@ window.UIManager = class UIManager {
         this.settingsBtn.style.cursor = 'pointer';
         this.settingsBtn.onclick = (e) => {
             e.stopPropagation();
-            // Access settings via bulkCommentsView.settingsManager
-            if (this.bulkCommentsView && this.bulkCommentsView.settingsManager) {
-                this.bulkCommentsView.settingsManager.openSettingsModal();
-            }
+            // The actual functionality will be connected in the createUIManager function
         };
 
         // Create collapse button
@@ -8274,7 +8822,58 @@ window.createSummaryContainer = function createSummaryContainer() {
     uiManager.initialize();
     return uiManager.container;
 }
+/**
+ * Create the UI Manager and connect settings
+ */
+function createUIManager() {
+    window.uiManager = window.uiManager || new UIManager();
 
+    // Ensure the settings button works
+    if (uiManager.settingsBtn) {
+        uiManager.settingsBtn.onclick = (e) => {
+            e.stopPropagation();
+
+            // Check if we have a SettingsManager
+            if (uiManager.bulkCommentsView && uiManager.bulkCommentsView.settingsManager) {
+                uiManager.bulkCommentsView.settingsManager.openSettingsModal();
+            } else if (window.settingsManager) {
+                window.settingsManager.openSettingsModal();
+            } else {
+                // Create a new SettingsManager if not available
+                const settingsManager = new SettingsManager({
+                    labelManager: uiManager.labelManager,
+                    assigneeManager: uiManager.assigneeManager,
+                    gitlabApi: window.gitlabApi || uiManager.gitlabApi,
+                    onSettingsChanged: (type) => {
+                        console.log(`Settings changed: ${type}`);
+                        // Refresh relevant UI components
+                        if (type === 'all' || type === 'labels') {
+                            if (uiManager.bulkCommentsView) {
+                                uiManager.bulkCommentsView.addLabelShortcut();
+                            }
+                        }
+                        if (type === 'all' || type === 'assignees') {
+                            if (uiManager.bulkCommentsView) {
+                                uiManager.bulkCommentsView.addAssignShortcut();
+                            }
+                        }
+                    }
+                });
+
+                // Store it for future access
+                if (uiManager.bulkCommentsView) {
+                    uiManager.bulkCommentsView.settingsManager = settingsManager;
+                }
+                window.settingsManager = settingsManager;
+
+                // Open the settings modal
+                settingsManager.openSettingsModal();
+            }
+        };
+    }
+
+    return uiManager;
+}
 /**
  * Update the Summary Tab wrapper function
  * @param {Object} assigneeTimeMap - Map of assignees to time estimates
@@ -8349,6 +8948,56 @@ window.updateBulkCommentsTab = updateBulkCommentsTab;
 window.renderHistory = renderHistory;
 window.createSummaryContainer = createSummaryContainer;
 
+// Fix for settings button
+// Insert this at the end of your user script, after all initializations
+
+// Add global access to SettingsManager
+window.SettingsManager = SettingsManager;
+
+// Add direct click handler to settings button
+setTimeout(() => {
+    // Find the settings button
+    const settingsBtn = document.querySelector('#assignee-time-summary button[title="Settings"]');
+
+    if (settingsBtn) {
+        console.log('Found settings button, attaching direct handler');
+
+        settingsBtn.onclick = (e) => {
+            e.stopPropagation();
+            console.log('Settings button clicked');
+
+            // Create and open new settings manager
+            try {
+                const settingsManager = new SettingsManager({
+                    labelManager: window.uiManager?.labelManager,
+                    assigneeManager: window.uiManager?.assigneeManager,
+                    gitlabApi: window.gitlabApi,
+                    onSettingsChanged: (type) => {
+                        console.log(`Settings changed: ${type}`);
+                        // Refresh UI components when settings change
+                        if (window.uiManager?.bulkCommentsView) {
+                            if (type === 'all' || type === 'labels') {
+                                window.uiManager.bulkCommentsView.addLabelShortcut();
+                            }
+                            if (type === 'all' || type === 'assignees') {
+                                window.uiManager.bulkCommentsView.addAssignShortcut();
+                            }
+                        }
+                    }
+                });
+
+                settingsManager.openSettingsModal();
+            } catch (error) {
+                console.error('Error creating settings manager:', error);
+            }
+        };
+
+        console.log('Settings button handler attached');
+    } else {
+        console.warn('Settings button not found');
+    }
+}, 2000); // Wait 2 seconds to ensure all elements are loaded
+
 // File: lib/index.js
 // Main index file for GitLab Sprint Helper
 // This file serves as the main entry point for the module
@@ -8367,6 +9016,35 @@ function checkAndInit() {
     if (window.location.href.includes('/boards')) {
         // Create the summary container
         if (!document.getElementById('assignee-time-summary')) {
+            // Create UI Manager
+            const uiManager = createUIManager();
+
+            // Ensure SettingsManager is available globally
+            if (!window.settingsManager) {
+                window.settingsManager = new SettingsManager({
+                    labelManager: uiManager.labelManager,
+                    assigneeManager: uiManager.assigneeManager,
+                    gitlabApi: window.gitlabApi,
+                    onSettingsChanged: (type) => {
+                        console.log(`Settings changed: ${type}`);
+                        // Refresh UI components when settings change
+                        if (type === 'all' || type === 'labels') {
+                            if (uiManager.bulkCommentsView) {
+                                uiManager.bulkCommentsView.addLabelShortcut();
+                            }
+                        }
+                        if (type === 'all' || type === 'assignees') {
+                            if (uiManager.bulkCommentsView) {
+                                uiManager.bulkCommentsView.addAssignShortcut();
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Make UI Manager available globally
+            window.uiManager = uiManager;
+
             createSummaryContainer();
         }
 
