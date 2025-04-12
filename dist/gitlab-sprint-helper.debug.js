@@ -16,7 +16,6 @@
 (function(window) {
 
 // File: lib/core/Utils.js
-// Utility functions for GitLab Assignee Time Summary
 
 /**
  * Format seconds to hours with 1 decimal place
@@ -192,7 +191,6 @@ window.getContrastColor = function getContrastColor(bgColor) {
 }
 
 // File: lib/api/APIUtils.js
-// API utility functions for GitLab Sprint Helper
 
 /**
  * Extract project or group path from URL
@@ -200,9 +198,7 @@ window.getContrastColor = function getContrastColor(bgColor) {
  */
 window.getPathFromUrl = function getPathFromUrl() {
     try {
-        console.log('Current URL:', window.location.href);
-        console.log('Current pathname:', window.location.pathname);
-
+                
         const pathname = window.location.pathname;
 
         // Check if this is a group board
@@ -218,19 +214,16 @@ window.getPathFromUrl = function getPathFromUrl() {
             }
 
             const path = match[1];
-            console.log('Extracted group path:', path);
-
+            
             // Make sure we don't have "/-" at the end of the path
             const cleanPath = path.replace(/\/-$/, '');
 
             // Correctly encode the path
             const encodedPath = encodeURIComponent(cleanPath);
-            console.log('Encoded group path for API:', encodedPath);
-
+            
             // Construct group API URL
             const apiUrl = `groups/${encodedPath}/labels`;
-            console.log('Group API URL that will be used:', apiUrl);
-
+            
             return {
                 path: cleanPath,
                 encodedPath,
@@ -251,16 +244,13 @@ window.getPathFromUrl = function getPathFromUrl() {
             }
 
             const path = match[1];
-            console.log('Extracted project path:', path);
-
+            
             // Correctly encode the path
             const encodedPath = encodeURIComponent(path);
-            console.log('Encoded project path for API:', encodedPath);
-
+            
             // Construct project API URL
             const apiUrl = `projects/${encodedPath}/labels`;
-            console.log('Project API URL that will be used:', apiUrl);
-
+            
             return {
                 path,
                 encodedPath,
@@ -296,7 +286,6 @@ window.getHistoryKey = function getHistoryKey() {
 }
 
 // File: lib/api/GitLabAPI.js
-// GitLab API Class for Sprint Helper
 
 window.GitLabAPI = class GitLabAPI {
     constructor() {
@@ -478,11 +467,9 @@ window.GitLabAPI = class GitLabAPI {
     }
 }
 
-// Export the class - will be initialized in main.js
 window.GitLabAPI = GitLabAPI;
 
 // File: lib/core/DataProcessor.js
-// Data processing functions for GitLab Assignee Time Summary
 
 /**
  * Process all boards and extract data
@@ -665,7 +652,6 @@ window.processBoards = function processBoards() {
 }
 
 // File: lib/core/History.js
-// History functions for GitLab Assignee Time Summary
 /**
  * Save history entry
  * @param {number} totalEstimate - Total time estimate in seconds
@@ -741,7 +727,6 @@ window.saveHistoryEntry = function saveHistoryEntry(totalEstimate, milestoneInfo
 }
 
 // File: lib/storage/LocalStorage.js
-// LocalStorage wrapper for GitLab Sprint Helper
 
 /**
  * Save value to localStorage with error handling
@@ -893,8 +878,6 @@ window.getGMValue = function getGMValue(key, defaultValue = null) {
 }
 
 // File: lib/storage/SettingsStorage.js
-// Settings storage module for GitLab Sprint Helper
-// Constants for storage keys
 const STORAGE_KEYS = {
     LABEL_WHITELIST: 'gitLabHelperLabelWhitelist',
     ASSIGNEE_WHITELIST: 'gitLabHelperAssigneeWhitelist',
@@ -902,7 +885,6 @@ const STORAGE_KEYS = {
     UI_COLLAPSED: 'gitlabTimeSummaryCollapsed'
 };
 
-// Default values for settings
 const DEFAULT_SETTINGS = {
     labelWhitelist: [
         'bug', 'feature', 'documentation', 'enhancement', 'security',
@@ -1171,7 +1153,6 @@ window.saveUICollapsedState = function saveUICollapsedState(collapsed) {
 }
 
 // File: lib/ui/components/Dropdown.js
-// Dropdown.js - Reusable dropdown component
 
 /**
  * Class that creates custom styled dropdown components
@@ -1537,7 +1518,6 @@ window.Dropdown = class Dropdown {
 }
 
 // File: lib/ui/components/Notification.js
-// Notification.js - Toast notification component
 
 /**
  * Create and show toast notifications
@@ -1831,7 +1811,6 @@ window.Notification = class Notification {
 }
 
 // File: lib/ui/components/CommandShortcut.js
-// CommandShortcut.js - Reusable module for command action shortcuts in comments
 
 /**
  * Class that manages command shortcuts for GitLab comments
@@ -2179,7 +2158,6 @@ window.CommandShortcut = class CommandShortcut {
 }
 
 // File: lib/ui/components/SelectionDisplay.js
-// SelectionDisplay.js - Improved to handle UI updates better
 window.SelectionDisplay = class SelectionDisplay {
     /**
      * Constructor for SelectionDisplay
@@ -2346,8 +2324,7 @@ window.SelectionDisplay = class SelectionDisplay {
         });
 
         // Log for debugging
-        console.log(`Updated selection display with ${this.selectedIssues.length} issues`);
-    }
+            }
 
     /**
      * Remove an issue from the selection
@@ -2380,8 +2357,7 @@ window.SelectionDisplay = class SelectionDisplay {
             }
 
             // Log for debugging
-            console.log(`Removed issue at index ${index}:`, removedIssue);
-        }
+                    }
     }
 
 
@@ -2397,8 +2373,7 @@ window.SelectionDisplay = class SelectionDisplay {
         this.updateDisplay();
 
         // Log for debugging
-        console.log(`Set ${this.selectedIssues.length} selected issues in SelectionDisplay`);
-    }
+            }
 
     /**
      * Get the current selected issues
@@ -2410,7 +2385,6 @@ window.SelectionDisplay = class SelectionDisplay {
 }
 
 // File: lib/ui/components/IssueSelector.js
-// Complete IssueSelector with UI update fixes
 window.IssueSelector = class IssueSelector {
     /**
      * Constructor for IssueSelector
@@ -2438,15 +2412,12 @@ window.IssueSelector = class IssueSelector {
     }
 
     // File: lib/ui/components/IssueSelector.js
-// Function: startSelection
 
     startSelection() {
-        console.log('Starting issue selection mode');
-
+        
         // If already in selection mode, don't create duplicate overlays
         if (this.isSelectingIssue) {
-            console.log('Already in selection mode, ignoring duplicate call');
-            return;
+                        return;
         }
 
         this.isSelectingIssue = true;
@@ -2492,8 +2463,7 @@ window.IssueSelector = class IssueSelector {
             boardsContainer = document.body;
         }
 
-        console.log('Using container for selection overlay:', boardsContainer);
-
+        
         // Ensure the container has positioning context
         boardsContainer.style.position = 'relative';
 
@@ -2504,8 +2474,7 @@ window.IssueSelector = class IssueSelector {
             boardsContainer.clientWidth
         );
 
-        console.log(`Setting overlay width to ${fullWidth}px based on boards container dimensions`);
-
+        
         // Add semi-transparent page overlay
         const pageOverlay = document.createElement('div');
         pageOverlay.id = 'selection-page-overlay';
@@ -2533,8 +2502,7 @@ window.IssueSelector = class IssueSelector {
             selectButton.textContent = '✓ Selecting...';
         }
 
-        console.log(`Selection mode started with ${currentSelection.length} issues`);
-    }
+            }
 
     /**
      * Create cancel button for exiting selection mode
@@ -2607,10 +2575,8 @@ window.IssueSelector = class IssueSelector {
      */
 
     createCardOverlays(currentSelection = [], attachmentElement = document.body) {
-        console.log('Creating card overlays for selection');
-        const boardCards = document.querySelectorAll('.board-card');
-        console.log(`Found ${boardCards.length} board cards to overlay`);
-
+                const boardCards = document.querySelectorAll('.board-card');
+        
         // Clear previous selection state, but remember currently selected issues
         this.selectedIssues = currentSelection || [];
         this.selectedOverlays = [];
@@ -2721,8 +2687,7 @@ window.IssueSelector = class IssueSelector {
         });
 
 
-        console.log(`Created ${this.selectionOverlays.length} selection overlays`);
-    }
+            }
 
     /**
      * Update selection counter
@@ -2826,8 +2791,7 @@ window.IssueSelector = class IssueSelector {
      * Exit selection mode and clean up overlays, keeping the current selection
      */
     exitSelectionMode() {
-        console.log('Exiting selection mode');
-        this.isSelectingIssue = false;
+                this.isSelectingIssue = false;
 
         // Remove page overlay
         const pageOverlay = document.getElementById('selection-page-overlay');
@@ -2876,8 +2840,7 @@ window.IssueSelector = class IssueSelector {
                 statusMsg.style.border = '1px solid #e9ecef';
             }
         }
-        console.log(`Selection mode exited with ${this.selectedIssues.length} issues selected`);
-    }
+            }
 
 
     toggleCardSelection(card, overlay) {
@@ -2887,8 +2850,7 @@ window.IssueSelector = class IssueSelector {
         const issueItem = this.getIssueItemFromCard(card);
 
         if (issueItem) {
-            console.log('Toggle selection for issue:', issueItem.iid);
-
+            
             // Check if already selected
             const isSelected = overlay.dataset.selected === 'true';
 
@@ -3091,8 +3053,7 @@ window.IssueSelector = class IssueSelector {
         this.syncSelectionWithBulkCommentsView();
 
         // Log for debugging
-        console.log(`IssueSelector: Set ${this.selectedIssues.length} selected issues`);
-    }
+            }
     updateOverlaysFromSelection() {
         if (!this.isSelectingIssue) return;
 
@@ -3262,7 +3223,6 @@ window.IssueSelector = class IssueSelector {
 }
 
 // File: lib/ui/managers/TabManager.js
-// TabManager.js - Manages tab switching and tab UI
 /**
  * Manager for tab switching and tab UI
  */
@@ -3285,8 +3245,7 @@ window.TabManager = class TabManager {
             this.currentTab = 'summary';
         }
 
-        console.log('Initial active tab:', this.currentTab);
-    }
+            }
 
     /**
      * Initialize the tab navigation
@@ -3461,7 +3420,6 @@ window.TabManager = class TabManager {
 }
 
 // File: lib/ui/managers/CommandManager.js
-// CommandManager.js - Handles GitLab commands and shortcuts
 /**
  * Manager for GitLab commands and shortcuts
  */
@@ -3506,8 +3464,7 @@ window.CommandManager = class CommandManager {
             targetElement: this.targetElement,
             onShortcutInsert: (type, value) => {
                 // Handle shortcut insertion
-                console.log(`Shortcut inserted: ${type} with value ${value}`);
-
+                
                 // Call callback if provided
                 if (typeof this.onCommandInsert === 'function') {
                     this.onCommandInsert(type, value);
@@ -3607,8 +3564,7 @@ window.CommandManager = class CommandManager {
             if (this.assigneeManager && typeof this.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     const whitelistedAssignees = this.assigneeManager.getAssigneeWhitelist();
-                    console.log('Loaded assignees from manager:', whitelistedAssignees);
-
+                    
                     if (Array.isArray(whitelistedAssignees) && whitelistedAssignees.length > 0) {
                         // Add a separator
                         assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
@@ -3627,8 +3583,7 @@ window.CommandManager = class CommandManager {
                     // Fallback to direct storage access
                     try {
                         const assignees = getAssigneeWhitelist();
-                        console.log('Fallback loaded assignees:', assignees);
-
+                        
                         if (Array.isArray(assignees) && assignees.length > 0) {
                             // Add a separator
                             assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
@@ -3658,8 +3613,7 @@ window.CommandManager = class CommandManager {
                         console.warn('getAssigneeWhitelist function not available, no assignees will be loaded');
                     }
 
-                    console.log('Direct loaded assignees:', assignees);
-
+                    
                     if (Array.isArray(assignees) && assignees.length > 0) {
                         // Add a separator
                         assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
@@ -4254,7 +4208,6 @@ window.CommandManager = class CommandManager {
 }
 
 // File: lib/ui/managers/LabelManager.js
-// LabelManager.js - Handles fetching and filtering labels
 /**
  * Manager for GitLab labels
  */
@@ -4640,7 +4593,6 @@ window.LabelManager = class LabelManager {
 }
 
 // File: lib/ui/managers/AssigneeManager.js
-// AssigneeManager.js - Handles assignee-related functionality
 /**
  * Manager for assignee-related functionality
  */
@@ -5871,7 +5823,6 @@ window.AssigneeManager = class AssigneeManager {
 }
 
 // File: lib/ui/managers/MilestoneManager.js
-// MilestoneManager.js - Handles milestone-related functionality
 /**
  * Manager for milestone functionality
  */
@@ -6565,7 +6516,6 @@ window.MilestoneManager = class MilestoneManager {
 }
 
 // File: lib/ui/managers/SettingsManager.js
-// SettingsManager.js - Manages application settings and UI
 /**
  * Manager for application settings
  */
@@ -7758,8 +7708,7 @@ window.SettingsManager = class SettingsManager {
                 whitelistContainer.appendChild(checkboxContainer);
             });
 
-            console.log(`Displayed ${labels.length} labels from GitLab API`);
-        };
+                    };
 
         // Start fetching labels from API directly
         fetchAndDisplayAllLabels();
@@ -8245,13 +8194,11 @@ window.SettingsManager = class SettingsManager {
             this.onSettingsChanged('labels');
         }
 
-        console.log(`Saved ${newWhitelist.length} labels to whitelist`);
-    }
+            }
 
 }
 
 // File: lib/ui/views/SummaryView.js
-// SummaryView.js - Manages the Summary tab UI
 /**
  * View for the Summary tab
  */
@@ -8437,10 +8384,7 @@ window.SummaryView = class SummaryView {
         const boardNames = Object.keys(boardData || {});
 
         // Debug logging to help identify data issues
-        console.log('Board Names:', boardNames);
-        console.log('Board Data:', boardData);
-        console.log('Board Assignee Data:', boardAssigneeData);
-
+                        
         // Add total row at top
         const totalRow = document.createElement('tr');
         totalRow.style.borderBottom = '2px solid #ddd';
@@ -8566,7 +8510,6 @@ window.SummaryView = class SummaryView {
 }
 
 // File: lib/ui/views/BoardsView.js
-// BoardsView.js - Manages the Boards tab UI
 /**
  * View for the Boards tab
  */
@@ -8758,7 +8701,6 @@ window.BoardsView = class BoardsView {
 }
 
 // File: lib/ui/views/HistoryView.js
-// HistoryView.js - Manages the History tab UI
 /**
  * View for the History tab
  */
@@ -8972,7 +8914,6 @@ window.HistoryView = class HistoryView {
 }
 
 // File: lib/ui/views/BulkCommentsView.js
-// BulkCommentsView.js - Fixed version
 /**
  * View for the Bulk Comments tab (previously API tab)
  */
@@ -9179,8 +9120,7 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
             }
 
-            console.log(`Successfully updated assign shortcut with ${items.length} items`);
-        } catch (e) {
+                    } catch (e) {
             console.error('Error updating assign shortcut:', e);
         }
     }
@@ -9289,13 +9229,9 @@ window.BulkCommentsView = class BulkCommentsView {
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
 
-        console.log("Starting addAssignShortcut");
-
+        
         // Log global objects to check availability
-        console.log("Global assigneeManager available:", !!window.assigneeManager);
-        console.log("Global settingsStorage available:", !!window.getAssigneeWhitelist);
-        console.log("This.assigneeManager available:", !!this.assigneeManager);
-
+                        
         // Start with basic assign items
         let assignItems = [
             { value: '', label: 'Assign to...' },
@@ -9308,16 +9244,14 @@ window.BulkCommentsView = class BulkCommentsView {
         try {
             if (typeof GM_getValue === 'function') {
                 directWhitelist = GM_getValue('gitLabHelperAssigneeWhitelist', []);
-                console.log("Direct GM_getValue result:", directWhitelist);
-            }
+                            }
         } catch (e) {
             console.error("Error accessing GM_getValue:", e);
         }
 
         // If we got assignees directly, use them
         if (Array.isArray(directWhitelist) && directWhitelist.length > 0) {
-            console.log("Using directly accessed whitelist:", directWhitelist);
-
+            
             // Add a separator
             assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
 
@@ -9331,8 +9265,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
         // If direct access failed, try other methods
         else {
-            console.log("Direct access failed, trying fallbacks");
-
+            
             // Try to find assignees from various sources
             let assignees = [];
 
@@ -9340,8 +9273,7 @@ window.BulkCommentsView = class BulkCommentsView {
             if (this.assigneeManager && typeof this.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = this.assigneeManager.getAssigneeWhitelist();
-                    console.log("Got assignees from this.assigneeManager:", assignees);
-                } catch (e) {
+                                    } catch (e) {
                     console.error("Error getting assignees from this.assigneeManager:", e);
                 }
             }
@@ -9351,8 +9283,7 @@ window.BulkCommentsView = class BulkCommentsView {
                 typeof window.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = window.assigneeManager.getAssigneeWhitelist();
-                    console.log("Got assignees from window.assigneeManager:", assignees);
-                } catch (e) {
+                                    } catch (e) {
                     console.error("Error getting assignees from window.assigneeManager:", e);
                 }
             }
@@ -9361,8 +9292,7 @@ window.BulkCommentsView = class BulkCommentsView {
             if ((!assignees || !assignees.length) && typeof getAssigneeWhitelist === 'function') {
                 try {
                     assignees = getAssigneeWhitelist();
-                    console.log("Got assignees from imported getAssigneeWhitelist:", assignees);
-                } catch (e) {
+                                    } catch (e) {
                     console.error("Error getting assignees from imported getAssigneeWhitelist:", e);
                 }
             }
@@ -9371,8 +9301,7 @@ window.BulkCommentsView = class BulkCommentsView {
             if ((!assignees || !assignees.length) && typeof window.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = window.getAssigneeWhitelist();
-                    console.log("Got assignees from window.getAssigneeWhitelist:", assignees);
-                } catch (e) {
+                                    } catch (e) {
                     console.error("Error getting assignees from window.getAssigneeWhitelist:", e);
                 }
             }
@@ -9383,8 +9312,7 @@ window.BulkCommentsView = class BulkCommentsView {
                     const storedValue = localStorage.getItem('gitLabHelperAssigneeWhitelist');
                     if (storedValue) {
                         assignees = JSON.parse(storedValue);
-                        console.log("Got assignees from localStorage directly:", assignees);
-                    }
+                                            }
                 } catch (e) {
                     console.error("Error getting assignees from localStorage:", e);
                 }
@@ -9411,8 +9339,7 @@ window.BulkCommentsView = class BulkCommentsView {
         assignItems.push({ value: 'custom', label: 'Custom...' });
 
         // Add this log to see what will be passed to the dropdown
-        console.log("Final assignItems to be used:", assignItems);
-
+        
         // Update the assign shortcut with our items
         this.updateAssignShortcut(assignItems);
 
@@ -9421,8 +9348,7 @@ window.BulkCommentsView = class BulkCommentsView {
             this.fetchGroupMembers()
                 .then(members => {
                     if (members && members.length > 0) {
-                        console.log("Got group members:", members.length);
-
+                        
                         // Create a new array that includes existing items plus members
                         const updatedItems = [...assignItems];
 
@@ -9540,8 +9466,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
 
         // Log for debugging
-        console.log(`BulkCommentsView: Set ${this.selectedIssues.length} selected issues`);
-    }
+            }
 
     /**
      * Handler when an issue is removed from the selection
@@ -9578,8 +9503,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
 
         // Log for debugging
-        console.log(`Removed issue at index ${index}, remaining: ${this.selectedIssues.length}`);
-    }
+            }
 
     /**
      * Create action buttons (select, submit, clear)
@@ -9706,8 +9630,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
 
         // Log for debugging
-        console.log('Cleared selected issues');
-    }
+            }
 
     /**
      * For backwards compatibility - set a single selected issue
@@ -9971,8 +9894,7 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.commandShortcuts = new CommandShortcut({
                     targetElement: commentInput,
                     onShortcutInsert: (type, value) => {
-                        console.log(`Shortcut inserted: ${type} with value ${value}`);
-                    }
+                                            }
                 });
 
                 // Initialize shortcuts container, replacing the placeholder
@@ -10487,7 +10409,6 @@ window.BulkCommentsView = class BulkCommentsView {
 }
 
 // File: lib/ui/UIManager.js
-// UIManager.js - Main UI coordination class with fixed initialization
 /**
  * Main UI Manager that coordinates all UI components
  */
@@ -10589,8 +10510,7 @@ window.UIManager = class UIManager {
         this.container.appendChild(this.contentWrapper);
 
         // Log the attachment element we're using
-        console.log('Attaching UI to element:', attachmentElement);
-
+        
         // Attach to the specified element
         attachmentElement.appendChild(this.container);
 
@@ -10639,8 +10559,7 @@ window.UIManager = class UIManager {
             this.labelManager = new LabelManager({
                 gitlabApi: this.gitlabApi,
                 onLabelsLoaded: (labels) => {
-                    console.log(`Loaded ${labels.length} labels`);
-                    // Refresh UI elements that depend on labels
+                                        // Refresh UI elements that depend on labels
                     if (this.bulkCommentsView && this.bulkCommentsView.addLabelShortcut) {
                         this.bulkCommentsView.addLabelShortcut();
                     }
@@ -10661,8 +10580,7 @@ window.UIManager = class UIManager {
             this.assigneeManager = new AssigneeManager({
                 gitlabApi: this.gitlabApi,
                 onAssigneesChange: (assignees) => {
-                    console.log(`Assignee whitelist updated with ${assignees.length} entries`);
-                    // Refresh UI elements that depend on assignees
+                                        // Refresh UI elements that depend on assignees
                     if (this.bulkCommentsView && this.bulkCommentsView.addAssignShortcut) {
                         this.bulkCommentsView.addAssignShortcut();
                     }
@@ -10681,8 +10599,7 @@ window.UIManager = class UIManager {
             this.milestoneManager = new MilestoneManager({
                 gitlabApi: this.gitlabApi,
                 onMilestonesLoaded: (milestones) => {
-                    console.log(`Loaded ${milestones.length} milestones`);
-                }
+                                    }
             });
         } catch (e) {
             console.error('Error initializing MilestoneManager:', e);
@@ -10895,8 +10812,7 @@ window.UIManager = class UIManager {
                     assigneeManager: this.assigneeManager,
                     gitlabApi: this.gitlabApi,
                     onSettingsChanged: (type) => {
-                        console.log(`Settings changed: ${type}`);
-                        // Refresh relevant UI components
+                                                // Refresh relevant UI components
                         if (type === 'all' || type === 'labels') {
                             if (this.bulkCommentsView) {
                                 this.bulkCommentsView.addLabelShortcut();
@@ -11168,8 +11084,7 @@ window.UIManager = class UIManager {
         const containerPosition = window.getComputedStyle(container).position;
         if (containerPosition === 'static' || !containerPosition) {
             // Log a message to help debug positioning issues
-            console.log(`Setting position: relative on container for loading screen: ${name}`);
-
+            
             // Set container to relative positioning
             container.style.position = 'relative';
 
@@ -11276,8 +11191,7 @@ window.UIManager = class UIManager {
         // Calculate the height we need to subtract from wrapper
         const subtractHeight = headerHeight + tabNavHeight + statsHeight + 20; // +20px for padding/margins
 
-        console.log(`Calculated heights - Wrapper: ${wrapper.offsetHeight}px, Header: ${headerHeight}px, Tabs: ${tabNavHeight}px, Stats: ${statsHeight}px`);
-
+        
         // Set minimum height for each tab content
         tabContents.forEach(content => {
             if (content) {
@@ -11286,17 +11200,13 @@ window.UIManager = class UIManager {
                 content.style.height = `calc(100% - ${subtractHeight}px)`;
                 content.style.position = 'relative';
 
-                console.log(`Set height for ${content.id}: calc(100% - ${subtractHeight}px)`);
-            }
+                            }
         });
     }
 }
 
 
 // File: lib/ui/index.js
-// UI integration file for GitLab Assignee Time Summary
-// This file loads all the UI components and provides the interface for the main script
-// Create instance of the UI Manager
 window.uiManager = window.uiManager || new UIManager();
 
 /**
@@ -11330,8 +11240,7 @@ function createUIManager() {
                     assigneeManager: uiManager.assigneeManager,
                     gitlabApi: window.gitlabApi || uiManager.gitlabApi,
                     onSettingsChanged: (type) => {
-                        console.log(`Settings changed: ${type}`);
-                        // Refresh relevant UI components
+                                                // Refresh relevant UI components
                         if (type === 'all' || type === 'labels') {
                             if (uiManager.bulkCommentsView) {
                                 uiManager.bulkCommentsView.addLabelShortcut();
@@ -11425,7 +11334,6 @@ window.renderHistory = function renderHistory() {
     uiManager.historyView.render();
 }
 
-// Add event listeners for board changes to reposition overlays if window is scrolled
 window.addEventListener('scroll', () => {
     if (uiManager && uiManager.issueSelector) {
         if (typeof uiManager.issueSelector.repositionOverlays === 'function') {
@@ -11434,7 +11342,6 @@ window.addEventListener('scroll', () => {
     }
 });
 
-// Add event listeners for window resize to reposition overlays
 window.addEventListener('resize', () => {
     if (uiManager && uiManager.issueSelector) {
         if (typeof uiManager.issueSelector.repositionOverlays === 'function') {
@@ -11443,7 +11350,6 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Expose the UI Manager and functions globally for backwards compatibility
 window.uiManager = uiManager;
 window.updateSummaryTab = updateSummaryTab;
 window.updateBoardsTab = updateBoardsTab;
@@ -11451,24 +11357,18 @@ window.updateBulkCommentsTab = updateBulkCommentsTab;
 window.renderHistory = renderHistory;
 window.createSummaryContainer = createSummaryContainer;
 
-// Fix for settings button
-// Insert this at the end of your user script, after all initializations
 
-// Add global access to SettingsManager
 window.SettingsManager = SettingsManager;
 
-// Add direct click handler to settings button
 setTimeout(() => {
     // Find the settings button
     const settingsBtn = document.querySelector('#assignee-time-summary button[title="Settings"]');
 
     if (settingsBtn) {
-        console.log('Found settings button, attaching direct handler');
-
+        
         settingsBtn.onclick = (e) => {
             e.stopPropagation();
-            console.log('Settings button clicked');
-
+            
             // Create and open new settings manager
             try {
                 const settingsManager = new SettingsManager({
@@ -11476,8 +11376,7 @@ setTimeout(() => {
                     assigneeManager: window.uiManager?.assigneeManager,
                     gitlabApi: window.gitlabApi,
                     onSettingsChanged: (type) => {
-                        console.log(`Settings changed: ${type}`);
-                        // Refresh UI components when settings change
+                                                // Refresh UI components when settings change
                         if (window.uiManager?.bulkCommentsView) {
                             if (type === 'all' || type === 'labels') {
                                 window.uiManager.bulkCommentsView.addLabelShortcut();
@@ -11495,20 +11394,13 @@ setTimeout(() => {
             }
         };
 
-        console.log('Settings button handler attached');
-    } else {
+            } else {
         console.warn('Settings button not found');
     }
 }, 2000); // Wait 2 seconds to ensure all elements are loaded
 
 // File: lib/index.js
-// Main index file for GitLab Sprint Helper
-// This file serves as the main entry point for the module
 
-// Import API
-// Import core modules
-// Import storage modules
-// Import UI modules
 /**
  * Create the UI Manager with proper initialization
  * @param {HTMLElement} attachmentElement - Element to attach the UI to
@@ -11542,8 +11434,7 @@ function createUIManager(attachmentElement = document.body) {
                     assigneeManager: uiManager?.assigneeManager,
                     gitlabApi: window.gitlabApi,
                     onSettingsChanged: (type) => {
-                        console.log(`Settings changed: ${type}`);
-                        // Refresh UI components when settings change
+                                                // Refresh UI components when settings change
                         if (uiManager?.bulkCommentsView) {
                             if (type === 'all' || type === 'labels') {
                                 uiManager.bulkCommentsView.addLabelShortcut();
@@ -11567,7 +11458,6 @@ function createUIManager(attachmentElement = document.body) {
 }
 
 
-// Add a global initialization flag to prevent duplicate initialization
 let isInitialized = false;
 
 /**
@@ -11576,18 +11466,15 @@ let isInitialized = false;
 function checkAndInit() {
     // Prevent duplicate initialization
     if (isInitialized) {
-        console.log('GitLab Sprint Helper already initialized');
-        return;
+                return;
     }
 
     if (window.location.href.includes('/boards')) {
-        console.log('On a GitLab boards page, waiting for DOM elements...');
-
+        
         // Wait for boards element before initializing
         waitForBoardsElement()
             .then(boardsElement => {
-                console.log('Ready to initialize UI with proper attachment point');
-
+                
                 // Create UI Manager, passing the attachment element
                 const uiManager = createUIManager(boardsElement);
 
@@ -11619,14 +11506,12 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
 
         const checkForElement = () => {
             attempts++;
-            console.log(`Attempt ${attempts}/${maxAttempts} to find boards element`);
-
+            
             // Try to find the element
             const boardsElement = document.querySelector('[data-testid="boards-list"]');
 
             if (boardsElement) {
-                console.log('Found boards-list element');
-                resolve(boardsElement);
+                                resolve(boardsElement);
                 return;
             }
 
@@ -11640,8 +11525,7 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
             for (const selector of fallbackSelectors) {
                 const element = document.querySelector(selector);
                 if (element) {
-                    console.log(`Found fallback element using selector: ${selector}`);
-                    resolve(element);
+                                        resolve(element);
                     return;
                 }
             }
@@ -11683,8 +11567,7 @@ function updateSummary(forceHistoryUpdate = false) {
         const result = processBoards();
 
         // Debug logging
-        console.log('Board data processing result:', result);
-
+        
         const {
             assigneeTimeMap,
             boardData,
@@ -11777,7 +11660,6 @@ function addBoardChangeListeners() {
         console.error('Error adding board change listeners:', e);
     }
 }
-// Add this helper function to lib/index.js
 /**
  * Set up the settings manager
  * @param {UIManager} uiManager - The UI manager instance
@@ -11790,8 +11672,7 @@ function setupSettingsManager(uiManager) {
                 assigneeManager: uiManager?.assigneeManager,
                 gitlabApi: window.gitlabApi,
                 onSettingsChanged: (type) => {
-                    console.log(`Settings changed: ${type}`);
-                    // Refresh UI components when settings change
+                                        // Refresh UI components when settings change
                     if (uiManager?.bulkCommentsView) {
                         if (type === 'all' || type === 'labels') {
                             uiManager.bulkCommentsView.addLabelShortcut();
@@ -11813,8 +11694,7 @@ function setupSettingsManager(uiManager) {
 function waitForBoards() {
     // Check if we've already completed initialization
     if (window.boardsInitialized) {
-        console.log('Boards already initialized, skipping');
-        return;
+                return;
     }
 
     // Use the existing board stats element if it exists
@@ -11897,10 +11777,8 @@ function renderHistory() {
     }
 }
 
-// Initial check
 checkAndInit();
 
-// Watch for URL changes (for SPA navigation)
 let lastUrl = window.location.href;
 try {
     const urlObserver = new MutationObserver(() => {
@@ -11915,7 +11793,6 @@ try {
     console.error('Error setting up URL observer:', e);
 }
 
-// Expose functions globally for compatibility with existing codebase
 window.gitlabApi = window.gitlabApi || new GitLabAPI();
 window.updateSummary = updateSummary;
 window.checkAndInit = checkAndInit;
@@ -11925,7 +11802,6 @@ window.SettingsManager = SettingsManager;
 window.LabelManager = LabelManager;
 window.AssigneeManager = AssigneeManager;
 
-// Add event listeners for board changes to reposition overlays if window is scrolled
 window.addEventListener('scroll', () => {
     if (window.uiManager?.issueSelector) {
         if (typeof window.uiManager.issueSelector.repositionOverlays === 'function') {
@@ -11934,7 +11810,6 @@ window.addEventListener('scroll', () => {
     }
 });
 
-// Add event listeners for window resize to reposition overlays
 window.addEventListener('resize', () => {
     if (window.uiManager?.issueSelector) {
         if (typeof window.uiManager.issueSelector.repositionOverlays === 'function') {
@@ -11943,7 +11818,6 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Export for module usage
 
 
 // File: main.js (main script content)

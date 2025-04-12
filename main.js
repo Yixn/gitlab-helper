@@ -15,10 +15,7 @@
 (function () {
     'use strict';
 
-    // Setup global class references to ensure they're available
     function setupGlobalReferences() {
-        // These will be handled by the build process that combines all files
-        // No need to duplicate declarations here
     }
 
     /**
@@ -27,6 +24,4 @@
      * This file just ensures the initialization is done only once.
      */
 
-    // No need to directly call functions here since lib/index.js
-    // already handles initialization when bundled
 })();
