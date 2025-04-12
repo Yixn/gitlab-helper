@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Display a summary of assignees' time estimates on GitLab boards with API integration
+// @version      1.0.2
+// @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       You
 // @match        https://gitlab.com/*/boards/*
 // @grant        GM_setValue
@@ -18,6 +18,7 @@
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/HistoryTabView.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/ApiTabView.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/IssueSelector.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/CommentShortcuts.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/UIManager.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui.js
 // @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
