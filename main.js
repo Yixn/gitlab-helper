@@ -12,13 +12,13 @@
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/api.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/dataProcessor.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/history.js
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/UIManager.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/TabManager.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/SummaryTabView.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/BoardsTabView.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/HistoryTabView.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/ApiTabView.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/IssueSelector.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui/UIManager.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui.js
 // @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
 // @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
