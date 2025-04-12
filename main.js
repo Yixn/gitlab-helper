@@ -12,9 +12,28 @@
 // @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/dist/gitlab-sprint-helper.js
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
+    function setupGlobalReferences() {
+        // Expose classes globally to ensure they're available
+        window.LabelManager = LabelManager;
+        window.AssigneeManager = AssigneeManager;
+        window.SettingsManager = SettingsManager;
+        window.CommandShortcut = CommandShortcut;
+        window.Notification = Notification;
+
+        // Ensure gitlabApi is globally available
+        if (!window.gitlabApi && typeof GitLabAPI === 'function') {
+            try {
+                window.gitlabApi = new GitLabAPI();
+            } catch (e) {
+                console.error('Error creating global gitlabApi:', e);
+            }
+        }
+    }
+
+    setupGlobalReferences();
     /**
      * This file is the main entry point for the GitLab Sprint Helper userscript.
      * After refactoring, most of the actual code has been moved to modular files in the lib/ directory.

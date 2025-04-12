@@ -917,89 +917,257 @@ const DEFAULT_SETTINGS = {
 };
 
 /**
- * Get label whitelist
+ * Get label whitelist with error handling
  * @returns {Array} Label whitelist array
  */
 window.getLabelWhitelist = function getLabelWhitelist() {
-    const whitelist = loadFromStorage(STORAGE_KEYS.LABEL_WHITELIST, DEFAULT_SETTINGS.labelWhitelist);
-    // Ensure we always return an array
-    return Array.isArray(whitelist) ? whitelist : DEFAULT_SETTINGS.labelWhitelist;
-}
-
-/**
- * Save label whitelist
- * @param {Array} whitelist - Label whitelist array
- * @returns {boolean} Success status
- */
-window.saveLabelWhitelist = function saveLabelWhitelist(whitelist) {
-    return saveToStorage(STORAGE_KEYS.LABEL_WHITELIST, whitelist);
-}
-
-/**
- * Reset label whitelist to default values
- * @returns {boolean} Success status
- */
-window.resetLabelWhitelist = function resetLabelWhitelist() {
-    return saveToStorage(STORAGE_KEYS.LABEL_WHITELIST, DEFAULT_SETTINGS.labelWhitelist);
-}
-
-/**
- * Get assignee whitelist
- * @returns {Array} Assignee whitelist array
- */
-window.getAssigneeWhitelist = function getAssigneeWhitelist() {
-    return loadFromStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, DEFAULT_SETTINGS.assigneeWhitelist);
-}
-
-/**
- * Save assignee whitelist
- * @param {Array} whitelist - Assignee whitelist array
- * @returns {boolean} Success status
- */
-window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
-    return saveToStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, whitelist);
-}
-
-/**
- * Get last active tab from storage
- * @returns {string} Tab ID
- */
-window.getLastActiveTab = function getLastActiveTab() {
     try {
-        let tabId = loadFromStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, DEFAULT_SETTINGS.lastActiveTab);
-        // Ensure we handle both string and JSON stored values
-        return typeof tabId === 'string' ? tabId : DEFAULT_SETTINGS.lastActiveTab;
-    } catch (e) {
-        console.warn('Error retrieving last active tab:', e);
-        return 'summary'; // Fallback to summary tab
+        const whitelist = loadFromStorage(STORAGE_KEYS.LABEL_WHITELIST, null);
+
+        // Handle various scenarios
+        if (whitelist === null) {
+            // Return a copy of the default whitelist
+            return [...DEFAULT_SETTINGS.labelWhitelist];
+        }
+
+        // Ensure it's an array
+        if (!Array.isArray(whitelist)) {
+            console.warn('Label whitelist is not an array, using default');
+            return [...DEFAULT_SETTINGS.labelWhitelist];
+        }
+
+        // Ensure all elements are strings
+        const cleanedWhitelist = whitelist.filter(item => typeof item === 'string');
+
+        // If everything was filtered out, use default
+        if (cleanedWhitelist.length === 0 && whitelist.length > 0) {
+            console.warn('Label whitelist contained no valid strings, using default');
+            return [...DEFAULT_SETTINGS.labelWhitelist];
+        }
+
+        return cleanedWhitelist;
+    } catch (error) {
+        console.error('Error getting label whitelist:', error);
+        return [...DEFAULT_SETTINGS.labelWhitelist];
     }
 }
 
 /**
- * Save last active tab to storage
+ * Save label whitelist with error handling
+ * @param {Array} whitelist - Label whitelist array
+ * @returns {boolean} Success status
+ */
+window.saveLabelWhitelist = function saveLabelWhitelist(whitelist) {
+    try {
+        // Validate whitelist
+        if (!Array.isArray(whitelist)) {
+            console.warn('Attempting to save invalid whitelist (not an array), using empty array instead');
+            whitelist = [];
+        }
+
+        // Filter out non-string items
+        const cleanedWhitelist = whitelist.filter(item => typeof item === 'string');
+
+        // Save the cleaned whitelist
+        return saveToStorage(STORAGE_KEYS.LABEL_WHITELIST, cleanedWhitelist);
+    } catch (error) {
+        console.error('Error saving label whitelist:', error);
+        return false;
+    }
+}
+
+/**
+ * Reset label whitelist to default values with error handling
+ * @returns {Array} The default whitelist
+ */
+window.resetLabelWhitelist = function resetLabelWhitelist() {
+    try {
+        // Create a copy of the default whitelist
+        const defaultWhitelist = [...DEFAULT_SETTINGS.labelWhitelist];
+
+        // Save it to storage
+        saveToStorage(STORAGE_KEYS.LABEL_WHITELIST, defaultWhitelist);
+
+        // Return the default whitelist
+        return defaultWhitelist;
+    } catch (error) {
+        console.error('Error resetting label whitelist:', error);
+        return [...DEFAULT_SETTINGS.labelWhitelist];
+    }
+}
+
+/**
+ * Get assignee whitelist with error handling
+ * @returns {Array} Assignee whitelist array
+ */
+window.getAssigneeWhitelist = function getAssigneeWhitelist() {
+    try {
+        const whitelist = loadFromStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, null);
+
+        // Handle various scenarios
+        if (whitelist === null) {
+            // Return a copy of the default whitelist (empty array)
+            return [];
+        }
+
+        // Ensure it's an array
+        if (!Array.isArray(whitelist)) {
+            console.warn('Assignee whitelist is not an array, using empty array');
+            return [];
+        }
+
+        // Ensure all elements are objects with username
+        const cleanedWhitelist = whitelist.filter(item =>
+            item && typeof item === 'object' && typeof item.username === 'string'
+        );
+
+        return cleanedWhitelist;
+    } catch (error) {
+        console.error('Error getting assignee whitelist:', error);
+        return [];
+    }
+}
+
+/**
+ * Save assignee whitelist with error handling
+ * @param {Array} whitelist - Assignee whitelist array
+ * @returns {boolean} Success status
+ */
+window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
+    try {
+        // Validate whitelist
+        if (!Array.isArray(whitelist)) {
+            console.warn('Attempting to save invalid assignee whitelist (not an array), using empty array instead');
+            whitelist = [];
+        }
+
+        // Filter out invalid items
+        const cleanedWhitelist = whitelist.filter(item =>
+            item && typeof item === 'object' && typeof item.username === 'string'
+        );
+
+        // Save the cleaned whitelist
+        return saveToStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, cleanedWhitelist);
+    } catch (error) {
+        console.error('Error saving assignee whitelist:', error);
+        return false;
+    }
+}
+
+/**
+ * Get last active tab from storage with error handling
+ * @returns {string} Tab ID
+ */
+window.getLastActiveTab = function getLastActiveTab() {
+    try {
+        const tabId = loadFromStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, null);
+
+        // Validate the tab ID
+        if (tabId === null) {
+            return DEFAULT_SETTINGS.lastActiveTab;
+        }
+
+        // Ensure it's a string
+        if (typeof tabId !== 'string') {
+            const stringTabId = String(tabId);
+            // Check if we can convert to string sensibly
+            if (stringTabId && ['summary', 'boards', 'history', 'bulkcomments'].includes(stringTabId)) {
+                return stringTabId;
+            }
+            console.warn('Invalid tab ID format, using default');
+            return DEFAULT_SETTINGS.lastActiveTab;
+        }
+
+        // Check if it's a valid tab ID
+        if (!['summary', 'boards', 'history', 'bulkcomments'].includes(tabId)) {
+            console.warn(`Unknown tab ID: ${tabId}, using default`);
+            return DEFAULT_SETTINGS.lastActiveTab;
+        }
+
+        return tabId;
+    } catch (error) {
+        console.error('Error getting last active tab:', error);
+        return DEFAULT_SETTINGS.lastActiveTab;
+    }
+}
+
+/**
+ * Save last active tab to storage with error handling
  * @param {string} tabId - Tab ID
  * @returns {boolean} Success status
  */
 window.saveLastActiveTab = function saveLastActiveTab(tabId) {
-    // Always store tab ID as a plain string, not JSON
-    return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, String(tabId));
+    try {
+        // Convert to string just in case
+        const tabIdStr = String(tabId);
+
+        // Validate the tab ID
+        if (!['summary', 'boards', 'history', 'bulkcomments'].includes(tabIdStr)) {
+            console.warn(`Attempting to save invalid tab ID: ${tabIdStr}, using default`);
+            return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, DEFAULT_SETTINGS.lastActiveTab);
+        }
+
+        // Save the tab ID
+        return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, tabIdStr);
+    } catch (error) {
+        console.error('Error saving last active tab:', error);
+        return false;
+    }
 }
 
 /**
- * Get UI collapsed state
+ * Get UI collapsed state with error handling
  * @returns {boolean} Collapsed state
  */
 window.getUICollapsedState = function getUICollapsedState() {
-    return loadFromStorage(STORAGE_KEYS.UI_COLLAPSED, DEFAULT_SETTINGS.uiCollapsed);
+    try {
+        const state = loadFromStorage(STORAGE_KEYS.UI_COLLAPSED, null);
+
+        // Handle various scenarios
+        if (state === null) {
+            return DEFAULT_SETTINGS.uiCollapsed;
+        }
+
+        // Convert string "true" or "false" to boolean if needed
+        if (typeof state === 'string') {
+            return state.toLowerCase() === 'true';
+        }
+
+        // Use directly if it's already a boolean
+        if (typeof state === 'boolean') {
+            return state;
+        }
+
+        // Default for any other type
+        return DEFAULT_SETTINGS.uiCollapsed;
+    } catch (error) {
+        console.error('Error getting UI collapsed state:', error);
+        return DEFAULT_SETTINGS.uiCollapsed;
+    }
 }
 
 /**
- * Save UI collapsed state
+ * Save UI collapsed state with error handling
  * @param {boolean} collapsed - Collapsed state
  * @returns {boolean} Success status
  */
 window.saveUICollapsedState = function saveUICollapsedState(collapsed) {
-    return saveToStorage(STORAGE_KEYS.UI_COLLAPSED, collapsed);
+    try {
+        // Convert to boolean if it's a string
+        let collapsedBool = collapsed;
+        if (typeof collapsed === 'string') {
+            collapsedBool = collapsed.toLowerCase() === 'true';
+        }
+
+        // Ensure it's a boolean
+        collapsedBool = Boolean(collapsedBool);
+
+        // Save as string for consistency
+        return saveToStorage(STORAGE_KEYS.UI_COLLAPSED, String(collapsedBool));
+    } catch (error) {
+        console.error('Error saving UI collapsed state:', error);
+        return false;
+    }
 }
 
 // File: lib/ui/components/Dropdown.js
@@ -1845,8 +2013,13 @@ window.CommandShortcut = class CommandShortcut {
      * @returns {HTMLElement} The created shortcut element
      */
     addCustomShortcut(options) {
-        // Check if this type already exists and remove it if it does
-        if (this.shortcuts[options.type]) {
+        if (!this.shortcutsContainer) {
+            console.error("Shortcuts container not initialized");
+            return null;
+        }
+
+        // Check if already exists and remove it first
+        if (this.shortcuts && this.shortcuts[options.type]) {
             this.removeShortcut(options.type);
         }
 
@@ -1855,75 +2028,81 @@ window.CommandShortcut = class CommandShortcut {
         shortcutContainer.className = `shortcut-item ${options.type}-shortcut`;
         shortcutContainer.style.display = 'flex';
         shortcutContainer.style.alignItems = 'center';
-        shortcutContainer.style.width = '100%'; // Make the container full width
-        shortcutContainer.style.marginBottom = '8px'; // Add some spacing between items
+        shortcutContainer.style.width = '100%';
+        shortcutContainer.style.marginBottom = '8px';
         shortcutContainer.style.justifyContent = 'space-between';
         shortcutContainer.style.border = '1px solid #ddd';
         shortcutContainer.style.borderRadius = '4px';
-        shortcutContainer.style.padding = '6px 10px'; // Slightly increase padding
+        shortcutContainer.style.padding = '6px 10px';
         shortcutContainer.style.backgroundColor = '#f8f9fa';
+        shortcutContainer.style.height = '36px'; // Fixed height prevents jumping
+        shortcutContainer.style.boxSizing = 'border-box';
 
         // Create label with consistent styling
-        const shortcutLabel = document.createElement('span');
+        const shortcutLabel = document.createElement('div');
         shortcutLabel.textContent = options.label;
         shortcutLabel.style.fontSize = '13px';
-        shortcutLabel.style.fontFamily = 'monospace';
-        shortcutLabel.style.color = '#555';
         shortcutLabel.style.fontWeight = 'bold';
-        shortcutLabel.style.minWidth = '100px'; // Set a minimum width for the label
+        shortcutLabel.style.color = '#555';
+        shortcutLabel.style.minWidth = '100px';
+        shortcutLabel.style.flexShrink = '0'; // Prevent shrinking
+        shortcutLabel.style.whiteSpace = 'nowrap';
 
-        // Create dropdown with consistent styling
+        // Create dropdown container with fixed width
+        const dropdownContainer = document.createElement('div');
+        dropdownContainer.style.flex = '1';
+        dropdownContainer.style.position = 'relative';
+        dropdownContainer.style.height = '24px'; // Fixed height
+        dropdownContainer.style.marginLeft = '10px';
+
+        // Create select element with consistent width
         const dropdown = document.createElement('select');
         dropdown.className = `${options.type}-dropdown`;
-        dropdown.style.border = 'none';
-        dropdown.style.backgroundColor = 'transparent';
-        dropdown.style.fontSize = '13px'; // Slightly larger font
-        dropdown.style.appearance = 'none';
-        dropdown.style.paddingRight = '20px';
-        dropdown.style.paddingLeft = '5px';
-        dropdown.style.width = '100%'; // Make the dropdown fill remaining space
-        dropdown.style.backgroundImage = 'url("data:image/svg+xml;charset=utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 4 5\'%3E%3Cpath fill=\'%23666\' d=\'M2 0L0 2h4zm0 5L0 3h4z\'/%3E%3C/svg%3E")';
-        dropdown.style.backgroundRepeat = 'no-repeat';
-        dropdown.style.backgroundPosition = 'right 5px center';
-        dropdown.style.backgroundSize = '8px 10px';
-        dropdown.style.WebkitAppearance = 'none';
-        dropdown.style.outline = 'none';
-        dropdown.style.cursor = 'pointer';
+        dropdown.style.width = '100%';
+        dropdown.style.height = '100%';
+        dropdown.style.appearance = 'auto'; // Use native appearance for stability
+        dropdown.style.padding = '0 25px 0 8px'; // Add some padding for the arrow
+        dropdown.style.fontSize = '13px';
+        dropdown.style.border = '1px solid #ccc';
+        dropdown.style.borderRadius = '4px';
+        dropdown.style.backgroundColor = '#fff';
+        dropdown.style.boxSizing = 'border-box';
 
-        // Container for the dropdown to give it proper width
-        const dropdownContainer = document.createElement('div');
-        dropdownContainer.style.flexGrow = '1'; // Allow dropdown container to grow
-        dropdownContainer.style.marginLeft = '10px'; // Add spacing between label and dropdown
+        // Add placeholder option first
+        const placeholderOption = document.createElement('option');
+        placeholderOption.value = '';
+        placeholderOption.textContent = options.items[0]?.label || 'Select...';
+        placeholderOption.selected = true;
+        dropdown.appendChild(placeholderOption);
 
-        // Add options to dropdown
-        options.items.forEach(item => {
-            const optionElement = document.createElement('option');
-            optionElement.value = item.value;
-            optionElement.textContent = item.label;
-            dropdown.appendChild(optionElement);
-        });
+        // Add other options
+        if (options.items && options.items.length > 0) {
+            options.items.forEach((item, index) => {
+                if (index === 0) return; // Skip the first one, already added as placeholder
 
-        // Add change event for dropdown
-        dropdown.addEventListener('change', () => {
-            const selectedValue = dropdown.value;
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+                dropdown.appendChild(option);
+            });
+        }
 
-            if (selectedValue && typeof options.onSelect === 'function') {
+        // Add change event listener
+        dropdown.addEventListener('change', (e) => {
+            const selectedValue = e.target.value;
+            if (selectedValue && options.onSelect) {
                 options.onSelect(selectedValue);
+                e.target.value = ''; // Reset after selection
             }
-
-            // Reset dropdown to first option
-            dropdown.value = '';
         });
 
-        // Add elements to container
-        shortcutContainer.appendChild(shortcutLabel);
+        // Append elements to container
         dropdownContainer.appendChild(dropdown);
+        shortcutContainer.appendChild(shortcutLabel);
         shortcutContainer.appendChild(dropdownContainer);
-
-        // Add to shortcuts container
         this.shortcutsContainer.appendChild(shortcutContainer);
 
-        // Store for future reference
+        // Store reference
         this.shortcuts[options.type] = {
             element: shortcutContainer,
             dropdown: dropdown,
@@ -1932,6 +2111,7 @@ window.CommandShortcut = class CommandShortcut {
 
         return shortcutContainer;
     }
+
 
     /**
      * Apply replacement logic for commands
@@ -3928,8 +4108,21 @@ window.LabelManager = class LabelManager {
         this.gitlabApi = options.gitlabApi || window.gitlabApi;
         this.onLabelsLoaded = options.onLabelsLoaded || null;
 
-        // Load saved whitelist
-        this.labelWhitelist = getLabelWhitelist();
+        // Initialize with empty whitelist
+        this.labelWhitelist = [];
+
+        // Try to load saved whitelist, with error handling
+        try {
+            this.labelWhitelist = getLabelWhitelist();
+            // Ensure it's an array
+            if (!Array.isArray(this.labelWhitelist)) {
+                console.warn("Loaded whitelist is not an array, using default");
+                this.labelWhitelist = this.getDefaultWhitelist();
+            }
+        } catch (e) {
+            console.warn("Error loading label whitelist, using default", e);
+            this.labelWhitelist = this.getDefaultWhitelist();
+        }
 
         // Initialize storage for fetched labels
         this.availableLabels = [];
@@ -3938,12 +4131,35 @@ window.LabelManager = class LabelManager {
     }
 
     /**
+     * Get default whitelist values
+     * @returns {Array} Default whitelist array
+     */
+    getDefaultWhitelist() {
+        return [
+            'bug', 'feature', 'documentation', 'enhancement', 'security',
+            'priority', 'high', 'medium', 'low', 'critical',
+            'frontend', 'backend', 'ui', 'ux', 'api',
+            'wontfix', 'duplicate', 'invalid', 'question',
+            'ready', 'in progress', 'review', 'blocked'
+        ];
+    }
+
+    /**
      * Save whitelist to storage
      * @param {Array} whitelist - Array of whitelist terms
      */
     saveWhitelist(whitelist) {
+        // Ensure whitelist is an array
+        if (!Array.isArray(whitelist)) {
+            whitelist = [];
+        }
         this.labelWhitelist = whitelist;
-        saveLabelWhitelist(whitelist);
+
+        try {
+            saveLabelWhitelist(whitelist);
+        } catch (e) {
+            console.error("Error saving label whitelist", e);
+        }
 
         // Re-filter labels with new whitelist
         this.filterLabels();
@@ -3953,10 +4169,17 @@ window.LabelManager = class LabelManager {
      * Reset whitelist to default values
      */
     resetToDefaultWhitelist() {
-        this.labelWhitelist = resetLabelWhitelist();
+        try {
+            this.labelWhitelist = this.getDefaultWhitelist();
+            saveLabelWhitelist(this.labelWhitelist);
+        } catch (e) {
+            console.error("Error resetting label whitelist", e);
+        }
 
         // Re-filter labels with default whitelist
         this.filterLabels();
+
+        return this.labelWhitelist;
     }
 
     /**
@@ -3965,15 +4188,23 @@ window.LabelManager = class LabelManager {
      * @param {Array} whitelist - Whitelist to check against (optional)
      * @returns {boolean} True if label matches whitelist
      */
-    isLabelInWhitelist(labelName, whitelist = this.labelWhitelist) {
-        if (!Array.isArray(whitelist)) {
-            console.warn("Whitelist is not an array, using empty array instead");
-            whitelist = [];
+    isLabelInWhitelist(labelName, whitelist = null) {
+        // Use provided whitelist or instance whitelist
+        const whitelistToUse = whitelist || this.labelWhitelist;
+
+        // Ensure we have a valid whitelist and label name
+        if (!Array.isArray(whitelistToUse) || typeof labelName !== 'string') {
+            return false;
         }
 
         const lowerName = labelName.toLowerCase();
-        return whitelist.some(term => lowerName.includes(term.toLowerCase()));
+        return whitelistToUse.some(term => {
+            // Ensure term is a string
+            if (typeof term !== 'string') return false;
+            return lowerName.includes(term.toLowerCase());
+        });
     }
+
 
     /**
      * Filter labels based on current whitelist
@@ -3985,9 +4216,11 @@ window.LabelManager = class LabelManager {
         }
 
         // Filter labels using whitelist
-        this.filteredLabels = this.availableLabels.filter(label =>
-            this.isLabelInWhitelist(label.name)
-        );
+        this.filteredLabels = this.availableLabels.filter(label => {
+            // Ensure the label has a name property
+            if (!label || typeof label.name !== 'string') return false;
+            return this.isLabelInWhitelist(label.name);
+        });
 
         // Sort labels alphabetically
         this.filteredLabels.sort((a, b) => a.name.localeCompare(b.name));
@@ -4015,16 +4248,14 @@ window.LabelManager = class LabelManager {
             if (!this.gitlabApi) {
                 console.warn('GitLab API instance not available, using fallback labels');
                 this.isLoading = false;
-                // Use fallback labels instead
                 return this.addFallbackLabels();
             }
 
-            // Rest of the method remains the same...
             // Get path info (project or group)
             const pathInfo = getPathFromUrl();
 
-            if (!pathInfo) {
-                console.warn('Path info not found, returning empty labels array');
+            if (!pathInfo || !pathInfo.apiUrl) {
+                console.warn('Path info not found or invalid, returning fallback labels');
                 this.isLoading = false;
                 return this.addFallbackLabels();
             }
@@ -4035,11 +4266,18 @@ window.LabelManager = class LabelManager {
                     params: { per_page: 100 }
                 });
 
+                // Validate received labels
+                if (!Array.isArray(labels)) {
+                    console.warn('API did not return an array of labels, using fallback');
+                    this.isLoading = false;
+                    return this.addFallbackLabels();
+                }
+
                 this.availableLabels = labels;
                 this.filterLabels();
 
                 this.isLoading = false;
-                return labels;
+                return this.filteredLabels;
             } catch (apiError) {
                 console.error(`Error fetching ${pathInfo.type} labels from API:`, apiError);
                 this.isLoading = false;
@@ -4051,12 +4289,57 @@ window.LabelManager = class LabelManager {
             return this.addFallbackLabels();
         }
     }
+
+    /**
+     * Add fallback labels when API fails
+     * @returns {Array} Array of fallback labels
+     */
+    addFallbackLabels() {
+        // Create basic fallback labels
+        const fallbackLabels = [
+            { name: 'bug', color: '#ff0000' },
+            { name: 'feature', color: '#1f75cb' },
+            { name: 'enhancement', color: '#7057ff' },
+            { name: 'documentation', color: '#0075ca' },
+            { name: 'priority', color: '#d73a4a' },
+            { name: 'blocked', color: '#b60205' }
+        ];
+
+        // Set as available labels
+        this.availableLabels = fallbackLabels;
+
+        // Filter and sort (even with fallbacks, respect whitelist)
+        this.filterLabels();
+
+        // Notify callback if provided
+        if (typeof this.onLabelsLoaded === 'function') {
+            this.onLabelsLoaded(this.filteredLabels);
+        }
+
+        return this.filteredLabels;
+    }
+
     /**
      * Get labels for dropdown
      * @param {boolean} includeEmpty - Whether to include empty option
      * @returns {Array} Array of label options for dropdown
      */
     getLabelOptions(includeEmpty = true) {
+        // Check if we have filteredLabels
+        if (!this.filteredLabels || this.filteredLabels.length === 0) {
+            // Return basic options if no filtered labels
+            const basicOptions = [];
+            if (includeEmpty) {
+                basicOptions.push({ value: '', label: 'Add Label' });
+            }
+            return basicOptions.concat([
+                { value: 'bug', label: 'Bug' },
+                { value: 'feature', label: 'Feature' },
+                { value: 'enhancement', label: 'Enhancement' },
+                { value: 'custom', label: 'Custom...' }
+            ]);
+        }
+
         // Map to format needed for dropdown
         const labelOptions = this.filteredLabels.map(label => ({
             value: label.name,
@@ -4069,6 +4352,9 @@ window.LabelManager = class LabelManager {
             labelOptions.unshift({ value: '', label: 'Add Label' });
         }
 
+        // Add custom option at the end
+        labelOptions.push({ value: 'custom', label: 'Custom...' });
+
         return labelOptions;
     }
 
@@ -4079,10 +4365,11 @@ window.LabelManager = class LabelManager {
      */
     createStyledLabel(label) {
         const labelElement = document.createElement('span');
-        labelElement.textContent = label.label || label.name;
+        labelElement.textContent = label.label || label.name || '';
 
         // Use provided color or generate one based on name
-        const bgColor = label.color || generateColorFromString(label.label || label.name);
+        const labelText = label.label || label.name || 'label';
+        const bgColor = label.color || generateColorFromString(labelText);
 
         // Calculate text color (black or white) based on background color brightness
         const textColor = getContrastColor(bgColor);
@@ -4110,10 +4397,10 @@ window.LabelManager = class LabelManager {
      * @param {string} labelName - Label name to add
      */
     insertLabelCommand(textarea, labelName) {
-        if (!textarea) return;
+        if (!textarea || typeof labelName !== 'string') return;
 
         // Create the label command
-        const labelText = `/label ~${labelName}`;
+        const labelText = `/label ~"${labelName}"`;
 
         // Check if there's already a label command
         const labelRegex = /\/label\s+~[^\n]+/g;
@@ -4180,35 +4467,13 @@ window.LabelManager = class LabelManager {
             dropdown.updateItems([
                 { value: '', label: 'Error loading labels' },
                 { value: 'bug', label: 'Bug' },
-                { value: 'feature', label: 'Feature' }
+                { value: 'feature', label: 'Feature' },
+                { value: 'custom', label: 'Custom...' }
             ]);
             dropdown.enable();
         }
 
         return dropdown;
-    }
-    addFallbackLabels() {
-        // Create basic fallback labels
-        const fallbackLabels = [
-            { value: '', label: 'Add Label' },
-            { value: 'bug', label: 'Bug' },
-            { value: 'feature', label: 'Feature' },
-            { value: 'enhancement', label: 'Enhancement' },
-            { value: 'documentation', label: 'Documentation' }
-        ];
-
-        // Map to format needed for dropdown
-        this.filteredLabels = fallbackLabels.map(label => ({
-            name: label.label,
-            color: generateColorFromString(label.label)
-        }));
-
-        // Notify callback if provided
-        if (typeof this.onLabelsLoaded === 'function') {
-            this.onLabelsLoaded(this.filteredLabels);
-        }
-
-        return this.filteredLabels;
     }
 }
 
@@ -6725,9 +6990,12 @@ window.SettingsManager = class SettingsManager {
                     this.notification.success(`Added ${user.name} to assignees`);
 
                     // Notify of change
-                    if (this.onSettingsChanged) {
+                    if (typeof this.onSettingsChanged === 'function') {
                         this.onSettingsChanged('assignees');
                     }
+
+                    // Refresh the whitelisted assignees tab
+                    this.refreshWhitelistedTab();
                 });
             }
 
@@ -6740,6 +7008,55 @@ window.SettingsManager = class SettingsManager {
             userItem.appendChild(actionButton);
             container.appendChild(userItem);
         });
+    }
+
+    /**
+     * Refresh the whitelisted assignees tab
+     * This is a new function to update the UI when assignees change
+     */
+    refreshWhitelistedTab() {
+        // Find the whitelisted assignees container
+        const tabsContainer = document.querySelector('.assignee-section');
+        if (!tabsContainer) return;
+
+        // Find tab content elements
+        const whitelistedContent = tabsContainer.querySelector('div[style*="display: block"]'); // Currently visible content
+        if (!whitelistedContent) return;
+
+        // Find the assignee list container
+        const assigneeListContainer = whitelistedContent.querySelector('div[style*="overflowY: auto"]');
+        if (!assigneeListContainer) return;
+
+        // Create empty message function
+        const createEmptyMessage = () => {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
+            emptyMessage.style.padding = '15px';
+            emptyMessage.style.color = '#666';
+            emptyMessage.style.fontStyle = 'italic';
+            emptyMessage.style.textAlign = 'center';
+            return emptyMessage;
+        };
+
+        // Clear current list
+        assigneeListContainer.innerHTML = '';
+
+        // Get current whitelist
+        let assignees = [];
+        if (this.assigneeManager) {
+            assignees = this.assigneeManager.getAssigneeWhitelist();
+        } else {
+            assignees = getAssigneeWhitelist();
+        }
+
+        // Populate whitelist
+        if (assignees.length > 0) {
+            assignees.forEach((assignee, index) => {
+                assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
+            });
+        } else {
+            assigneeListContainer.appendChild(createEmptyMessage());
+        }
     }
 
     /**
@@ -7877,16 +8194,11 @@ window.HistoryView = class HistoryView {
 }
 
 // File: lib/ui/views/BulkCommentsView.js
-// BulkCommentsView.js - Complete Updated Version
-
+// BulkCommentsView.js - Fixed version
 /**
  * View for the Bulk Comments tab (previously API tab)
  */
 window.BulkCommentsView = class BulkCommentsView {
-    /**
-     * Constructor for BulkCommentsView
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
     /**
      * Constructor for BulkCommentsView
      * @param {Object} uiManager - Reference to the main UI manager
@@ -7897,6 +8209,7 @@ window.BulkCommentsView = class BulkCommentsView {
         this.commandShortcuts = null; // Will be initialized when Bulk Comments tab is rendered
         this.isLoading = false;
         this.initializedShortcuts = new Set(); // Track which shortcuts have been initialized
+        this.commentInput = null; // Store reference to textarea element
 
         // Get the GitLab API instance from the window object or uiManager
         this.gitlabApi = window.gitlabApi || (uiManager && uiManager.gitlabApi);
@@ -7934,23 +8247,76 @@ window.BulkCommentsView = class BulkCommentsView {
             onRemoveIssue: (index) => this.onRemoveIssue(index)
         });
     }
+
+    /**
+     * Initialize label and assignee managers with error handling
+     * @param {Object} uiManager - Reference to the main UI manager
+     */
+    initializeManagers(uiManager) {
+        // Try to get label manager from uiManager
+        if (uiManager && uiManager.labelManager) {
+            this.labelManager = uiManager.labelManager;
+        } else {
+            // Try to initialize from global if available
+            try {
+                if (typeof LabelManager === 'function') {
+                    this.labelManager = new LabelManager({
+                        gitlabApi: this.gitlabApi,
+                        onLabelsLoaded: (labels) => {
+                            // Re-add label shortcut when labels are loaded
+                            if (this.commandShortcuts) {
+                                this.addLabelShortcut();
+                            }
+                        }
+                    });
+                } else {
+                    console.warn('LabelManager class not available, using placeholder');
+                    // Create a simple placeholder
+                    this.labelManager = {
+                        filteredLabels: [],
+                        fetchAllLabels: () => Promise.resolve([]),
+                        isLabelInWhitelist: () => false
+                    };
+                }
+            } catch (e) {
+                console.error('Error initializing LabelManager:', e);
+                // Create a simple placeholder
+                this.labelManager = {
+                    filteredLabels: [],
+                    fetchAllLabels: () => Promise.resolve([]),
+                    isLabelInWhitelist: () => false
+                };
+            }
+        }
+
+        // Same process for assignee manager
+        if (uiManager && uiManager.assigneeManager) {
+            this.assigneeManager = uiManager.assigneeManager;
+        } else {
+            // Try to find global
+            this.assigneeManager = window.assigneeManager;
+        }
+    }
+
     /**
      * Initialize all shortcut types
      */
     initializeAllShortcuts() {
         if (!this.commandShortcuts) return;
 
-        // Add label shortcut with fallback labels
-        this.addLabelShortcut();
+        try {
+            // Add label shortcut with fallback labels
+            this.addLabelShortcut();
 
-        // Add milestone shortcut
-        this.addMilestoneShortcut();
+            // Add milestone shortcut
+            this.addMilestoneShortcut();
 
-        // Add assign shortcut
-        this.addAssignShortcut();
-
-        // We no longer add due date and weight shortcuts
-        // This is part of the fix requested by the user
+            // Add assign shortcut
+            this.addAssignShortcut();
+        } catch (e) {
+            console.error('Error initializing shortcuts:', e);
+            this.notification.error('Error initializing shortcuts');
+        }
     }
 
     /**
@@ -7959,43 +8325,50 @@ window.BulkCommentsView = class BulkCommentsView {
     addMilestoneShortcut() {
         if (!this.commandShortcuts) return;
 
-        this.commandShortcuts.addCustomShortcut({
-            type: 'milestone',
-            label: '/milestone',
-            items: [
-                { value: '', label: 'Set Milestone' },
-                { value: '%current', label: 'Current Sprint' },
-                { value: '%next', label: 'Next Sprint' },
-                { value: '%upcoming', label: 'Upcoming' },
-                { value: 'none', label: 'Remove Milestone' },
-                { value: 'custom', label: 'Custom...' }
-            ],
-            onSelect: (value) => {
-                if (!value) return;
+        try {
+            this.commandShortcuts.addCustomShortcut({
+                type: 'milestone',
+                label: '/milestone',
+                items: [
+                    { value: '', label: 'Set Milestone' },
+                    { value: '%current', label: 'Current Sprint' },
+                    { value: '%next', label: 'Next Sprint' },
+                    { value: '%upcoming', label: 'Upcoming' },
+                    { value: 'none', label: 'Remove Milestone' },
+                    { value: 'custom', label: 'Custom...' }
+                ],
+                onSelect: (value) => {
+                    if (!value) return;
 
-                if (value === 'custom') {
-                    const customMilestone = prompt('Enter milestone name:');
-                    if (!customMilestone) return;
-                    value = customMilestone;
+                    if (value === 'custom') {
+                        const customMilestone = prompt('Enter milestone name:');
+                        if (!customMilestone) return;
+                        value = customMilestone;
+                    }
+
+                    // Use the stored textarea reference instead of finding it by ID
+                    if (!this.commentInput) {
+                        console.warn('Comment input not available');
+                        return;
+                    }
+
+                    // Format milestone text based on value
+                    let milestoneText = '/milestone ';
+                    if (value === 'none') {
+                        milestoneText += '%""';
+                    } else if (value.startsWith('%')) {
+                        milestoneText += value;
+                    } else {
+                        milestoneText += `%"${value}"`;
+                    }
+
+                    this.insertTextAtCursor(this.commentInput, milestoneText);
+                    this.notification.info(`Milestone set to ${value === 'none' ? 'none' : value}`);
                 }
-
-                const textarea = document.getElementById('issue-comment-input');
-                if (!textarea) return;
-
-                // Format milestone text based on value
-                let milestoneText = '/milestone ';
-                if (value === 'none') {
-                    milestoneText += '%""';
-                } else if (value.startsWith('%')) {
-                    milestoneText += value;
-                } else {
-                    milestoneText += `%"${value}"`;
-                }
-
-                this.insertTextAtCursor(textarea, milestoneText);
-                this.notification.info(`Milestone set to ${value === 'none' ? 'none' : value}`);
-            }
-        });
+            });
+        } catch (e) {
+            console.error('Error adding milestone shortcut:', e);
+        }
     }
 
     /**
@@ -8004,31 +8377,20 @@ window.BulkCommentsView = class BulkCommentsView {
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
 
-        // Start with basic assign items
-        let assignItems = [
-            { value: '', label: 'Assign to...' },
-            { value: '@me', label: 'Myself' },
-            { value: 'none', label: 'Unassign' }
-        ];
+        try {
+            // Start with basic assign items
+            let assignItems = [
+                { value: '', label: 'Assign to...' },
+                { value: '@me', label: 'Myself' },
+                { value: 'none', label: 'Unassign' }
+            ];
 
-        // Show loading state initially
-        this.commandShortcuts.addCustomShortcut({
-            type: 'assign',
-            label: '/assign',
-            items: [
-                { value: '', label: 'Loading assignees...' }
-            ],
-            onSelect: () => {} // No-op while loading
-        });
-
-        // Try to fetch group members in the background
-        this.fetchGroupMembers()
-            .then(members => {
-                // Add whitelisted assignees if available
-                if (this.assigneeManager) {
+            // Try to add whitelisted assignees if available
+            if (this.assigneeManager && typeof this.assigneeManager.getAssigneeWhitelist === 'function') {
+                try {
                     const whitelistedAssignees = this.assigneeManager.getAssigneeWhitelist();
 
-                    if (whitelistedAssignees.length > 0) {
+                    if (Array.isArray(whitelistedAssignees) && whitelistedAssignees.length > 0) {
                         // Add a separator
                         assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
 
@@ -8040,46 +8402,44 @@ window.BulkCommentsView = class BulkCommentsView {
 
                         assignItems = assignItems.concat(whitelistItems);
                     }
+                } catch (e) {
+                    console.error('Error getting assignee whitelist:', e);
                 }
+            }
 
-                // Add fetched group members if available
-                if (members && members.length > 0) {
-                    // Add a separator
-                    assignItems.push({ value: 'separator2', label: '────── Group Members ──────' });
+            // Add custom option at the end
+            assignItems.push({ value: 'custom', label: 'Custom...' });
 
-                    // Add group members
-                    const memberItems = members.map(member => ({
-                        value: member.username,
-                        label: member.name || member.username
-                    }));
+            // Add shortcut with these items
+            this.updateAssignShortcut(assignItems);
 
-                    assignItems = assignItems.concat(memberItems);
-                }
+            // Try to fetch group members in the background
+            this.fetchGroupMembers()
+                .then(members => {
+                    if (members && members.length > 0) {
+                        // Add a separator if we have members
+                        assignItems.push({ value: 'separator2', label: '────── Group Members ──────' });
 
-                // Update the shortcut with all the items
-                this.updateAssignShortcut(assignItems);
-            })
-            .catch(error => {
-                console.error('Error fetching group members:', error);
-
-                // Fallback to just whitelisted assignees
-                if (this.assigneeManager) {
-                    const whitelistedAssignees = this.assigneeManager.getAssigneeWhitelist();
-
-                    if (whitelistedAssignees.length > 0) {
-                        const whitelistItems = whitelistedAssignees.map(assignee => ({
-                            value: assignee.username,
-                            label: assignee.name || assignee.username
+                        // Add group members
+                        const memberItems = members.map(member => ({
+                            value: member.username,
+                            label: member.name || member.username
                         }));
 
-                        assignItems = assignItems.concat(whitelistItems);
-                    }
-                }
+                        assignItems = assignItems.concat(memberItems);
 
-                // Update with fallback items
-                this.updateAssignShortcut(assignItems);
-            });
+                        // Update the shortcut with all the items
+                        this.updateAssignShortcut(assignItems);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching group members:', error);
+                });
+        } catch (e) {
+            console.error('Error adding assign shortcut:', e);
+        }
     }
+
     /**
      * Update assign shortcut with the provided items
      * @param {Array} items - Items to show in the assign dropdown
@@ -8087,63 +8447,67 @@ window.BulkCommentsView = class BulkCommentsView {
     updateAssignShortcut(items) {
         if (!this.commandShortcuts) return;
 
-        // Store current selected value if there is one
-        let currentValue = null;
-        if (this.commandShortcuts.shortcuts &&
-            this.commandShortcuts.shortcuts['assign'] &&
-            this.commandShortcuts.shortcuts['assign'].dropdown) {
-            currentValue = this.commandShortcuts.shortcuts['assign'].dropdown.value;
-        }
-
-        // First remove existing shortcut if it exists
-        if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['assign']) {
-            this.commandShortcuts.removeShortcut('assign');
-        }
-
-        // Then add the new shortcut
-        this.commandShortcuts.addCustomShortcut({
-            type: 'assign',
-            label: '/assign',
-            items: items,
-            onSelect: (value) => {
-                if (!value || value === 'separator' || value === 'separator2') return;
-
-                if (value === 'custom') {
-                    const customUser = prompt('Enter GitLab username (without @):');
-                    if (!customUser) return;
-                    value = customUser;
-                }
-
-                const textarea = document.getElementById('issue-comment-input');
-                if (!textarea) return;
-
-                let assignText = '/assign ';
-
-                if (value === 'none') {
-                    assignText += '@none';
-                } else if (value === '@me') {
-                    assignText += '@me';
-                } else {
-                    // Handle usernames - prefix with @ if not already there
-                    assignText += value.startsWith('@') ? value : `@${value}`;
-                }
-
-                this.insertTextAtCursor(textarea, assignText);
-
-                if (value === 'none') {
-                    this.notification.info('Issue will be unassigned');
-                } else if (value === '@me') {
-                    this.notification.info('Issue will be assigned to you');
-                } else {
-                    this.notification.info(`Issue will be assigned to ${value.replace('@', '')}`);
-                }
+        try {
+            // Store current selected value if there is one
+            let currentValue = null;
+            if (this.commandShortcuts.shortcuts &&
+                this.commandShortcuts.shortcuts['assign'] &&
+                this.commandShortcuts.shortcuts['assign'].dropdown) {
+                currentValue = this.commandShortcuts.shortcuts['assign'].dropdown.value;
             }
-        });
 
-        // Restore selected value if it existed and is in the new items
-        if (currentValue && this.commandShortcuts.shortcuts['assign'] &&
-            this.commandShortcuts.shortcuts['assign'].dropdown) {
-            this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
+            // First remove existing shortcut if it exists
+            if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['assign']) {
+                this.commandShortcuts.removeShortcut('assign');
+            }
+
+            // Then add the new shortcut
+            this.commandShortcuts.addCustomShortcut({
+                type: 'assign',
+                label: '/assign',
+                items: items,
+                onSelect: (value) => {
+                    if (!value || value === 'separator' || value === 'separator2') return;
+
+                    if (value === 'custom') {
+                        const customUser = prompt('Enter GitLab username (without @):');
+                        if (!customUser) return;
+                        value = customUser;
+                    }
+
+                    const textarea = document.getElementById('issue-comment-input');
+                    if (!textarea) return;
+
+                    let assignText = '/assign ';
+
+                    if (value === 'none') {
+                        assignText += '@none';
+                    } else if (value === '@me') {
+                        assignText += '@me';
+                    } else {
+                        // Handle usernames - prefix with @ if not already there
+                        assignText += value.startsWith('@') ? value : `@${value}`;
+                    }
+
+                    this.insertTextAtCursor(textarea, assignText);
+
+                    if (value === 'none') {
+                        this.notification.info('Issue will be unassigned');
+                    } else if (value === '@me') {
+                        this.notification.info('Issue will be assigned to you');
+                    } else {
+                        this.notification.info(`Issue will be assigned to ${value.replace('@', '')}`);
+                    }
+                }
+            });
+
+            // Restore selected value if it existed and is in the new items
+            if (currentValue && this.commandShortcuts.shortcuts['assign'] &&
+                this.commandShortcuts.shortcuts['assign'].dropdown) {
+                this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
+            }
+        } catch (e) {
+            console.error('Error updating assign shortcut:', e);
         }
     }
 
@@ -8183,6 +8547,11 @@ window.BulkCommentsView = class BulkCommentsView {
                 );
             } else {
                 throw new Error('Unsupported path type: ' + pathInfo.type);
+            }
+
+            if (!Array.isArray(members)) {
+                console.warn('API did not return an array of members');
+                return [];
             }
 
             // Process members
@@ -8228,7 +8597,6 @@ window.BulkCommentsView = class BulkCommentsView {
         console.log(`BulkCommentsView: Set ${this.selectedIssues.length} selected issues`);
     }
 
-
     /**
      * Handler when an issue is removed from the selection
      * @param {number} index - Index of the removed issue
@@ -8266,7 +8634,6 @@ window.BulkCommentsView = class BulkCommentsView {
         // Log for debugging
         console.log(`Removed issue at index ${index}, remaining: ${this.selectedIssues.length}`);
     }
-
 
     /**
      * Create action buttons (select, submit, clear)
@@ -8365,11 +8732,8 @@ window.BulkCommentsView = class BulkCommentsView {
         submitBtn.onclick = () => this.submitComments();
         buttonContainer.appendChild(submitBtn);
 
-        // Remove Clear button as requested
-
         container.appendChild(buttonContainer);
     }
-
 
     /**
      * Clear selected issues
@@ -8453,34 +8817,41 @@ window.BulkCommentsView = class BulkCommentsView {
 
         // Initialize the shortcuts with placeholder labels
         try {
-            this.initializeAllShortcuts();
+            // Make sure commentInput and commandShortcuts are initialized
+            if (this.commentInput && this.commandShortcuts) {
+                this.initializeAllShortcuts();
 
-            // Show initial label shortcut with "Loading..." state
-            this.addLabelShortcut([
-                { value: '', label: 'Loading labels...' }
-            ]);
+                // Show initial label shortcut with "Loading..." state
+                this.addLabelShortcut([
+                    { value: '', label: 'Loading labels...' }
+                ]);
 
-            // Now try to fetch labels asynchronously
-            if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
-                // Try to fetch labels in the background
-                this.labelManager.fetchAllLabels()
-                    .then(labels => {
-                        // Update the label shortcut with fetched labels
-                        this.addLabelShortcut();
-                        this.isLoading = false;
-                        this.hideLoadingState();
-                    })
-                    .catch(error => {
-                        console.error('Error loading labels:', error);
-                        // If fetching fails, update with fallback labels
-                        this.addLabelShortcut(this.getFallbackLabels());
-                        this.isLoading = false;
-                        this.hideLoadingState();
-                    });
+                // Now try to fetch labels asynchronously
+                if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
+                    // Try to fetch labels in the background
+                    this.labelManager.fetchAllLabels()
+                        .then(labels => {
+                            // Update the label shortcut with fetched labels
+                            this.addLabelShortcut();
+                            this.isLoading = false;
+                            this.hideLoadingState();
+                        })
+                        .catch(error => {
+                            console.error('Error loading labels:', error);
+                            // If fetching fails, update with fallback labels
+                            this.addLabelShortcut(this.getFallbackLabels());
+                            this.isLoading = false;
+                            this.hideLoadingState();
+                        });
+                } else {
+                    // No label manager, just use fallbacks
+                    console.warn('Label manager not available, using fallback labels');
+                    this.addLabelShortcut(this.getFallbackLabels());
+                    this.isLoading = false;
+                    this.hideLoadingState();
+                }
             } else {
-                // No label manager, just use fallbacks
-                console.warn('Label manager not available, using fallback labels');
-                this.addLabelShortcut(this.getFallbackLabels());
+                console.error('Textarea or command shortcuts not initialized');
                 this.isLoading = false;
                 this.hideLoadingState();
             }
@@ -8492,6 +8863,8 @@ window.BulkCommentsView = class BulkCommentsView {
 
         container.appendChild(commentSection);
     }
+
+
     /**
      * Get fallback labels when fetching fails
      * @returns {Array} Array of fallback label items
@@ -8506,16 +8879,18 @@ window.BulkCommentsView = class BulkCommentsView {
             { value: 'custom', label: 'Custom...' }
         ];
     }
+
     /**
-     * Create comment input and initialize shortcuts
-     * @param {HTMLElement} container - Container element
+     * This function should be added to the BulkCommentsView.js file
      */
     createCommentInput(container) {
-        // Create a wrapper for shortcuts that's full width
+        // Create a wrapper for shortcuts that's pre-sized to avoid layout shifts
         const shortcutsWrapper = document.createElement('div');
         shortcutsWrapper.id = 'shortcuts-wrapper';
         shortcutsWrapper.style.width = '100%';
         shortcutsWrapper.style.marginBottom = '15px';
+        shortcutsWrapper.style.minHeight = '80px'; // Pre-define a minimum height
+        shortcutsWrapper.style.position = 'relative'; // Important for stable layout
         container.appendChild(shortcutsWrapper);
 
         // Comment textarea with improved styling
@@ -8531,6 +8906,7 @@ window.BulkCommentsView = class BulkCommentsView {
         commentInput.style.fontSize = '14px';
         commentInput.style.transition = 'border-color 0.2s ease';
         commentInput.style.resize = 'vertical';
+        commentInput.style.boxSizing = 'border-box'; // Prevent size changes from padding
 
         // Add focus effect
         commentInput.addEventListener('focus', () => {
@@ -8547,17 +8923,29 @@ window.BulkCommentsView = class BulkCommentsView {
         // Add the textarea after the shortcuts wrapper
         container.appendChild(commentInput);
 
-        // Initialize CommandShortcut with the newly created textarea
-        this.commandShortcuts = new CommandShortcut({
-            targetElement: commentInput,
-            onShortcutInsert: (type, value) => {
-                console.log(`Shortcut inserted: ${type} with value ${value}`);
-            }
-        });
+        // Store reference to the textarea
+        this.commentInput = commentInput;
 
-        // Initialize shortcuts container in the wrapper
-        this.commandShortcuts.initialize(shortcutsWrapper);
+        // Initialize CommandShortcut with the newly created textarea
+        try {
+            if (typeof CommandShortcut === 'function') {
+                this.commandShortcuts = new CommandShortcut({
+                    targetElement: commentInput,
+                    onShortcutInsert: (type, value) => {
+                        console.log(`Shortcut inserted: ${type} with value ${value}`);
+                    }
+                });
+
+                // Initialize shortcuts container in the wrapper
+                this.commandShortcuts.initialize(shortcutsWrapper);
+            } else {
+                console.error('CommandShortcut class not available');
+            }
+        } catch (e) {
+            console.error('Error initializing CommandShortcut:', e);
+        }
     }
+
 
     /**
      * Insert text at cursor position in textarea
@@ -8649,6 +9037,7 @@ window.BulkCommentsView = class BulkCommentsView {
         progressContainer.appendChild(progressBarOuter);
         container.appendChild(progressContainer);
     }
+
     /**
      * Show loading state for shortcuts
      */
@@ -8661,21 +9050,27 @@ window.BulkCommentsView = class BulkCommentsView {
             statusEl.style.border = '1px solid #e9ecef';
         }
 
-        // Disable comment input while loading
-        const commentInput = document.getElementById('issue-comment-input');
-        if (commentInput) {
-            commentInput.disabled = true;
-            commentInput.style.opacity = '0.7';
-            commentInput.style.cursor = 'not-allowed';
+        // Instead of showing a spinner or changing opacity,
+        // pre-populate with placeholders that maintain the layout
+        if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.label) {
+            this.addLabelShortcut([
+                { value: '', label: 'Loading labels...' }
+            ]);
         }
 
-        // Disable buttons while loading
-        const buttons = document.querySelectorAll('.api-section button');
-        buttons.forEach(button => {
-            button.disabled = true;
-            button.style.opacity = '0.7';
-            button.style.cursor = 'not-allowed';
-        });
+        if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.milestone) {
+            this.addMilestoneShortcut();
+        }
+
+        if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.assign) {
+            this.addAssignShortcut();
+        }
+
+        // Disable without changing appearance dramatically
+        if (this.commentInput) {
+            this.commentInput.disabled = true;
+            this.commentInput.style.backgroundColor = '#f9f9f9';
+        }
     }
 
     /**
@@ -8718,11 +9113,12 @@ window.BulkCommentsView = class BulkCommentsView {
     /**
      * Submit comments to all selected issues
      */
-    /**
-     * Submit comments to all selected issues
-     */
     async submitComments() {
-        const commentEl = document.getElementById('issue-comment-input');
+        if (!this.commentInput) {
+            this.notification.error('Comment input not found');
+            return;
+        }
+
         const statusEl = document.getElementById('comment-status');
         const progressContainer = document.getElementById('comment-progress-container');
         const progressBar = document.getElementById('comment-progress-bar');
@@ -8733,22 +9129,16 @@ window.BulkCommentsView = class BulkCommentsView {
             if (statusEl) {
                 statusEl.textContent = 'Error: No issues selected.';
                 statusEl.style.color = '#dc3545';
-                statusEl.style.backgroundColor = '#f8f9fa';
-                statusEl.style.border = '1px solid #e9ecef';
-                statusEl.style.textAlign = 'center';
             }
             return;
         }
 
-        const comment = commentEl.value.trim();
+        const comment = this.commentInput.value.trim();
         if (!comment) {
             this.notification.error('Comment cannot be empty');
             if (statusEl) {
                 statusEl.textContent = 'Error: Comment cannot be empty.';
                 statusEl.style.color = '#dc3545';
-                statusEl.style.backgroundColor = '#f8f9fa';
-                statusEl.style.border = '1px solid #e9ecef';
-                statusEl.style.textAlign = 'center';
             }
             return;
         }
@@ -8757,13 +9147,15 @@ window.BulkCommentsView = class BulkCommentsView {
         if (statusEl) {
             statusEl.textContent = `Submitting comments to ${this.selectedIssues.length} issues...`;
             statusEl.style.color = '#1f75cb';
-            statusEl.style.backgroundColor = '#f8f9fa';
-            statusEl.style.border = '1px solid #e9ecef';
-            statusEl.style.textAlign = 'center';
         }
 
-        progressContainer.style.display = 'block';
-        progressBar.style.width = '0%';
+        if (progressContainer) {
+            progressContainer.style.display = 'block';
+        }
+
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
 
         // Disable submit button during operation
         const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
@@ -8779,16 +9171,13 @@ window.BulkCommentsView = class BulkCommentsView {
         let failCount = 0;
 
         // Check if gitlabApi is available
-        const gitlabApi = window.gitlabApi || (this.uiManager && this.uiManager.gitlabApi);
+        const gitlabApi = this.gitlabApi || window.gitlabApi || (this.uiManager && this.uiManager.gitlabApi);
 
         if (!gitlabApi) {
             this.notification.error('GitLab API not available');
             if (statusEl) {
                 statusEl.textContent = 'Error: GitLab API not available.';
                 statusEl.style.color = '#dc3545';
-                statusEl.style.backgroundColor = '#f8f9fa';
-                statusEl.style.border = '1px solid #e9ecef';
-                statusEl.style.textAlign = 'center';
             }
 
             if (submitBtn) {
@@ -8797,17 +9186,30 @@ window.BulkCommentsView = class BulkCommentsView {
                 submitBtn.style.cursor = 'pointer';
             }
 
+            if (progressContainer) {
+                progressContainer.style.display = 'none';
+            }
+
             return;
         }
 
         // Process issues one by one
         for (let i = 0; i < this.selectedIssues.length; i++) {
             const issue = this.selectedIssues[i];
+            if (!issue) {
+                failCount++;
+                continue;
+            }
 
             // Update progress
             const progress = Math.round((i / this.selectedIssues.length) * 100);
-            progressBar.style.width = `${progress}%`;
-            progressLabel.textContent = `Processing ${i+1} of ${this.selectedIssues.length} issues...`;
+            if (progressBar) {
+                progressBar.style.width = `${progress}%`;
+            }
+
+            if (progressLabel) {
+                progressLabel.textContent = `Processing ${i+1} of ${this.selectedIssues.length} issues...`;
+            }
 
             try {
                 // Submit comment to this issue
@@ -8820,7 +9222,9 @@ window.BulkCommentsView = class BulkCommentsView {
         }
 
         // Final progress update
-        progressBar.style.width = '100%';
+        if (progressBar) {
+            progressBar.style.width = '100%';
+        }
 
         // Enable submit button again
         if (submitBtn) {
@@ -8834,19 +9238,20 @@ window.BulkCommentsView = class BulkCommentsView {
             if (statusEl) {
                 statusEl.textContent = `Successfully added comment to all ${successCount} issues!`;
                 statusEl.style.color = '#28a745';
-                statusEl.style.backgroundColor = '#f8f9fa';
-                statusEl.style.border = '1px solid #e9ecef';
-                statusEl.style.textAlign = 'center';
             }
 
             this.notification.success(`Added comment to ${successCount} issues`);
 
             // Clear the input after success
-            commentEl.value = '';
+            if (commentEl) {
+                commentEl.value = '';
+            }
 
             // Hide progress bar after a delay
             setTimeout(() => {
-                progressContainer.style.display = 'none';
+                if (progressContainer) {
+                    progressContainer.style.display = 'none';
+                }
             }, 2000);
 
             // Clear selected issues after a delay
@@ -8865,9 +9270,6 @@ window.BulkCommentsView = class BulkCommentsView {
             if (statusEl) {
                 statusEl.textContent = `Added comment to ${successCount} issues, failed for ${failCount} issues.`;
                 statusEl.style.color = successCount > 0 ? '#ff9900' : '#dc3545';
-                statusEl.style.backgroundColor = '#f8f9fa';
-                statusEl.style.border = '1px solid #e9ecef';
-                statusEl.style.textAlign = 'center';
             }
 
             // Show appropriate notification
@@ -8883,7 +9285,9 @@ window.BulkCommentsView = class BulkCommentsView {
             }
 
             // Keep progress bar visible for failed operations
-            progressBar.style.backgroundColor = successCount > 0 ? '#ff9900' : '#dc3545';
+            if (progressBar) {
+                progressBar.style.backgroundColor = successCount > 0 ? '#ff9900' : '#dc3545';
+            }
         }
     }
 
@@ -8894,97 +9298,104 @@ window.BulkCommentsView = class BulkCommentsView {
     addLabelShortcut(customLabels) {
         if (!this.commandShortcuts) return;
 
-        // Store current selected value if there is one
-        let currentValue = null;
-        if (this.commandShortcuts.shortcuts &&
-            this.commandShortcuts.shortcuts['label'] &&
-            this.commandShortcuts.shortcuts['label'].dropdown) {
-            currentValue = this.commandShortcuts.shortcuts['label'].dropdown.value;
-        }
+        try {
+            // Store current selected value if there is one
+            let currentValue = null;
+            if (this.commandShortcuts.shortcuts &&
+                this.commandShortcuts.shortcuts['label'] &&
+                this.commandShortcuts.shortcuts['label'].dropdown) {
+                currentValue = this.commandShortcuts.shortcuts['label'].dropdown.value;
+            }
 
-        // Use provided labels, or try to get them from labelManager, or use fallbacks
-        let labelItems;
+            // Use provided labels, or try to get them from labelManager, or use fallbacks
+            let labelItems;
 
-        if (customLabels) {
-            // Use provided custom labels
-            labelItems = customLabels;
-        } else if (this.labelManager && this.labelManager.filteredLabels && this.labelManager.filteredLabels.length) {
-            // Get labels from label manager if available
-            labelItems = [{ value: '', label: 'Add Label' }];
+            if (customLabels) {
+                // Use provided custom labels
+                labelItems = customLabels;
+            } else if (this.labelManager && this.labelManager.filteredLabels && this.labelManager.filteredLabels.length) {
+                // Get labels from label manager if available
+                labelItems = [{ value: '', label: 'Add Label' }];
 
-            // Add actual labels from label manager
-            const labels = this.labelManager.filteredLabels.map(label => ({
-                value: label.name,
-                label: label.name
-            }));
+                // Add actual labels from label manager
+                const labels = this.labelManager.filteredLabels.map(label => ({
+                    value: label.name,
+                    label: label.name
+                }));
 
-            labelItems = labelItems.concat(labels);
+                labelItems = labelItems.concat(labels);
 
-            // Add custom option
-            labelItems.push({ value: 'custom', label: 'Custom...' });
-        } else {
-            // Try to get whitelist directly from settings storage
-            try {
-                const whitelist = getLabelWhitelist();
-                if (whitelist && whitelist.length > 0) {
-                    labelItems = [{ value: '', label: 'Add Label' }];
+                // Add custom option
+                labelItems.push({ value: 'custom', label: 'Custom...' });
+            } else {
+                // Try to get whitelist directly from settings storage
+                try {
+                    const whitelist = getLabelWhitelist();
+                    if (whitelist && whitelist.length > 0) {
+                        labelItems = [{ value: '', label: 'Add Label' }];
 
-                    // Convert whitelist terms to dropdown items
-                    const whitelistItems = whitelist.map(term => ({
-                        value: term,
-                        label: term
-                    }));
+                        // Convert whitelist terms to dropdown items
+                        const whitelistItems = whitelist.map(term => ({
+                            value: term,
+                            label: term
+                        }));
 
-                    labelItems = labelItems.concat(whitelistItems);
-                    labelItems.push({ value: 'custom', label: 'Custom...' });
-                } else {
-                    // Fallback if no whitelist available
+                        labelItems = labelItems.concat(whitelistItems);
+                        labelItems.push({ value: 'custom', label: 'Custom...' });
+                    } else {
+                        // Fallback if no whitelist available
+                        labelItems = this.getFallbackLabels();
+                    }
+                } catch (e) {
+                    console.error('Error getting label whitelist:', e);
+                    // Fallback if error
                     labelItems = this.getFallbackLabels();
                 }
-            } catch (e) {
-                console.error('Error getting label whitelist:', e);
-                // Fallback if error
-                labelItems = this.getFallbackLabels();
             }
-        }
 
-        // First remove existing shortcut if it exists
-        if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['label']) {
-            this.commandShortcuts.removeShortcut('label');
-        }
+            // First remove existing shortcut if it exists
+            if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['label']) {
+                this.commandShortcuts.removeShortcut('label');
+            }
 
-        // Then add the new shortcut
-        this.commandShortcuts.addCustomShortcut({
-            type: 'label',
-            label: '/label',
-            items: labelItems,
-            onSelect: (value) => {
-                if (!value) return;
+            // Then add the new shortcut
+            this.commandShortcuts.addCustomShortcut({
+                type: 'label',
+                label: '/label',
+                items: labelItems,
+                onSelect: (value) => {
+                    if (!value) return;
 
-                if (value === 'custom') {
-                    const customLabel = prompt('Enter custom label name:');
-                    if (!customLabel) return;
-                    value = customLabel;
+                    if (value === 'custom') {
+                        const customLabel = prompt('Enter custom label name:');
+                        if (!customLabel) return;
+                        value = customLabel;
+                    }
+
+                    const textarea = document.getElementById('issue-comment-input');
+                    if (!textarea) return;
+
+                    // Create the label command
+                    const labelText = `/label ~"${value}"`;
+
+                    this.insertTextAtCursor(textarea, labelText);
+                    this.notification.info(`Label added: ${value}`);
                 }
+            });
 
-                const textarea = document.getElementById('issue-comment-input');
-                if (!textarea) return;
-
-                // Create the label command
-                const labelText = `/label ~"${value}"`;
-
-                this.insertTextAtCursor(textarea, labelText);
-                this.notification.info(`Label added: ${value}`);
+            // Restore selected value if it existed
+            if (currentValue && this.commandShortcuts.shortcuts['label'] &&
+                this.commandShortcuts.shortcuts['label'].dropdown) {
+                this.commandShortcuts.shortcuts['label'].dropdown.value = currentValue;
             }
-        });
-
-        // Restore selected value if it existed
-        if (currentValue && this.commandShortcuts.shortcuts['label'] &&
-            this.commandShortcuts.shortcuts['label'].dropdown) {
-            this.commandShortcuts.shortcuts['label'].dropdown.value = currentValue;
+        } catch (e) {
+            console.error('Error adding label shortcut:', e);
         }
     }
 
+    /**
+     * Refresh the GitLab board
+     */
     refreshBoard() {
         try {
             console.log('Refreshing board...');
@@ -9018,12 +9429,16 @@ window.BulkCommentsView = class BulkCommentsView {
 }
 
 // File: lib/ui/UIManager.js
-// UIManager.js - Main UI coordination class
+// UIManager.js - Main UI coordination class with fixed initialization
 /**
  * Main UI Manager that coordinates all UI components
  */
 window.UIManager = class UIManager {
     constructor() {
+        // Initialize GitLab API reference
+        this.gitlabApi = window.gitlabApi;
+
+        // Initialize container elements
         this.container = null;
         this.contentWrapper = null;
         this.headerDiv = null;
@@ -9032,13 +9447,87 @@ window.UIManager = class UIManager {
         this.collapseBtn = null;
         this.boardStats = null;
 
+        // Initialize managers first (they're dependencies for views)
+        this.initializeManagers();
+
         // Initialize tab manager and views
         this.tabManager = new TabManager(this);
         this.summaryView = new SummaryView(this);
         this.boardsView = new BoardsView(this);
         this.historyView = new HistoryView(this);
-        this.bulkCommentsView = new BulkCommentsView(this); // Renamed from apiView
-        this.issueSelector = new IssueSelector(this);
+        this.bulkCommentsView = new BulkCommentsView(this);
+        this.issueSelector = new IssueSelector({
+            uiManager: this,
+            onSelectionChange: (selectedIssues) => {
+                if (this.bulkCommentsView) {
+                    this.bulkCommentsView.setSelectedIssues(selectedIssues);
+                }
+            }
+        });
+    }
+
+    /**
+     * Initialize managers with error handling
+     */
+    initializeManagers() {
+        // Initialize Label Manager
+        try {
+            this.labelManager = new LabelManager({
+                gitlabApi: this.gitlabApi,
+                onLabelsLoaded: (labels) => {
+                    console.log(`Loaded ${labels.length} labels`);
+                    // Refresh UI elements that depend on labels
+                    if (this.bulkCommentsView && this.bulkCommentsView.addLabelShortcut) {
+                        this.bulkCommentsView.addLabelShortcut();
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Error initializing LabelManager:', e);
+            // Create a placeholder if initialization fails
+            this.labelManager = {
+                filteredLabels: [],
+                fetchAllLabels: () => Promise.resolve([]),
+                isLabelInWhitelist: () => false
+            };
+        }
+
+        // Initialize Assignee Manager
+        try {
+            this.assigneeManager = new AssigneeManager({
+                gitlabApi: this.gitlabApi,
+                onAssigneesChange: (assignees) => {
+                    console.log(`Assignee whitelist updated with ${assignees.length} entries`);
+                    // Refresh UI elements that depend on assignees
+                    if (this.bulkCommentsView && this.bulkCommentsView.addAssignShortcut) {
+                        this.bulkCommentsView.addAssignShortcut();
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Error initializing AssigneeManager:', e);
+            // Create a placeholder if initialization fails
+            this.assigneeManager = {
+                getAssigneeWhitelist: () => []
+            };
+        }
+
+        // Initialize Milestone Manager
+        try {
+            this.milestoneManager = new MilestoneManager({
+                gitlabApi: this.gitlabApi,
+                onMilestonesLoaded: (milestones) => {
+                    console.log(`Loaded ${milestones.length} milestones`);
+                }
+            });
+        } catch (e) {
+            console.error('Error initializing MilestoneManager:', e);
+            // Create a placeholder if initialization fails
+            this.milestoneManager = {
+                milestones: [],
+                fetchMilestones: () => Promise.resolve([])
+            };
+        }
     }
 
     /**
@@ -9096,7 +9585,7 @@ window.UIManager = class UIManager {
         this.container.addEventListener('click', (e) => {
             // If issue selection is active and the click is inside our container
             // (but not on the selection overlays themselves or buttons from the bulk comments tab)
-            if (this.issueSelector.isSelectingIssue &&
+            if (this.issueSelector && this.issueSelector.isSelectingIssue &&
                 !e.target.classList.contains('card-selection-overlay') &&
                 !e.target.classList.contains('selection-badge') &&
                 // Don't abort when clicking these elements
@@ -9110,13 +9599,20 @@ window.UIManager = class UIManager {
         });
 
         // Check if it should be collapsed initially (from localStorage)
-        const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
-        if (isCollapsed) {
-            this.contentWrapper.style.display = 'none';
-            this.collapseBtn.textContent = '▲';
-            this.container.style.height = 'auto';
+        try {
+            const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
+            if (isCollapsed) {
+                this.contentWrapper.style.display = 'none';
+                if (this.collapseBtn) {
+                    this.collapseBtn.textContent = '▲';
+                }
+                this.container.style.height = 'auto';
+            }
+        } catch (e) {
+            console.warn('Error loading collapsed state:', e);
         }
     }
+
     /**
      * Create header with title and buttons
      */
@@ -9175,7 +9671,7 @@ window.UIManager = class UIManager {
             }, 1000);
         };
 
-        // Create settings button with proper handler
+        // Create settings button
         this.settingsBtn = document.createElement('button');
         this.settingsBtn.textContent = '⚙️';
         this.settingsBtn.title = 'Settings';
@@ -9188,7 +9684,7 @@ window.UIManager = class UIManager {
         this.settingsBtn.style.cursor = 'pointer';
         this.settingsBtn.onclick = (e) => {
             e.stopPropagation();
-            // The actual functionality will be connected in the createUIManager function
+            this.openSettings();
         };
 
         // Create collapse button
@@ -9241,6 +9737,11 @@ window.UIManager = class UIManager {
     updateBoardStats(stats) {
         if (!this.boardStats) return;
 
+        // Use default values if not provided
+        const totalCards = stats?.totalCards || 0;
+        const withTimeCards = stats?.withTimeCards || 0;
+        const closedCards = stats?.closedCards || 0;
+
         this.boardStats.innerHTML = ''; // Clear previous content
 
         // Create left side stats (total cards)
@@ -9249,17 +9750,17 @@ window.UIManager = class UIManager {
         totalStats.style.gap = '8px';
 
         const totalText = document.createElement('span');
-        totalText.textContent = `Total: ${stats.totalCards} cards`;
+        totalText.textContent = `Total: ${totalCards} cards`;
         totalStats.appendChild(totalText);
 
         const withTimeText = document.createElement('span');
-        withTimeText.textContent = `(${stats.withTimeCards} with time)`;
+        withTimeText.textContent = `(${withTimeCards} with time)`;
         withTimeText.style.color = '#777';
         totalStats.appendChild(withTimeText);
 
         // Create right side stats (closed cards)
         const closedStats = document.createElement('div');
-        closedStats.textContent = `Closed: ${stats.closedCards} cards`;
+        closedStats.textContent = `Closed: ${closedCards} cards`;
         closedStats.style.color = '#28a745';
 
         // Add to board stats container
@@ -9271,18 +9772,60 @@ window.UIManager = class UIManager {
      * Toggle collapse state of the panel
      */
     toggleCollapse() {
-        if (this.contentWrapper.style.display === 'none') {
-            // Expand
-            this.contentWrapper.style.display = 'block';
-            this.collapseBtn.textContent = '▼';
-            this.container.style.height = '';
-            saveToStorage('gitlabTimeSummaryCollapsed', 'false');
-        } else {
-            // Collapse
-            this.contentWrapper.style.display = 'none';
-            this.collapseBtn.textContent = '▲';
-            this.container.style.height = 'auto';
-            saveToStorage('gitlabTimeSummaryCollapsed', 'true');
+        if (!this.contentWrapper || !this.collapseBtn) return;
+
+        try {
+            if (this.contentWrapper.style.display === 'none') {
+                // Expand
+                this.contentWrapper.style.display = 'block';
+                this.collapseBtn.textContent = '▼';
+                this.container.style.height = '';
+                saveToStorage('gitlabTimeSummaryCollapsed', 'false');
+            } else {
+                // Collapse
+                this.contentWrapper.style.display = 'none';
+                this.collapseBtn.textContent = '▲';
+                this.container.style.height = 'auto';
+                saveToStorage('gitlabTimeSummaryCollapsed', 'true');
+            }
+        } catch (e) {
+            console.error('Error toggling collapse state:', e);
+        }
+    }
+
+    /**
+     * Open settings modal
+     */
+    openSettings() {
+        try {
+            // Check if we have a SettingsManager
+            if (typeof window.SettingsManager === 'function') {
+                const settingsManager = new window.SettingsManager({
+                    labelManager: this.labelManager,
+                    assigneeManager: this.assigneeManager,
+                    gitlabApi: this.gitlabApi,
+                    onSettingsChanged: (type) => {
+                        console.log(`Settings changed: ${type}`);
+                        // Refresh relevant UI components
+                        if (type === 'all' || type === 'labels') {
+                            if (this.bulkCommentsView) {
+                                this.bulkCommentsView.addLabelShortcut();
+                            }
+                        }
+                        if (type === 'all' || type === 'assignees') {
+                            if (this.bulkCommentsView) {
+                                this.bulkCommentsView.addAssignShortcut();
+                            }
+                        }
+                    }
+                });
+
+                settingsManager.openSettingsModal();
+            } else {
+                console.error('SettingsManager not available');
+            }
+        } catch (e) {
+            console.error('Error opening settings:', e);
         }
     }
 
@@ -9495,8 +10038,36 @@ setTimeout(() => {
 // Import core modules
 // Import storage modules
 // Import UI modules
-// Create API instance
-window.gitlabApi = window.gitlabApi || new GitLabAPI();
+/**
+ * Create the UI Manager with proper initialization
+ * @returns {UIManager} The UI Manager instance
+ */
+function createUIManager() {
+    // Create a GitLabAPI instance if it doesn't exist
+    if (!window.gitlabApi) {
+        try {
+            window.gitlabApi = new GitLabAPI();
+        } catch (e) {
+            console.error('Error creating GitLabAPI instance:', e);
+        }
+    }
+
+    // Create a new UI Manager
+    try {
+        window.uiManager = window.uiManager || new UIManager();
+
+        // Initialize UI
+        uiManager.initialize();
+
+        // Make UI Manager available globally
+        window.uiManager = uiManager;
+
+        return uiManager;
+    } catch (e) {
+        console.error('Error creating UI Manager:', e);
+        return null;
+    }
+}
 
 /**
  * Check if we're on a board page and initialize
@@ -9509,32 +10080,29 @@ function checkAndInit() {
             const uiManager = createUIManager();
 
             // Ensure SettingsManager is available globally
-            if (!window.settingsManager) {
-                window.settingsManager = new SettingsManager({
-                    labelManager: uiManager.labelManager,
-                    assigneeManager: uiManager.assigneeManager,
-                    gitlabApi: window.gitlabApi,
-                    onSettingsChanged: (type) => {
-                        console.log(`Settings changed: ${type}`);
-                        // Refresh UI components when settings change
-                        if (type === 'all' || type === 'labels') {
-                            if (uiManager.bulkCommentsView) {
-                                uiManager.bulkCommentsView.addLabelShortcut();
+            if (!window.settingsManager && typeof SettingsManager === 'function') {
+                try {
+                    window.settingsManager = new SettingsManager({
+                        labelManager: uiManager?.labelManager,
+                        assigneeManager: uiManager?.assigneeManager,
+                        gitlabApi: window.gitlabApi,
+                        onSettingsChanged: (type) => {
+                            console.log(`Settings changed: ${type}`);
+                            // Refresh UI components when settings change
+                            if (uiManager?.bulkCommentsView) {
+                                if (type === 'all' || type === 'labels') {
+                                    uiManager.bulkCommentsView.addLabelShortcut();
+                                }
+                                if (type === 'all' || type === 'assignees') {
+                                    uiManager.bulkCommentsView.addAssignShortcut();
+                                }
                             }
                         }
-                        if (type === 'all' || type === 'assignees') {
-                            if (uiManager.bulkCommentsView) {
-                                uiManager.bulkCommentsView.addAssignShortcut();
-                            }
-                        }
-                    }
-                });
+                    });
+                } catch (e) {
+                    console.error('Error creating SettingsManager:', e);
+                }
             }
-
-            // Make UI Manager available globally
-            window.uiManager = uiManager;
-
-            createSummaryContainer();
         }
 
         // Start waiting for boards
@@ -9542,54 +10110,86 @@ function checkAndInit() {
     }
 }
 
+
 /**
  * Update summary information
  * @param {boolean} forceHistoryUpdate - Whether to force a history update
  */
 function updateSummary(forceHistoryUpdate = false) {
+    if (!window.uiManager) {
+        console.warn('UI Manager not initialized, cannot update summary');
+        return;
+    }
+
     // Reset loading state
     let boardFullyLoaded = false;
     let loadingTimeout;
 
     clearTimeout(loadingTimeout);
 
-    // Process the board data
-    const {
-        assigneeTimeMap,
-        boardData,
-        boardAssigneeData,
-        totalEstimate,
-        cardsProcessed,
-        cardsWithTime,
-        currentMilestone
-    } = processBoards();
+    try {
+        // Process the board data
+        const {
+            assigneeTimeMap,
+            boardData,
+            boardAssigneeData,
+            totalEstimate,
+            cardsProcessed,
+            cardsWithTime,
+            currentMilestone,
+            closedBoardCards
+        } = processBoards();
 
-    // Wait to make sure the board is fully loaded before saving to history
-    clearTimeout(loadingTimeout);
-    loadingTimeout = setTimeout(() => {
-        boardFullyLoaded = true;
-        // Only save history when fully loaded
-        if (boardFullyLoaded) {
-            saveHistoryEntry(totalEstimate, currentMilestone, forceHistoryUpdate);
+        // Wait to make sure the board is fully loaded before saving to history
+        clearTimeout(loadingTimeout);
+        loadingTimeout = setTimeout(() => {
+            boardFullyLoaded = true;
+            // Only save history when fully loaded
+            if (boardFullyLoaded) {
+                try {
+                    saveHistoryEntry(totalEstimate, currentMilestone, forceHistoryUpdate);
+                } catch (e) {
+                    console.error('Error saving history:', e);
+                }
+            }
+        }, 3000); // 3 second delay
+
+        // Update the UI stats
+        window.uiManager.updateBoardStats({
+            totalCards: cardsProcessed,
+            withTimeCards: cardsWithTime,
+            closedCards: closedBoardCards || 0
+        });
+
+        // Update the UI header text
+        const totalHours = (totalEstimate / 3600).toFixed(1);
+        window.uiManager.updateHeader(`Summary ${totalHours}h`);
+
+        // Update the summary view
+        if (window.uiManager.summaryView) {
+            window.uiManager.summaryView.render(
+                assigneeTimeMap,
+                totalEstimate,
+                cardsProcessed,
+                cardsWithTime,
+                currentMilestone
+            );
         }
-    }, 3000); // 3 second delay
 
-    // Update the UI - SUMMARY TAB
-    updateSummaryTab(
-        assigneeTimeMap,
-        totalEstimate,
-        cardsProcessed,
-        cardsWithTime,
-        currentMilestone
-    );
+        // Update the boards view
+        if (window.uiManager.boardsView) {
+            window.uiManager.boardsView.render(boardData, boardAssigneeData);
+        }
 
-    // Update the UI - BOARDS TAB
-    updateBoardsTab(boardData, boardAssigneeData);
-
-    // Update Bulk Comments Tab if it exists and is visible
-    const bulkCommentsContent = document.getElementById('bulk-comments-content');
-    if (bulkCommentsContent && bulkCommentsContent.style.display === 'block') {
-        updateBulkCommentsTab();
+        // Update Bulk Comments Tab if it exists and is visible
+        const bulkCommentsContent = document.getElementById('bulk-comments-content');
+        if (bulkCommentsContent &&
+            bulkCommentsContent.style.display === 'block' &&
+            window.uiManager.bulkCommentsView) {
+            window.uiManager.bulkCommentsView.render();
+        }
+    } catch (e) {
+        console.error('Error updating summary:', e);
     }
 }
 
@@ -9597,29 +10197,39 @@ function updateSummary(forceHistoryUpdate = false) {
  * Add change event listeners to each board
  */
 function addBoardChangeListeners() {
-    const boardLists = document.querySelectorAll('.board-list');
-    boardLists.forEach(boardList => {
-        // Create a MutationObserver for each board list
-        const boardObserver = new MutationObserver(() => {
-            // Recalculate on board changes
-            updateSummary();
-        });
+    try {
+        const boardLists = document.querySelectorAll('.board-list');
+        boardLists.forEach(boardList => {
+            // Create a MutationObserver for each board list
+            const boardObserver = new MutationObserver(() => {
+                // Recalculate on board changes
+                updateSummary();
+            });
 
-        // Observe changes to the board's contents
-        boardObserver.observe(boardList, {
-            childList: true,
-            subtree: true
+            // Observe changes to the board's contents
+            boardObserver.observe(boardList, {
+                childList: true,
+                subtree: true
+            });
         });
-    });
+    } catch (e) {
+        console.error('Error adding board change listeners:', e);
+    }
 }
 
 /**
  * Wait for boards to load before initializing
  */
 function waitForBoards() {
-    const statusDiv = document.getElementById('assignee-time-summary-status');
-    if (statusDiv) {
-        statusDiv.textContent = 'Waiting for boards to load...';
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'assignee-time-summary-status';
+    statusDiv.style.color = '#666';
+    statusDiv.style.fontStyle = 'italic';
+    statusDiv.style.marginBottom = '10px';
+    statusDiv.textContent = 'Waiting for boards to load...';
+
+    if (window.uiManager?.contentWrapper) {
+        window.uiManager.contentWrapper.prepend(statusDiv);
     }
 
     let attempts = 0;
@@ -9629,8 +10239,8 @@ function waitForBoards() {
         attempts++;
         const boardLists = document.querySelectorAll('.board-list');
 
-        if (boardLists.length >= 5) {
-            // Found at least 5 boards, proceed with initialization
+        if (boardLists.length >= 3) {
+            // Found at least 3 boards, proceed with initialization
             clearInterval(boardCheckInterval);
             if (statusDiv) {
                 statusDiv.textContent = `Found ${boardLists.length} boards, initializing...`;
@@ -9638,22 +10248,45 @@ function waitForBoards() {
             setTimeout(() => {
                 updateSummary();
                 addBoardChangeListeners();
+
+                // Remove status message after successful initialization
+                if (statusDiv) {
+                    statusDiv.remove();
+                }
             }, 1000);
         } else if (attempts >= maxAttempts) {
             // Timeout reached, proceed with whatever boards we have
             clearInterval(boardCheckInterval);
             if (statusDiv) {
-                statusDiv.textContent = `Found ${boardLists.length} boards, initializing...`;
+                statusDiv.textContent = `Found ${boardLists.length} boards, continuing anyway...`;
             }
             setTimeout(() => {
                 updateSummary();
                 addBoardChangeListeners();
+
+                // Remove status message after initialization
+                if (statusDiv) {
+                    statusDiv.remove();
+                }
             }, 1000);
         } else if (boardLists.length > 0 && statusDiv) {
             // Update status with current count
-            statusDiv.textContent = `Found ${boardLists.length} of 5 boards...`;
+            statusDiv.textContent = `Found ${boardLists.length} boards, waiting for more...`;
         }
     }, 500);
+}
+
+/**
+ * Initialize renderHistory function for the history tab
+ */
+function renderHistory() {
+    try {
+        if (window.uiManager?.historyView) {
+            window.uiManager.historyView.render();
+        }
+    } catch (e) {
+        console.error('Error rendering history:', e);
+    }
 }
 
 // Initial check
@@ -9661,18 +10294,46 @@ checkAndInit();
 
 // Watch for URL changes (for SPA navigation)
 let lastUrl = window.location.href;
-new MutationObserver(() => {
-    if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        setTimeout(checkAndInit, 1000); // Delay to ensure page has loaded
-    }
-}).observe(document, {subtree: true, childList: true});
+try {
+    const urlObserver = new MutationObserver(() => {
+        if (window.location.href !== lastUrl) {
+            lastUrl = window.location.href;
+            setTimeout(checkAndInit, 1000); // Delay to ensure page has loaded
+        }
+    });
+
+    urlObserver.observe(document, {subtree: true, childList: true});
+} catch (e) {
+    console.error('Error setting up URL observer:', e);
+}
 
 // Expose functions globally for compatibility with existing codebase
-window.gitlabApi = gitlabApi;
+window.gitlabApi = window.gitlabApi || new GitLabAPI();
 window.updateSummary = updateSummary;
 window.checkAndInit = checkAndInit;
 window.waitForBoards = waitForBoards;
+window.renderHistory = renderHistory;
+window.SettingsManager = SettingsManager;
+window.LabelManager = LabelManager;
+window.AssigneeManager = AssigneeManager;
+
+// Add event listeners for board changes to reposition overlays if window is scrolled
+window.addEventListener('scroll', () => {
+    if (window.uiManager?.issueSelector) {
+        if (typeof window.uiManager.issueSelector.repositionOverlays === 'function') {
+            window.uiManager.issueSelector.repositionOverlays();
+        }
+    }
+});
+
+// Add event listeners for window resize to reposition overlays
+window.addEventListener('resize', () => {
+    if (window.uiManager?.issueSelector) {
+        if (typeof window.uiManager.issueSelector.repositionOverlays === 'function') {
+            window.uiManager.issueSelector.repositionOverlays();
+        }
+    }
+});
 
 // Export for module usage
 
@@ -9680,9 +10341,28 @@ window.waitForBoards = waitForBoards;
 // File: main.js (main script content)
 
 
-(function() {
+(function () {
     'use strict';
 
+    function setupGlobalReferences() {
+        // Expose classes globally to ensure they're available
+        window.LabelManager = LabelManager;
+        window.AssigneeManager = AssigneeManager;
+        window.SettingsManager = SettingsManager;
+        window.CommandShortcut = CommandShortcut;
+        window.Notification = Notification;
+
+        // Ensure gitlabApi is globally available
+        if (!window.gitlabApi && typeof GitLabAPI === 'function') {
+            try {
+                window.gitlabApi = new GitLabAPI();
+            } catch (e) {
+                console.error('Error creating global gitlabApi:', e);
+            }
+        }
+    }
+
+    setupGlobalReferences();
     /**
      * This file is the main entry point for the GitLab Sprint Helper userscript.
      * After refactoring, most of the actual code has been moved to modular files in the lib/ directory.
