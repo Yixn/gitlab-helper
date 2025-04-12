@@ -17,20 +17,12 @@
 
 // File: lib/core/Utils.js
 
-/**
- * Format seconds to hours with 1 decimal place
- * @param {number} seconds - Time in seconds
- * @returns {string} Formatted hours string
- */
+
 window.formatHours = function formatHours(seconds) {
     return (seconds / 3600).toFixed(1);
 }
 
-/**
- * Format seconds to human-readable duration (e.g. 1h 30m)
- * @param {number} seconds - Time in seconds
- * @returns {string} Formatted duration string
- */
+
 window.formatDuration = function formatDuration(seconds) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -44,24 +36,14 @@ window.formatDuration = function formatDuration(seconds) {
     }
 }
 
-/**
- * Safely access nested properties of an object
- * @param {Object} obj - Object to access
- * @param {string} path - Dot-separated path to property
- * @returns {*} Property value or null if not found
- */
+
 window.getNestedProperty = function getNestedProperty(obj, path) {
     return path.split('.').reduce((prev, curr) => {
         return prev && prev[curr] ? prev[curr] : null;
     }, obj);
 }
 
-/**
- * Truncate text to a specified length with ellipsis
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} Truncated text
- */
+
 window.truncateText = function truncateText(text, maxLength) {
     if (!text || text.length <= maxLength) {
         return text;
@@ -69,12 +51,7 @@ window.truncateText = function truncateText(text, maxLength) {
     return text.substring(0, maxLength) + '...';
 }
 
-/**
- * Safely parse JSON with error handling
- * @param {string} str - JSON string to parse
- * @param {*} defaultValue - Default value if parsing fails
- * @returns {*} Parsed object or default value
- */
+
 window.safeJSONParse = function safeJSONParse(str, defaultValue = {}) {
     try {
         return JSON.parse(str);
@@ -84,12 +61,7 @@ window.safeJSONParse = function safeJSONParse(str, defaultValue = {}) {
     }
 }
 
-/**
- * Wait for an element to exist in the DOM
- * @param {string} selector - CSS selector
- * @param {number} timeout - Timeout in milliseconds
- * @returns {Promise<Element>} Promise resolving to the element
- */
+
 window.waitForElement = function waitForElement(selector, timeout = 10000) {
     return new Promise((resolve, reject) => {
         if (document.querySelector(selector)) {
@@ -116,11 +88,7 @@ window.waitForElement = function waitForElement(selector, timeout = 10000) {
     });
 }
 
-/**
- * Generate a color based on a string input
- * @param {string} str - Input string
- * @returns {string} HSL color string
- */
+
 window.generateColorFromString = function generateColorFromString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -133,11 +101,7 @@ window.generateColorFromString = function generateColorFromString(str) {
     return `hsl(${hue}, 70%, 75%)`;
 }
 
-/**
- * Determine if text should be black or white based on background color
- * @param {string} bgColor - Background color (hex, rgb, or named color)
- * @returns {string} 'black' or 'white'
- */
+
 window.getContrastColor = function getContrastColor(bgColor) {
     // For HSL colors
     if (bgColor.startsWith('hsl')) {
@@ -192,10 +156,7 @@ window.getContrastColor = function getContrastColor(bgColor) {
 
 // File: lib/api/APIUtils.js
 
-/**
- * Extract project or group path from URL
- * @returns {Object|null} Path info object with type, path, encodedPath, and apiUrl
- */
+
 window.getPathFromUrl = function getPathFromUrl() {
     try {
                 
@@ -267,20 +228,14 @@ window.getPathFromUrl = function getPathFromUrl() {
     }
 }
 
-/**
- * Get current URL key for storing history
- * @returns {string} Sanitized URL string
- */
+
 window.getCurrentUrlKey = function getCurrentUrlKey() {
     const url = window.location.href;
     // Remove any fragment identifiers
     return url.split('#')[0];
 }
 
-/**
- * Get URL specific history key
- * @returns {string} Key for storing history data
- */
+
 window.getHistoryKey = function getHistoryKey() {
     return `timeEstimateHistory_${getCurrentUrlKey()}`;
 }
@@ -293,15 +248,7 @@ window.GitLabAPI = class GitLabAPI {
         this.baseUrl = '/api/v4';
     }
 
-    /**
-     * Make an API call to GitLab
-     * @param {string} endpoint - API endpoint (without /api/v4 prefix)
-     * @param {Object} options - Request options
-     * @param {string} options.method - HTTP method (GET, POST, PATCH, etc.)
-     * @param {Object} options.data - Data to send (for POST, PATCH, etc.)
-     * @param {Object} options.params - URL query parameters
-     * @returns {Promise} - Promise resolving to JSON response
-     */
+    
     callGitLabApi(endpoint, options = {}) {
         const {
             method = 'GET',
@@ -354,11 +301,7 @@ window.GitLabAPI = class GitLabAPI {
             });
     }
 
-    /**
-     * Get issue details
-     * @param {Object} issueItem - Issue item from Vue component
-     * @returns {Promise} - Promise resolving to issue data
-     */
+    
     getIssue(issueItem) {
         const projectPath = issueItem.referencePath.split('#')[0];
         const issueIid = issueItem.iid;
@@ -367,12 +310,7 @@ window.GitLabAPI = class GitLabAPI {
         return this.callGitLabApi(`projects/${encodedPath}/issues/${issueIid}`);
     }
 
-    /**
-     * Add a comment to an issue
-     * @param {Object} issueItem - Issue item from Vue component
-     * @param {string} commentBody - Comment text
-     * @returns {Promise} - Promise resolving to created note data
-     */
+    
     addComment(issueItem, commentBody) {
         const projectPath = issueItem.referencePath.split('#')[0];
         const issueIid = issueItem.iid;
@@ -387,49 +325,27 @@ window.GitLabAPI = class GitLabAPI {
         );
     }
 
-    /**
-     * Get current user information
-     * @returns {Promise} - Promise resolving to user data
-     */
+    
     getCurrentUser() {
         return this.callGitLabApi('user');
     }
 
-    /**
-     * Get project information
-     * @param {string} projectId - Project ID or encoded path
-     * @returns {Promise} - Promise resolving to project data
-     */
+    
     getProject(projectId) {
         return this.callGitLabApi(`projects/${projectId}`);
     }
 
-    /**
-     * Get project issues
-     * @param {string} projectId - Project ID or encoded path
-     * @param {Object} params - Query parameters (state, labels, etc.)
-     * @returns {Promise} - Promise resolving to issues array
-     */
+    
     getProjectIssues(projectId, params = {}) {
         return this.callGitLabApi(`projects/${projectId}/issues`, { params });
     }
 
-    /**
-     * Get milestone details
-     * @param {string} projectId - Project ID or encoded path
-     * @param {number} milestoneId - Milestone ID
-     * @returns {Promise} - Promise resolving to milestone data
-     */
+    
     getMilestone(projectId, milestoneId) {
         return this.callGitLabApi(`projects/${projectId}/milestones/${milestoneId}`);
     }
 
-    /**
-     * Update an issue
-     * @param {Object} issueItem - Issue item from Vue component
-     * @param {Object} updateData - Data to update (title, description, etc.)
-     * @returns {Promise} - Promise resolving to updated issue data
-     */
+    
     updateIssue(issueItem, updateData) {
         const projectPath = issueItem.referencePath.split('#')[0];
         const issueIid = issueItem.iid;
@@ -444,11 +360,7 @@ window.GitLabAPI = class GitLabAPI {
         );
     }
 
-    /**
-     * Extract issue item from board card Vue component
-     * @param {HTMLElement} boardCard - DOM element representing a board card
-     * @returns {Object|null} - Issue item from Vue component or null if not found
-     */
+    
     getIssueItemFromCard(boardCard) {
         try {
             if (boardCard.__vue__ && boardCard.__vue__.$children) {
@@ -471,10 +383,7 @@ window.GitLabAPI = GitLabAPI;
 
 // File: lib/core/DataProcessor.js
 
-/**
- * Process all boards and extract data
- * @returns {Object} Object containing processed board data
- */
+
 window.processBoards = function processBoards() {
     const assigneeTimeMap = {};
     const boardData = {};
@@ -652,12 +561,6 @@ window.processBoards = function processBoards() {
 }
 
 // File: lib/core/History.js
-/**
- * Save history entry
- * @param {number} totalEstimate - Total time estimate in seconds
- * @param {string} milestoneInfo - Current milestone info
- * @param {boolean} forceUpdate - Whether to force update even if no changes
- */
 window.saveHistoryEntry = function saveHistoryEntry(totalEstimate, milestoneInfo, forceUpdate = false) {
     try {
         const now = new Date();
@@ -728,12 +631,7 @@ window.saveHistoryEntry = function saveHistoryEntry(totalEstimate, milestoneInfo
 
 // File: lib/storage/LocalStorage.js
 
-/**
- * Save value to localStorage with error handling
- * @param {string} key - Storage key
- * @param {*} value - Value to store (will be JSON stringified if it's an object)
- * @returns {boolean} Success status
- */
+
 window.saveToStorage = function saveToStorage(key, value) {
     try {
         if (typeof value === 'object') {
@@ -748,12 +646,7 @@ window.saveToStorage = function saveToStorage(key, value) {
     }
 }
 
-/**
- * Load value from localStorage with error handling
- * @param {string} key - Storage key
- * @param {*} defaultValue - Default value if key doesn't exist or error occurs
- * @returns {*} Stored value or defaultValue
- */
+
 window.loadFromStorage = function loadFromStorage(key, defaultValue = null) {
     try {
         const value = localStorage.getItem(key);
@@ -779,11 +672,7 @@ window.loadFromStorage = function loadFromStorage(key, defaultValue = null) {
     }
 }
 
-/**
- * Remove item from localStorage with error handling
- * @param {string} key - Storage key to remove
- * @returns {boolean} Success status
- */
+
 window.removeFromStorage = function removeFromStorage(key) {
     try {
         localStorage.removeItem(key);
@@ -794,11 +683,7 @@ window.removeFromStorage = function removeFromStorage(key) {
     }
 }
 
-/**
- * Clear all localStorage for this application
- * @param {string} prefix - Optional prefix to only clear keys starting with this prefix
- * @returns {boolean} Success status
- */
+
 window.clearStorage = function clearStorage(prefix = null) {
     try {
         if (prefix) {
@@ -822,11 +707,7 @@ window.clearStorage = function clearStorage(prefix = null) {
     }
 }
 
-/**
- * Check if a key exists in localStorage
- * @param {string} key - Storage key to check
- * @returns {boolean} Whether the key exists
- */
+
 window.hasStorageKey = function hasStorageKey(key) {
     try {
         return localStorage.getItem(key) !== null;
@@ -836,11 +717,7 @@ window.hasStorageKey = function hasStorageKey(key) {
     }
 }
 
-/**
- * Wrapper for GM_setValue (Tampermonkey storage) for compatibility
- * @param {string} key - Storage key
- * @param {*} value - Value to store
- */
+
 window.setGMValue = function setGMValue(key, value) {
     try {
         if (typeof GM_setValue === 'function') {
@@ -856,12 +733,7 @@ window.setGMValue = function setGMValue(key, value) {
     }
 }
 
-/**
- * Wrapper for GM_getValue (Tampermonkey storage) for compatibility
- * @param {string} key - Storage key
- * @param {*} defaultValue - Default value if key doesn't exist
- * @returns {*} Stored value or defaultValue
- */
+
 window.getGMValue = function getGMValue(key, defaultValue = null) {
     try {
         if (typeof GM_getValue === 'function') {
@@ -898,10 +770,7 @@ const DEFAULT_SETTINGS = {
     uiCollapsed: false
 };
 
-/**
- * Get label whitelist with error handling
- * @returns {Array} Label whitelist array
- */
+
 window.getLabelWhitelist = function getLabelWhitelist() {
     try {
         const whitelist = loadFromStorage(STORAGE_KEYS.LABEL_WHITELIST, null);
@@ -934,11 +803,7 @@ window.getLabelWhitelist = function getLabelWhitelist() {
     }
 }
 
-/**
- * Save label whitelist with error handling
- * @param {Array} whitelist - Label whitelist array
- * @returns {boolean} Success status
- */
+
 window.saveLabelWhitelist = function saveLabelWhitelist(whitelist) {
     try {
         // Validate whitelist
@@ -958,10 +823,7 @@ window.saveLabelWhitelist = function saveLabelWhitelist(whitelist) {
     }
 }
 
-/**
- * Reset label whitelist to default values with error handling
- * @returns {Array} The default whitelist
- */
+
 window.resetLabelWhitelist = function resetLabelWhitelist() {
     try {
         // Create a copy of the default whitelist
@@ -978,10 +840,7 @@ window.resetLabelWhitelist = function resetLabelWhitelist() {
     }
 }
 
-/**
- * Get assignee whitelist with error handling
- * @returns {Array} Assignee whitelist array
- */
+
 window.getAssigneeWhitelist = function getAssigneeWhitelist() {
     try {
         const whitelist = loadFromStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, null);
@@ -1010,11 +869,7 @@ window.getAssigneeWhitelist = function getAssigneeWhitelist() {
     }
 }
 
-/**
- * Save assignee whitelist with error handling
- * @param {Array} whitelist - Assignee whitelist array
- * @returns {boolean} Success status
- */
+
 window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
     try {
         // Validate whitelist
@@ -1036,10 +891,7 @@ window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
     }
 }
 
-/**
- * Get last active tab from storage with error handling
- * @returns {string} Tab ID
- */
+
 window.getLastActiveTab = function getLastActiveTab() {
     try {
         const tabId = loadFromStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, null);
@@ -1073,11 +925,7 @@ window.getLastActiveTab = function getLastActiveTab() {
     }
 }
 
-/**
- * Save last active tab to storage with error handling
- * @param {string} tabId - Tab ID
- * @returns {boolean} Success status
- */
+
 window.saveLastActiveTab = function saveLastActiveTab(tabId) {
     try {
         // Convert to string just in case
@@ -1097,10 +945,7 @@ window.saveLastActiveTab = function saveLastActiveTab(tabId) {
     }
 }
 
-/**
- * Get UI collapsed state with error handling
- * @returns {boolean} Collapsed state
- */
+
 window.getUICollapsedState = function getUICollapsedState() {
     try {
         const state = loadFromStorage(STORAGE_KEYS.UI_COLLAPSED, null);
@@ -1128,11 +973,7 @@ window.getUICollapsedState = function getUICollapsedState() {
     }
 }
 
-/**
- * Save UI collapsed state with error handling
- * @param {boolean} collapsed - Collapsed state
- * @returns {boolean} Success status
- */
+
 window.saveUICollapsedState = function saveUICollapsedState(collapsed) {
     try {
         // Convert to boolean if it's a string
@@ -1154,20 +995,9 @@ window.saveUICollapsedState = function saveUICollapsedState(collapsed) {
 
 // File: lib/ui/components/Dropdown.js
 
-/**
- * Class that creates custom styled dropdown components
- */
+
 window.Dropdown = class Dropdown {
-    /**
-     * Constructor for Dropdown component
-     * @param {Object} options - Configuration options
-     * @param {Array} options.items - Array of {value, label} objects
-     * @param {Function} options.onChange - Callback function when selection changes
-     * @param {string} options.placeholder - Placeholder text when no selection (optional)
-     * @param {Function} options.optionRenderer - Custom renderer for options (optional)
-     * @param {boolean} options.searchable - Whether to enable search (optional)
-     * @param {string} options.width - Width of dropdown (optional)
-     */
+    
     constructor(options) {
         this.items = options.items || [];
         this.onChange = options.onChange;
@@ -1182,11 +1012,7 @@ window.Dropdown = class Dropdown {
         this.open = false;
     }
 
-    /**
-     * Render the dropdown
-     * @param {HTMLElement} parentElement - Element to attach dropdown to
-     * @returns {HTMLElement} Dropdown container element
-     */
+    
     render(parentElement) {
         // Create container
         this.container = document.createElement('div');
@@ -1295,10 +1121,7 @@ window.Dropdown = class Dropdown {
         return this.container;
     }
 
-    /**
-     * Populate dropdown with items
-     * @param {HTMLElement} dropdownMenu - Dropdown menu element
-     */
+    
     populateDropdown(dropdownMenu) {
         // Create option elements
         this.items.forEach(item => {
@@ -1341,11 +1164,7 @@ window.Dropdown = class Dropdown {
         });
     }
 
-    /**
-     * Filter dropdown items based on search text
-     * @param {string} searchText - Text to filter by
-     * @param {HTMLElement} dropdownMenu - Dropdown menu element
-     */
+    
     filterItems(searchText, dropdownMenu) {
         const items = dropdownMenu.querySelectorAll('.dropdown-item');
         items.forEach(item => {
@@ -1358,11 +1177,7 @@ window.Dropdown = class Dropdown {
         });
     }
 
-    /**
-     * Toggle dropdown open/closed state
-     * @param {HTMLElement} dropdownMenu - Dropdown menu element
-     * @param {HTMLElement} arrowIcon - Arrow icon element
-     */
+    
     toggleDropdown(dropdownMenu, arrowIcon) {
         if (this.open) {
             this.closeDropdown(dropdownMenu, arrowIcon);
@@ -1371,11 +1186,7 @@ window.Dropdown = class Dropdown {
         }
     }
 
-    /**
-     * Open the dropdown
-     * @param {HTMLElement} dropdownMenu - Dropdown menu element
-     * @param {HTMLElement} arrowIcon - Arrow icon element
-     */
+    
     openDropdown(dropdownMenu, arrowIcon) {
         dropdownMenu.style.display = 'block';
         arrowIcon.style.transform = 'rotate(180deg)';
@@ -1390,11 +1201,7 @@ window.Dropdown = class Dropdown {
         }
     }
 
-    /**
-     * Close the dropdown
-     * @param {HTMLElement} dropdownMenu - Dropdown menu element
-     * @param {HTMLElement} arrowIcon - Arrow icon element
-     */
+    
     closeDropdown(dropdownMenu, arrowIcon) {
         dropdownMenu.style.display = 'none';
         if (arrowIcon) {
@@ -1403,11 +1210,7 @@ window.Dropdown = class Dropdown {
         this.open = false;
     }
 
-    /**
-     * Handle item selection
-     * @param {Object} item - Selected item {value, label}
-     * @param {HTMLElement} optionElement - Selected option element
-     */
+    
     selectItem(item, optionElement) {
         this.selectedValue = item.value;
 
@@ -1439,11 +1242,7 @@ window.Dropdown = class Dropdown {
         }
     }
 
-    /**
-     * Set value programmatically
-     * @param {string} value - Value to select
-     * @returns {boolean} Whether the value was found and selected
-     */
+    
     setValue(value) {
         const item = this.items.find(item => item.value === value);
         if (item) {
@@ -1457,17 +1256,12 @@ window.Dropdown = class Dropdown {
         return false;
     }
 
-    /**
-     * Get current selected value
-     * @returns {*} Currently selected value
-     */
+    
     getValue() {
         return this.selectedValue;
     }
 
-    /**
-     * Reset dropdown to placeholder state
-     */
+    
     reset() {
         this.selectedValue = null;
         const placeholder = this.selectElement.querySelector('.dropdown-placeholder');
@@ -1475,10 +1269,7 @@ window.Dropdown = class Dropdown {
         placeholder.style.color = '#666';
     }
 
-    /**
-     * Update dropdown items
-     * @param {Array} newItems - New items array
-     */
+    
     updateItems(newItems) {
         this.items = newItems;
 
@@ -1500,17 +1291,13 @@ window.Dropdown = class Dropdown {
         this.reset();
     }
 
-    /**
-     * Disable the dropdown
-     */
+    
     disable() {
         this.selectElement.style.opacity = '0.6';
         this.selectElement.style.pointerEvents = 'none';
     }
 
-    /**
-     * Enable the dropdown
-     */
+    
     enable() {
         this.selectElement.style.opacity = '1';
         this.selectElement.style.pointerEvents = 'auto';
@@ -1519,17 +1306,9 @@ window.Dropdown = class Dropdown {
 
 // File: lib/ui/components/Notification.js
 
-/**
- * Create and show toast notifications
- */
+
 window.Notification = class Notification {
-    /**
-     * Constructor
-     * @param {Object} options - Configuration options
-     * @param {string} options.position - Position of notification (default: 'bottom-right')
-     * @param {number} options.duration - Duration in ms (default: 3000)
-     * @param {string} options.animationDuration - Animation duration (default: '0.3s')
-     */
+    
     constructor(options = {}) {
         this.position = 'bottom-left';
         this.duration = options.duration || 3000;
@@ -1540,9 +1319,7 @@ window.Notification = class Notification {
         this.createContainer();
     }
 
-    /**
-     * Create notification container
-     */
+    
     createContainer() {
         // Check if container already exists
         if (document.getElementById('gitlab-helper-notifications')) {
@@ -1591,15 +1368,7 @@ window.Notification = class Notification {
         document.body.appendChild(this.container);
     }
 
-    /**
-     * Show a notification
-     * @param {Object} options - Notification options
-     * @param {string} options.message - Notification message
-     * @param {string} options.type - Notification type (success, error, warning, info)
-     * @param {number} options.duration - Duration in ms (optional)
-     * @param {Function} options.onClose - Callback on close (optional)
-     * @returns {HTMLElement} Notification element
-     */
+    
     show(options) {
         // Get options
         const message = options.message || '';
@@ -1700,11 +1469,7 @@ window.Notification = class Notification {
         return notification;
     }
 
-    /**
-     * Close a notification
-     * @param {HTMLElement} notification - Notification element
-     * @param {Function} callback - Callback function
-     */
+    
     close(notification, callback = null) {
         // Skip if already animating out
         if (notification.dataset.closing === 'true') {
@@ -1731,10 +1496,7 @@ window.Notification = class Notification {
         }, parseFloat(this.animationDuration) * 1000);
     }
 
-    /**
-     * Get initial transform based on position
-     * @returns {string} Transform value
-     */
+    
     getInitialTransform() {
         // Different animations based on position
         if (this.position.startsWith('top')) {
@@ -1744,12 +1506,7 @@ window.Notification = class Notification {
         }
     }
 
-    /**
-     * Show a success notification
-     * @param {string} message - Notification message
-     * @param {Object} options - Additional options
-     * @returns {HTMLElement} Notification element
-     */
+    
     success(message, options = {}) {
         return this.show({
             message,
@@ -1758,12 +1515,7 @@ window.Notification = class Notification {
         });
     }
 
-    /**
-     * Show an error notification
-     * @param {string} message - Notification message
-     * @param {Object} options - Additional options
-     * @returns {HTMLElement} Notification element
-     */
+    
     error(message, options = {}) {
         return this.show({
             message,
@@ -1772,12 +1524,7 @@ window.Notification = class Notification {
         });
     }
 
-    /**
-     * Show a warning notification
-     * @param {string} message - Notification message
-     * @param {Object} options - Additional options
-     * @returns {HTMLElement} Notification element
-     */
+    
     warning(message, options = {}) {
         return this.show({
             message,
@@ -1786,12 +1533,7 @@ window.Notification = class Notification {
         });
     }
 
-    /**
-     * Show an info notification
-     * @param {string} message - Notification message
-     * @param {Object} options - Additional options
-     * @returns {HTMLElement} Notification element
-     */
+    
     info(message, options = {}) {
         return this.show({
             message,
@@ -1800,9 +1542,7 @@ window.Notification = class Notification {
         });
     }
 
-    /**
-     * Clear all notifications
-     */
+    
     clearAll() {
         while (this.container.firstChild) {
             this.container.removeChild(this.container.firstChild);
@@ -1812,16 +1552,9 @@ window.Notification = class Notification {
 
 // File: lib/ui/components/CommandShortcut.js
 
-/**
- * Class that manages command shortcuts for GitLab comments
- */
+
 window.CommandShortcut = class CommandShortcut {
-    /**
-     * Constructor for CommandShortcut module
-     * @param {Object} options - Configuration options
-     * @param {HTMLElement} options.targetElement - The textarea or input element to insert shortcuts into
-     * @param {Function} options.onShortcutInsert - Callback function that runs after shortcut insertion (optional)
-     */
+    
     constructor(options) {
         this.targetElement = options.targetElement;
         this.onShortcutInsert = options.onShortcutInsert || null;
@@ -1830,10 +1563,7 @@ window.CommandShortcut = class CommandShortcut {
         this.customDropdowns = [];
     }
 
-    /**
-     * Initialize shortcuts container
-     * @param {HTMLElement} parentElement - Element to attach the shortcuts container to
-     */
+    
     initialize(parentElement) {
         // Clear existing container if present
         if (this.shortcutsContainer && this.shortcutsContainer.parentNode) {
@@ -1856,9 +1586,7 @@ window.CommandShortcut = class CommandShortcut {
         this.initializeEstimateShortcut();
     }
 
-    /**
-     * Initialize the estimate shortcut with dropdown
-     */
+    
     initializeEstimateShortcut() {
         // Check if the shortcut already exists and remove it if it does
         if (this.shortcuts['estimate']) {
@@ -1889,10 +1617,7 @@ window.CommandShortcut = class CommandShortcut {
         });
     }
 
-    /**
-     * Remove a shortcut by type
-     * @param {string} type - Shortcut type to remove
-     */
+    
     removeShortcut(type) {
         if (this.shortcuts[type] && this.shortcuts[type].element) {
             // Remove shortcut from DOM
@@ -1906,9 +1631,7 @@ window.CommandShortcut = class CommandShortcut {
         }
     }
 
-    /**
-     * Handle custom estimate option with prompt
-     */
+    
     handleCustomEstimate() {
         const customValue = prompt('Enter custom estimate hours (whole numbers only):', '');
 
@@ -1928,10 +1651,7 @@ window.CommandShortcut = class CommandShortcut {
         this.insertEstimateText(parsedValue.toString());
     }
 
-    /**
-     * Insert estimate text into target element, replacing any existing estimate
-     * @param {string} hours - Number of hours to estimate
-     */
+    
     insertEstimateText(hours) {
         if (!this.targetElement) return;
 
@@ -1981,16 +1701,7 @@ window.CommandShortcut = class CommandShortcut {
         }
     }
 
-    /**
-     * Add a custom shortcut dropdown with consistent styling
-     * @param {Object} options - Shortcut configuration
-     * @param {string} options.type - Type identifier for the shortcut
-     * @param {string} options.label - Label text to display
-     * @param {Array} options.items - Array of {value, label} objects for dropdown
-     * @param {Function} options.onSelect - Function to call when an item is selected
-     * @param {Function} options.customOptionRenderer - Optional function to render custom option elements
-     * @returns {HTMLElement} The created shortcut element
-     */
+    
     addCustomShortcut(options) {
         if (!this.shortcutsContainer) {
             console.error("Shortcuts container not initialized");
@@ -2122,13 +1833,7 @@ window.CommandShortcut = class CommandShortcut {
     }
 
 
-    /**
-     * Apply replacement logic for commands
-     * @param {string} type - Type of shortcut (e.g., 'label', 'milestone')
-     * @param {string} command - The command to insert (e.g., '/label ~bug')
-     * @param {RegExp} regex - Regular expression to match existing commands
-     * @param {Function} replacementFn - Function to handle the insertion/replacement
-     */
+    
     replaceOrInsertCommand(type, command, regex, replacementFn) {
         if (!this.targetElement) return;
 
@@ -2159,12 +1864,7 @@ window.CommandShortcut = class CommandShortcut {
 
 // File: lib/ui/components/SelectionDisplay.js
 window.SelectionDisplay = class SelectionDisplay {
-    /**
-     * Constructor for SelectionDisplay
-     * @param {Object} options - Configuration options
-     * @param {Array} options.selectedIssues - Array of selected issue objects
-     * @param {Function} options.onRemoveIssue - Callback when issue is removed
-     */
+    
     constructor(options = {}) {
         this.selectedIssues = options.selectedIssues || [];
         this.onRemoveIssue = options.onRemoveIssue || null;
@@ -2172,10 +1872,7 @@ window.SelectionDisplay = class SelectionDisplay {
         this.issuesList = null;
     }
 
-    /**
-     * Create the selected issues container
-     * @param {HTMLElement} container - Parent container to append to
-     */
+    
     createSelectionContainer(container) {
         this.container = container;
 
@@ -2214,9 +1911,7 @@ window.SelectionDisplay = class SelectionDisplay {
         this.updateDisplay();
     }
 
-    /**
-     * Display "No issues selected" message
-     */
+    
     displayNoIssuesMessage() {
         if (!this.issuesList) return;
 
@@ -2232,9 +1927,7 @@ window.SelectionDisplay = class SelectionDisplay {
         this.issuesList.appendChild(noIssuesSelected);
     }
 
-    /**
-     * Update the display of selected issues
-     */
+    
     updateDisplay() {
         if (!this.issuesList) {
             console.error('Issues list not initialized');
@@ -2326,10 +2019,7 @@ window.SelectionDisplay = class SelectionDisplay {
         // Log for debugging
             }
 
-    /**
-     * Remove an issue from the selection
-     * @param {number} index - Index of the issue to remove
-     */
+    
     removeIssue(index) {
         if (index >= 0 && index < this.selectedIssues.length) {
             // Store the issue before removing for logging
@@ -2361,10 +2051,7 @@ window.SelectionDisplay = class SelectionDisplay {
     }
 
 
-    /**
-     * Set the selected issues
-     * @param {Array} issues - Array of issue objects to display
-     */
+    
     setSelectedIssues(issues) {
         // Make a copy of the array to avoid reference issues
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
@@ -2375,10 +2062,7 @@ window.SelectionDisplay = class SelectionDisplay {
         // Log for debugging
             }
 
-    /**
-     * Get the current selected issues
-     * @returns {Array} Currently selected issues
-     */
+    
     getSelectedIssues() {
         return [...this.selectedIssues];
     }
@@ -2386,13 +2070,7 @@ window.SelectionDisplay = class SelectionDisplay {
 
 // File: lib/ui/components/IssueSelector.js
 window.IssueSelector = class IssueSelector {
-    /**
-     * Constructor for IssueSelector
-     * @param {Object} options - Configuration options
-     * @param {Function} options.onSelectionChange - Callback function when selection changes
-     * @param {Function} options.onSelectionComplete - Callback function when selection is completed
-     * @param {Array} options.initialSelection - Initial selection of issues
-     */
+    
     constructor(options = {}) {
         this.uiManager = options.uiManager;
         this.onSelectionChange = options.onSelectionChange || null;
@@ -2504,10 +2182,7 @@ window.IssueSelector = class IssueSelector {
 
             }
 
-    /**
-     * Create cancel button for exiting selection mode
-     * @param {HTMLElement} attachmentElement - Element to attach buttons to
-     */
+    
 
     createCancelButton(attachmentElement = document.body) {
         const cancelButton = document.createElement('div');
@@ -2568,11 +2243,7 @@ window.IssueSelector = class IssueSelector {
         this.selectionOverlays.push(selectionCounter);
     }
 
-    /**
-     * Create semi-transparent clickable overlays for each card
-     * @param {Array} currentSelection - Currently selected issues to maintain
-     * @param {HTMLElement} attachmentElement - Element to attach overlays to
-     */
+    
 
     createCardOverlays(currentSelection = [], attachmentElement = document.body) {
                 const boardCards = document.querySelectorAll('.board-card');
@@ -2689,9 +2360,7 @@ window.IssueSelector = class IssueSelector {
 
             }
 
-    /**
-     * Update selection counter
-     */
+    
     updateSelectionCounter() {
         const counter = document.getElementById('selection-counter');
         if (counter) {
@@ -2715,11 +2384,7 @@ window.IssueSelector = class IssueSelector {
         this.syncSelectionWithBulkCommentsView();
     }
 
-    /**
-     * Get issue item from card using Vue component
-     * @param {HTMLElement} boardCard - DOM element representing a board card
-     * @returns {Object|null} - Issue item object or null if not found
-     */
+    
     getIssueItemFromCard(boardCard) {
         try {
             // Try to access Vue component
@@ -2775,9 +2440,7 @@ window.IssueSelector = class IssueSelector {
         return null;
     }
 
-    /**
-     * Renumber the badges on selected overlays
-     */
+    
     renumberBadges() {
         this.selectedOverlays.forEach((overlay, index) => {
             const badge = overlay.querySelector('.selection-badge');
@@ -2787,9 +2450,7 @@ window.IssueSelector = class IssueSelector {
         });
     }
 
-    /**
-     * Exit selection mode and clean up overlays, keeping the current selection
-     */
+    
     exitSelectionMode() {
                 this.isSelectingIssue = false;
 
@@ -2940,9 +2601,7 @@ window.IssueSelector = class IssueSelector {
         }
     }
 
-    /**
-     * Sync selection with BulkComments view
-     */
+    
     syncSelectionWithBulkCommentsView() {
         try {
             // Update the selection display
@@ -2962,10 +2621,7 @@ window.IssueSelector = class IssueSelector {
             console.error('Error syncing selection with bulk comments view:', error);
         }
     }
-    /**
-     * Reposition overlays when window is scrolled or resized
-     * Only necessary if selection mode is active for a long time
-     */
+    
     repositionOverlays() {
         if (!this.isSelectingIssue) return;
 
@@ -3015,18 +2671,12 @@ window.IssueSelector = class IssueSelector {
         }
     }
 
-    /**
-     * Get currently selected issues
-     * @returns {Array} Array of selected issue objects
-     */
+    
     getSelectedIssues() {
         return [...this.selectedIssues];
     }
 
-    /**
-     * Set selected issues programmatically
-     * @param {Array} issues - Array of issue objects
-     */
+    
     setSelectedIssues(issues) {
         // Make a defensive copy to prevent reference issues
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
@@ -3127,9 +2777,7 @@ window.IssueSelector = class IssueSelector {
             console.error('Error updating overlays from selection:', error);
         }
     }
-    /**
-     * Clear selected issues
-     */
+    
     clearSelection() {
         this.selectedIssues = [];
 
@@ -3223,14 +2871,8 @@ window.IssueSelector = class IssueSelector {
 }
 
 // File: lib/ui/managers/TabManager.js
-/**
- * Manager for tab switching and tab UI
- */
 window.TabManager = class TabManager {
-    /**
-     * Constructor for TabManager
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
+    
     constructor(uiManager) {
         this.uiManager = uiManager;
         this.tabContainer = null;
@@ -3247,10 +2889,7 @@ window.TabManager = class TabManager {
 
             }
 
-    /**
-     * Initialize the tab navigation
-     * @param {HTMLElement} parentElement - Element to append tabs to
-     */
+    
     initialize(parentElement) {
         // Create tab container
         this.tabContainer = document.createElement('div');
@@ -3271,12 +2910,7 @@ window.TabManager = class TabManager {
         this.createContentAreas(parentElement);
     }
 
-    /**
-     * Create a tab element
-     * @param {string} id - Tab identifier
-     * @param {string} label - Tab display label
-     * @param {boolean} isActive - Whether tab is initially active
-     */
+    
     createTab(id, label, isActive = false) {
         const tab = document.createElement('div');
         tab.textContent = label;
@@ -3357,10 +2991,7 @@ window.TabManager = class TabManager {
         }
     }
 
-    /**
-     * Switch to a specific tab
-     * @param {string} tabId - ID of tab to switch to
-     */
+    
     switchToTab(tabId) {
         // Reset all tabs
         Object.keys(this.tabs).forEach(id => {
@@ -3401,37 +3032,20 @@ window.TabManager = class TabManager {
         }
     }
 
-    /**
-     * Get the content element for a specific tab
-     * @param {string} tabId - ID of the tab
-     * @returns {HTMLElement} Content area element
-     */
+    
     getContentArea(tabId) {
         return this.contentAreas[tabId];
     }
 
-    /**
-     * Get the current active tab ID
-     * @returns {string} Active tab ID
-     */
+    
     getCurrentTab() {
         return this.currentTab;
     }
 }
 
 // File: lib/ui/managers/CommandManager.js
-/**
- * Manager for GitLab commands and shortcuts
- */
 window.CommandManager = class CommandManager {
-    /**
-     * Constructor for CommandManager
-     * @param {Object} options - Configuration options
-     * @param {HTMLElement} options.targetElement - Target textarea element
-     * @param {Object} options.gitlabApi - GitLab API instance
-     * @param {Object} options.labelManager - Label manager instance
-     * @param {Function} options.onCommandInsert - Callback when command is inserted
-     */
+    
     constructor(options = {}) {
         this.targetElement = options.targetElement;
         this.gitlabApi = options.gitlabApi;
@@ -3452,10 +3066,7 @@ window.CommandManager = class CommandManager {
         this.commandShortcut = null;
     }
 
-    /**
-     * Initialize the command shortcuts UI
-     * @param {HTMLElement} container - Container to add shortcuts to
-     */
+    
     initialize(container) {
         this.shortcutContainer = container;
 
@@ -3479,9 +3090,7 @@ window.CommandManager = class CommandManager {
         this.addCustomShortcuts();
     }
 
-    /**
-     * Add custom shortcuts beyond the default estimate shortcut
-     */
+    
     addCustomShortcuts() {
         if (!this.commandShortcut) return;
 
@@ -3498,9 +3107,7 @@ window.CommandManager = class CommandManager {
         this.addWeightShortcut();
     }
 
-    /**
-     * Add milestone shortcut
-     */
+    
     addMilestoneShortcut() {
         this.commandShortcut.addCustomShortcut({
             type: 'milestone',
@@ -3543,12 +3150,8 @@ window.CommandManager = class CommandManager {
         });
     }
 
-    /**
-     * Add assign shortcut with whitelist support
-     */
-    /**
-     * Add assign shortcut
-     */
+    
+    
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
 
@@ -3666,9 +3269,7 @@ window.CommandManager = class CommandManager {
         }
     }
 
-    /**
-     * Add due date shortcut
-     */
+    
     addDueDateShortcut() {
         // Calculate some common dates
         const today = new Date();
@@ -3745,9 +3346,7 @@ window.CommandManager = class CommandManager {
         });
     }
 
-    /**
-     * Add weight shortcut
-     */
+    
     addWeightShortcut() {
         this.commandShortcut.addCustomShortcut({
             type: 'weight',
@@ -3810,9 +3409,7 @@ window.CommandManager = class CommandManager {
         });
     }
 
-    /**
-     * Open assignee whitelist manager dialog
-     */
+    
     openAssigneeManager() {
         // Create modal overlay
         const modalOverlay = document.createElement('div');
@@ -4142,10 +3739,7 @@ window.CommandManager = class CommandManager {
         });
     }
 
-    /**
-     * Insert text at cursor position in textarea
-     * @param {string} text - Text to insert
-     */
+    
     insertTextAtCursor(text) {
         if (!this.targetElement) return;
 
@@ -4172,13 +3766,7 @@ window.CommandManager = class CommandManager {
         this.targetElement.focus();
     }
 
-    /**
-     * Apply replacement logic for command types
-     * @param {string} type - Type of shortcut (e.g., 'label', 'milestone')
-     * @param {string} command - The command to insert (e.g., '/label ~bug')
-     * @param {RegExp} regex - Regular expression to match existing commands
-     * @param {Function} insertFn - Function to handle the insertion if no existing command
-     */
+    
     replaceOrInsertCommand(type, command, regex, insertFn) {
         if (!this.targetElement) return;
 
@@ -4208,16 +3796,8 @@ window.CommandManager = class CommandManager {
 }
 
 // File: lib/ui/managers/LabelManager.js
-/**
- * Manager for GitLab labels
- */
 window.LabelManager = class LabelManager {
-    /**
-     * Constructor for LabelManager
-     * @param {Object} options - Configuration options
-     * @param {Function} options.onLabelsLoaded - Callback when labels are loaded
-     * @param {GitLabAPI} options.gitlabApi - GitLab API instance
-     */
+    
     constructor(options = {}) {
         // Try to get gitlabApi from options or from window global
         this.gitlabApi = options.gitlabApi || window.gitlabApi;
@@ -4245,10 +3825,7 @@ window.LabelManager = class LabelManager {
         this.isLoading = false;
     }
 
-    /**
-     * Get default whitelist values
-     * @returns {Array} Default whitelist array
-     */
+    
     getDefaultWhitelist() {
         return [
             'bug', 'feature', 'documentation', 'enhancement', 'security',
@@ -4259,10 +3836,7 @@ window.LabelManager = class LabelManager {
         ];
     }
 
-    /**
-     * Save whitelist to storage
-     * @param {Array} whitelist - Array of whitelist terms
-     */
+    
     saveWhitelist(whitelist) {
         // Ensure whitelist is an array
         if (!Array.isArray(whitelist)) {
@@ -4280,9 +3854,7 @@ window.LabelManager = class LabelManager {
         this.filterLabels();
     }
 
-    /**
-     * Reset whitelist to default values
-     */
+    
     resetToDefaultWhitelist() {
         try {
             this.labelWhitelist = this.getDefaultWhitelist();
@@ -4297,12 +3869,7 @@ window.LabelManager = class LabelManager {
         return this.labelWhitelist;
     }
 
-    /**
-     * Check if a label matches the whitelist
-     * @param {string} labelName - Label name to check
-     * @param {Array} whitelist - Whitelist to check against (optional)
-     * @returns {boolean} True if label matches whitelist
-     */
+    
     isLabelInWhitelist(labelName, whitelist = null) {
         // Use provided whitelist or instance whitelist
         const whitelistToUse = whitelist || this.labelWhitelist;
@@ -4321,9 +3888,7 @@ window.LabelManager = class LabelManager {
     }
 
 
-    /**
-     * Filter labels based on current whitelist
-     */
+    
     filterLabels() {
         if (!this.availableLabels || this.availableLabels.length === 0) {
             this.filteredLabels = [];
@@ -4346,10 +3911,7 @@ window.LabelManager = class LabelManager {
         }
     }
 
-    /**
-     * Fetch all labels from GitLab API
-     * @returns {Promise<Array>} Promise resolving to array of labels
-     */
+    
     async fetchAllLabels() {
         try {
             this.isLoading = true;
@@ -4405,10 +3967,7 @@ window.LabelManager = class LabelManager {
         }
     }
 
-    /**
-     * Add fallback labels when API fails
-     * @returns {Array} Array of fallback labels
-     */
+    
     addFallbackLabels() {
         // Create basic fallback labels
         const fallbackLabels = [
@@ -4434,11 +3993,7 @@ window.LabelManager = class LabelManager {
         return this.filteredLabels;
     }
 
-    /**
-     * Get labels for dropdown
-     * @param {boolean} includeEmpty - Whether to include empty option
-     * @returns {Array} Array of label options for dropdown
-     */
+    
     getLabelOptions(includeEmpty = true) {
         // Check if we have filteredLabels
         if (!this.filteredLabels || this.filteredLabels.length === 0) {
@@ -4473,11 +4028,7 @@ window.LabelManager = class LabelManager {
         return labelOptions;
     }
 
-    /**
-     * Create a styled label element for dropdowns
-     * @param {Object} label - Label object with name and color
-     * @returns {HTMLElement} Styled label element
-     */
+    
     createStyledLabel(label) {
         const labelElement = document.createElement('span');
         labelElement.textContent = label.label || label.name || '';
@@ -4506,11 +4057,7 @@ window.LabelManager = class LabelManager {
         return labelElement;
     }
 
-    /**
-     * Add label command to textarea
-     * @param {HTMLElement} textarea - Textarea element to insert command into
-     * @param {string} labelName - Label name to add
-     */
+    
     insertLabelCommand(textarea, labelName) {
         if (!textarea || typeof labelName !== 'string') return;
 
@@ -4554,12 +4101,7 @@ window.LabelManager = class LabelManager {
         textarea.focus();
     }
 
-    /**
-     * Initialize label dropdown with fetch and render
-     * @param {Function} createDropdown - Function to create dropdown with options
-     * @param {Object} dropdownOptions - Additional options for dropdown
-     * @returns {Object} Created dropdown instance
-     */
+    
     async initLabelDropdown(createDropdown, dropdownOptions = {}) {
         // Start with empty dropdown
         const dropdown = createDropdown({
@@ -4593,16 +4135,8 @@ window.LabelManager = class LabelManager {
 }
 
 // File: lib/ui/managers/AssigneeManager.js
-/**
- * Manager for assignee-related functionality
- */
 window.AssigneeManager = class AssigneeManager {
-    /**
-     * Constructor for AssigneeManager
-     * @param {Object} options - Configuration options
-     * @param {Object} options.gitlabApi - GitLab API instance
-     * @param {Function} options.onAssigneesChange - Callback when assignees change
-     */
+    
     constructor(options = {}) {
         this.gitlabApi = options.gitlabApi;
         this.onAssigneesChange = options.onAssigneesChange || null;
@@ -4621,18 +4155,12 @@ window.AssigneeManager = class AssigneeManager {
         this.isLoading = false;
     }
 
-    /**
-     * Get assignee whitelist
-     * @returns {Array} Array of assignee objects
-     */
+    
     getAssigneeWhitelist() {
         return [...this.assigneeWhitelist];
     }
 
-    /**
-     * Save assignee whitelist
-     * @param {Array} whitelist - Array of assignee objects
-     */
+    
     saveWhitelist(whitelist) {
         this.assigneeWhitelist = whitelist;
         saveAssigneeWhitelist(whitelist);
@@ -4643,11 +4171,7 @@ window.AssigneeManager = class AssigneeManager {
         }
     }
 
-    /**
-     * Add an assignee to the whitelist
-     * @param {Object} assignee - Assignee object with name and username
-     * @returns {boolean} Whether assignee was added
-     */
+    
     addAssignee(assignee) {
         if (!assignee || !assignee.username) {
             return false;
@@ -4679,11 +4203,7 @@ window.AssigneeManager = class AssigneeManager {
         return true;
     }
 
-    /**
-     * Remove an assignee from the whitelist
-     * @param {string} username - Username to remove
-     * @returns {boolean} Whether assignee was removed
-     */
+    
     removeAssignee(username) {
         if (!username) {
             return false;
@@ -4711,10 +4231,7 @@ window.AssigneeManager = class AssigneeManager {
         return true;
     }
 
-    /**
-     * Fetch current user from GitLab API
-     * @returns {Promise<Object>} Current user object
-     */
+    
     async fetchCurrentUser() {
         if (!this.gitlabApi) {
             throw new Error('GitLab API instance not provided');
@@ -4736,11 +4253,7 @@ window.AssigneeManager = class AssigneeManager {
         }
     }
 
-    /**
-     * Fetch project members from GitLab API
-     * @param {string} projectId - Project ID or path
-     * @returns {Promise<Array>} Array of project members
-     */
+    
     async fetchProjectMembers(projectId) {
         if (!this.gitlabApi) {
             throw new Error('GitLab API instance not provided');
@@ -4780,11 +4293,7 @@ window.AssigneeManager = class AssigneeManager {
         }
     }
 
-    /**
-     * Fetch group members from GitLab API
-     * @param {string} groupId - Group ID or path
-     * @returns {Promise<Array>} Array of group members
-     */
+    
     async fetchGroupMembers(groupId) {
         if (!this.gitlabApi) {
             throw new Error('GitLab API instance not provided');
@@ -4824,11 +4333,7 @@ window.AssigneeManager = class AssigneeManager {
         }
     }
 
-    /**
-     * Insert assign command into textarea
-     * @param {HTMLElement} textarea - Textarea to insert command into
-     * @param {string} username - Username to assign to
-     */
+    
     insertAssignCommand(textarea, username) {
         if (!textarea) return;
 
@@ -4885,12 +4390,7 @@ window.AssigneeManager = class AssigneeManager {
         }
     }
 
-    /**
-     * Create an assignee option element for the selector
-     * @param {Object} assignee - Assignee object
-     * @param {Function} onClick - Click handler
-     * @returns {HTMLElement} Option element
-     */
+    
     createAssigneeOption(assignee, onClick) {
         const option = document.createElement('div');
         option.className = 'assignee-option';
@@ -4976,10 +4476,7 @@ window.AssigneeManager = class AssigneeManager {
         return option;
     }
 
-    /**
-     * Open assignee selector dialog
-     * @param {HTMLElement} targetElement - Textarea to insert command into after selection
-     */
+    
     openAssigneeSelector(targetElement) {
         // Create modal overlay
         const modalOverlay = document.createElement('div');
@@ -5185,11 +4682,7 @@ window.AssigneeManager = class AssigneeManager {
         });
     }
 
-    /**
-     * Reload the entire assignee selector
-     * @param {HTMLElement} modalContent - The modal content element
-     * @param {HTMLElement} targetElement - The target textarea element
-     */
+    
     reloadAssigneeSelector(modalContent, targetElement) {
         // Show loading message
         const contentArea = modalContent.querySelector('#assignee-selector-content');
@@ -5256,11 +4749,7 @@ window.AssigneeManager = class AssigneeManager {
         // Show a notification for better feedback
         this.notification.info('Refreshing assignee list...');
     }
-    /**
-     * Reload whitelisted assignees into the container
-     * @param {HTMLElement} container - Container to add assignees to
-     * @param {HTMLElement} targetElement - Target textarea element
-     */
+    
     reloadWhitelistedAssignees(container, targetElement) {
         // Clear container
         container.innerHTML = '';
@@ -5342,12 +4831,7 @@ window.AssigneeManager = class AssigneeManager {
         container.appendChild(buttonContainer);
     }
 
-    /**
-     * Show project members in the container
-     * @param {HTMLElement} container - Container to add members to
-     * @param {Array} members - Array of project members
-     * @param {HTMLElement} targetElement - Target textarea element
-     */
+    
     showProjectMembers(container, members, targetElement) {
         // Create project members section
         const membersSection = document.createElement('div');
@@ -5446,11 +4930,7 @@ window.AssigneeManager = class AssigneeManager {
         container.appendChild(membersSection);
     }
 
-    /**
-     * Load assignees into the selector
-     * @param {HTMLElement} container - Container to add assignees to
-     * @param {HTMLElement} targetElement - Target textarea element
-     */
+    
     loadAssigneesIntoSelector(container, targetElement) {
         // Clear container
         container.innerHTML = '';
@@ -5469,10 +4949,7 @@ window.AssigneeManager = class AssigneeManager {
         }, 300);
     }
 
-    /**
-     * Open assignee management dialog
-     * Allows adding/removing assignees without assigning to a specific issue
-     */
+    
     openAssigneeManager() {
         // Create modal overlay
         const modalOverlay = document.createElement('div');
@@ -5823,16 +5300,8 @@ window.AssigneeManager = class AssigneeManager {
 }
 
 // File: lib/ui/managers/MilestoneManager.js
-/**
- * Manager for milestone functionality
- */
 window.MilestoneManager = class MilestoneManager {
-    /**
-     * Constructor for MilestoneManager
-     * @param {Object} options - Configuration options
-     * @param {Object} options.gitlabApi - GitLab API instance
-     * @param {Function} options.onMilestonesLoaded - Callback when milestones are loaded
-     */
+    
     constructor(options = {}) {
         this.gitlabApi = options.gitlabApi;
         this.onMilestonesLoaded = options.onMilestonesLoaded || null;
@@ -5849,11 +5318,7 @@ window.MilestoneManager = class MilestoneManager {
         this.isLoading = false;
     }
 
-    /**
-     * Fetch milestones from GitLab API
-     * @param {string} state - Filter by milestone state (active, closed, all)
-     * @returns {Promise<Array>} Array of milestone objects
-     */
+    
     async fetchMilestones(state = 'active') {
         if (!this.gitlabApi) {
             throw new Error('GitLab API instance not provided');
@@ -5912,11 +5377,7 @@ window.MilestoneManager = class MilestoneManager {
         }
     }
 
-    /**
-     * Get milestone by ID or title
-     * @param {string|number} idOrTitle - Milestone ID or title
-     * @returns {Object|null} Milestone object or null if not found
-     */
+    
     getMilestone(idOrTitle) {
         if (!idOrTitle) return null;
 
@@ -5929,11 +5390,7 @@ window.MilestoneManager = class MilestoneManager {
         }
     }
 
-    /**
-     * Get the current milestone for a project/group
-     * This is usually the milestone with the closest due date that hasn't passed
-     * @returns {Object|null} Current milestone or null if none found
-     */
+    
     getCurrentMilestone() {
         if (this.milestones.length === 0) {
             return null;
@@ -5964,10 +5421,7 @@ window.MilestoneManager = class MilestoneManager {
         return null;
     }
 
-    /**
-     * Get next milestone after the current one
-     * @returns {Object|null} Next milestone or null if none found
-     */
+    
     getNextMilestone() {
         const current = this.getCurrentMilestone();
 
@@ -5994,11 +5448,7 @@ window.MilestoneManager = class MilestoneManager {
         return null;
     }
 
-    /**
-     * Get upcoming milestones (excluding current and next)
-     * @param {number} limit - Maximum number of milestones to return
-     * @returns {Array} Array of upcoming milestone objects
-     */
+    
     getUpcomingMilestones(limit = 5) {
         const current = this.getCurrentMilestone();
         const next = this.getNextMilestone();
@@ -6027,11 +5477,7 @@ window.MilestoneManager = class MilestoneManager {
         return sorted.slice(0, limit);
     }
 
-    /**
-     * Get milestone dropdown options
-     * Includes special values and actual milestones
-     * @returns {Array} Array of option objects with value and label
-     */
+    
     getMilestoneOptions() {
         const options = [
             { value: '', label: 'Set Milestone' },
@@ -6061,11 +5507,7 @@ window.MilestoneManager = class MilestoneManager {
         return options;
     }
 
-    /**
-     * Insert milestone command into textarea
-     * @param {HTMLElement} textarea - Textarea to insert command into
-     * @param {string} value - Milestone value (special value or title)
-     */
+    
     insertMilestoneCommand(textarea, value) {
         if (!textarea) return;
 
@@ -6122,12 +5564,7 @@ window.MilestoneManager = class MilestoneManager {
         }
     }
 
-    /**
-     * Create a milestone option element for the selector
-     * @param {Object} milestone - Milestone object
-     * @param {Function} onClick - Click handler
-     * @returns {HTMLElement} Option element
-     */
+    
     createMilestoneOption(milestone, onClick) {
         const option = document.createElement('div');
         option.className = 'milestone-option';
@@ -6231,10 +5668,7 @@ window.MilestoneManager = class MilestoneManager {
         return option;
     }
 
-    /**
-     * Open milestone selector dialog
-     * @param {HTMLElement} targetElement - Textarea to insert command into after selection
-     */
+    
     openMilestoneSelector(targetElement) {
         // Create modal overlay
         const modalOverlay = document.createElement('div');
@@ -6516,18 +5950,8 @@ window.MilestoneManager = class MilestoneManager {
 }
 
 // File: lib/ui/managers/SettingsManager.js
-/**
- * Manager for application settings
- */
 window.SettingsManager = class SettingsManager {
-    /**
-     * Constructor for SettingsManager
-     * @param {Object} options - Configuration options
-     * @param {Object} options.labelManager - Label manager instance
-     * @param {Object} options.assigneeManager - Assignee manager instance
-     * @param {Object} options.gitlabApi - GitLab API instance
-     * @param {Function} options.onSettingsChanged - Callback when settings change
-     */
+    
     constructor(options = {}) {
         this.labelManager = options.labelManager;
         this.assigneeManager = options.assigneeManager;
@@ -6545,9 +5969,7 @@ window.SettingsManager = class SettingsManager {
         this.isLoadingAssignees = false;
     }
 
-    /**
-     * Create and open settings modal with enhanced UI
-     */
+    
     openSettingsModal() {
         // Create modal overlay (background)
         const modalOverlay = document.createElement('div');
@@ -6684,14 +6106,7 @@ window.SettingsManager = class SettingsManager {
         });
     }
 
-    /**
-     * Create a collapsible section
-     * @param {HTMLElement} container - Parent container
-     * @param {string} title - Section title
-     * @param {string} description - Section description
-     * @param {Function} contentBuilder - Function that builds the section content
-     * @param {boolean} startExpanded - Whether section should start expanded
-     */
+    
     createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
         // Always start collapsed regardless of passed parameter
         startExpanded = false;
@@ -6782,10 +6197,7 @@ window.SettingsManager = class SettingsManager {
         return section;
     }
 
-    /**
-     * Create enhanced assignee settings section
-     * @param {HTMLElement} container - Container to add settings to
-     */
+    
     createAssigneeSettings(container) {
         const assigneeSection = document.createElement('div');
 
@@ -7004,12 +6416,7 @@ window.SettingsManager = class SettingsManager {
         container.appendChild(assigneeSection);
     }
 
-    /**
-     * Create form to add assignees manually
-     * @param {HTMLElement} listContainer - Container for assignee list
-     * @param {Function} createEmptyMessage - Function to create empty message
-     * @returns {HTMLElement} Form container
-     */
+    
     createAddAssigneeForm(listContainer, createEmptyMessage) {
         const addForm = document.createElement('div');
         addForm.style.marginTop = '15px';
@@ -7150,14 +6557,8 @@ window.SettingsManager = class SettingsManager {
         return addForm;
     }
 
-    /**
-     * Fetch GitLab users from API
-     * @param {HTMLElement} container - Container to display users in
-     */
-    /**
-     * Fetch GitLab users from API
-     * @param {HTMLElement} container - Container to display users in
-     */
+    
+    
     async fetchGitLabUsers(container) {
         if (!this.gitlabApi) {
             this.notification.error('GitLab API not available');
@@ -7224,10 +6625,7 @@ window.SettingsManager = class SettingsManager {
         }
     }
 
-    /**
-     * Render available users in container
-     * @param {HTMLElement} container - Container to render users in
-     */
+    
     renderAvailableUsers(container) {
         // Clear container
         container.innerHTML = '';
@@ -7382,10 +6780,7 @@ window.SettingsManager = class SettingsManager {
         });
     }
 
-    /**
-     * Refresh the whitelisted assignees tab
-     * This is a new function to update the UI when assignees change
-     */
+    
     refreshWhitelistedTab() {
         // Find the whitelisted assignees container
         const whitelistedContent = document.querySelector('div[style*="display: block"]'); // Currently visible content
@@ -7442,14 +6837,7 @@ window.SettingsManager = class SettingsManager {
         }, 300); // Short delay to show loading
     }
 
-    /**
-     * Create an assignee list item
-     * @param {Object} assignee - Assignee object
-     * @param {number} index - Index in the list
-     * @param {HTMLElement} listContainer - List container
-     * @param {Function} createEmptyMessage - Function to create empty message
-     * @returns {HTMLElement} Assignee list item
-     */
+    
     createAssigneeListItem(assignee, index, listContainer, createEmptyMessage) {
         const item = document.createElement('div');
         item.className = 'assignee-item';
@@ -7564,10 +6952,7 @@ window.SettingsManager = class SettingsManager {
     }
 
 
-    /**
-     * Create label whitelist settings section
-     * @param {HTMLElement} container - Container to add settings to
-     */
+    
     createLabelWhitelistSettings(container) {
         const whitelistSection = document.createElement('div');
         whitelistSection.style.marginBottom = '20px';
@@ -7716,10 +7101,7 @@ window.SettingsManager = class SettingsManager {
         container.appendChild(whitelistSection);
     }
 
-    /**
-     * Refresh the assignee list in the settings tab
-     * @param {HTMLElement} container - The container element for the assignee list
-     */
+    
     refreshAssigneeList(container) {
         if (!container) return;
 
@@ -7768,10 +7150,7 @@ window.SettingsManager = class SettingsManager {
             }
         }, 300);
     }
-    /**
-     * Create appearance settings section
-     * @param {HTMLElement} container - Container to add settings to
-     */
+    
     createAppearanceSettings(container) {
         const appearanceSection = document.createElement('div');
 
@@ -7802,11 +7181,7 @@ window.SettingsManager = class SettingsManager {
         container.appendChild(appearanceSection);
     }
 
-    /**
-     * Create a GitLab-styled label element
-     * @param {Object} label - Label object with name and color
-     * @returns {HTMLElement} Styled label element
-     */
+    
     createGitLabStyleLabel(label) {
         const labelElement = document.createElement('span');
         labelElement.textContent = label.name;
@@ -7834,14 +7209,8 @@ window.SettingsManager = class SettingsManager {
         return labelElement;
     }
 
-    /**
-     * Create whitelist editor with checkboxes for all available labels
-     * @param {HTMLElement} container - Container to add whitelist editor to
-     */
-    /**
-     * Create whitelist editor with checkboxes for all available labels
-     * @param {HTMLElement} container - Container to add whitelist editor to
-     */
+    
+    
     createWhitelistEditor(container) {
         // Add loading message
         const loadingMessage = document.createElement('div');
@@ -7991,10 +7360,7 @@ window.SettingsManager = class SettingsManager {
         }
     }
 
-    /*** Display only the whitelist terms when label manager isn't available
-     * @param {HTMLElement} container - Container element
-     * @param {Array} whitelist - Whitelist terms
-     */
+    
     showWhitelistTermsOnly(container, whitelist) {
         // Ensure whitelist is an array
         if (!Array.isArray(whitelist)) {
@@ -8069,9 +7435,7 @@ window.SettingsManager = class SettingsManager {
         container.appendChild(customInputContainer);
     }
 
-    /**
-     * Save whitelist settings from checkboxes and custom input
-     */
+    
     saveWhitelistSettings() {
         const newWhitelist = [];
         const addedTerms = new Set(); // Track already added terms to prevent duplicates
@@ -8119,9 +7483,7 @@ window.SettingsManager = class SettingsManager {
         }
     }
 
-    /**
-     * Reset label whitelist to defaults
-     */
+    
     resetLabelWhitelist() {
         resetLabelWhitelist();
 
@@ -8136,9 +7498,7 @@ window.SettingsManager = class SettingsManager {
         }
     }
 
-    /**
-     * Reset all settings to defaults
-     */
+    
     resetAllSettings() {
         // Reset label whitelist
         this.resetLabelWhitelist();
@@ -8152,14 +7512,8 @@ window.SettingsManager = class SettingsManager {
         }
     }
 
-    /**
-     * Auto-save whitelist settings from checkboxes
-     * @param {HTMLElement} container - The container with checkboxes
-     */
-    /**
-     * Auto-save whitelist settings from checkboxes
-     * @param {HTMLElement} container - The container with checkboxes
-     */
+    
+    
     autoSaveWhitelist(container) {
         const newWhitelist = [];
         const addedTerms = new Set(); // Track already added terms to prevent duplicates
@@ -8199,28 +7553,13 @@ window.SettingsManager = class SettingsManager {
 }
 
 // File: lib/ui/views/SummaryView.js
-/**
- * View for the Summary tab
- */
 window.SummaryView = class SummaryView {
-    /**
-     * Constructor for SummaryView
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
+    
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
 
-    /**
-     * Render or update the Summary tab with data
-     * @param {Object} assigneeTimeMap - Map of assignee names to time estimates
-     * @param {number} totalEstimate - Total time estimate in seconds
-     * @param {number} cardsProcessed - Number of cards processed
-     * @param {number} cardsWithTime - Number of cards with time estimates
-     * @param {string} currentMilestone - Current milestone name
-     * @param {Object} boardData - Data for each board
-     * @param {Object} boardAssigneeData - Assignee data for each board
-     */
+    
     render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
         const summaryContent = document.getElementById('assignee-time-summary-content');
 
@@ -8283,10 +7622,7 @@ window.SummaryView = class SummaryView {
         }
     }
 
-    /**
-     * Count cards in "closed" or "done" boards
-     * @returns {number} Count of cards in closed boards
-     */
+    
     getClosedBoardCount() {
         let closedCount = 0;
         const boardLists = document.querySelectorAll('.board-list');
@@ -8332,10 +7668,7 @@ window.SummaryView = class SummaryView {
         return closedCount;
     }
 
-    /**
-     * Render message when no data is available
-     * @param {HTMLElement} container - Container element
-     */
+    
     renderNoDataMessage(container) {
         const noDataMsg = document.createElement('p');
         noDataMsg.textContent = 'No time estimate data found. Make sure the board is fully loaded and try again.';
@@ -8352,11 +7685,7 @@ window.SummaryView = class SummaryView {
         this.uiManager.updateHeader('Summary 0.0h');
     }
 
-    /**
-     * Render milestone information
-     * @param {HTMLElement} container - Container element
-     * @param {string} milestoneName - Name of the milestone
-     */
+    
     renderMilestoneInfo(container, milestoneName) {
         const milestoneInfo = document.createElement('div');
         milestoneInfo.style.marginBottom = '10px';
@@ -8366,14 +7695,7 @@ window.SummaryView = class SummaryView {
         container.appendChild(milestoneInfo);
     }
 
-    /**
-     * Render data table with assignee time estimates and hour distribution
-     * @param {HTMLElement} container - Container element
-     * @param {Object} assigneeTimeMap - Map of assignee names to time estimates
-     * @param {string} totalHours - Total hours formatted as string
-     * @param {Object} boardData - Data for each board
-     * @param {Object} boardAssigneeData - Assignee data for each board
-     */
+    
     renderDataTableWithDistribution(container, assigneeTimeMap, totalHours, boardData, boardAssigneeData) {
         // Create table
         const table = document.createElement('table');
@@ -8510,22 +7832,12 @@ window.SummaryView = class SummaryView {
 }
 
 // File: lib/ui/views/BoardsView.js
-/**
- * View for the Boards tab
- */
 window.BoardsView = class BoardsView {
-    /**
-     * Constructor for BoardsView
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
+    
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
-    /**
-     * Render or update the Boards tab with data
-     * @param {Object} boardData - Map of board names to board data
-     * @param {Object} boardAssigneeData - Map of board names to assignee data
-     */
+    
     render(boardData, boardAssigneeData) {
         const boardsContent = document.getElementById('boards-time-summary-content');
         if (!boardsContent) return;
@@ -8560,13 +7872,7 @@ window.BoardsView = class BoardsView {
         }
     }
 
-    /**
-     * Create a board section with collapsible details
-     * @param {string} boardName - Name of the board
-     * @param {Object} boardData - Data for this board
-     * @param {Object} assigneeData - Assignee data for this board
-     * @returns {HTMLElement} Board section element
-     */
+    
     createBoardSection(boardName, boardData, assigneeData) {
         const boardHours = formatHours(boardData.timeEstimate);
 
@@ -8629,11 +7935,7 @@ window.BoardsView = class BoardsView {
         return boardSection;
     }
 
-    /**
-     * Create a table showing assignee data for a board
-     * @param {Object} assigneeData - Assignee data for a board
-     * @returns {HTMLElement} Table element
-     */
+    
     createAssigneeTable(assigneeData) {
         const assigneeTable = document.createElement('table');
         assigneeTable.style.width = '100%';
@@ -8701,21 +8003,13 @@ window.BoardsView = class BoardsView {
 }
 
 // File: lib/ui/views/HistoryView.js
-/**
- * View for the History tab
- */
 window.HistoryView = class HistoryView {
-    /**
-     * Constructor for HistoryView
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
+    
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
 
-    /**
-     * Render the history tab
-     */
+    
     render() {
         const historyContent = document.getElementById('history-time-summary-content');
         if (!historyContent) return;
@@ -8736,11 +8030,6 @@ window.HistoryView = class HistoryView {
         urlInfo.style.marginBottom = '10px';
         urlInfo.style.wordBreak = 'break-all';
 
-        // Truncate the URL if it's too long
-        let displayUrl = window.location.href;
-        if (displayUrl.length > 60) {
-            displayUrl = displayUrl.substring(0, 57) + '...';
-        }
         historyContent.appendChild(urlInfo);
 
         // If no history, show message
@@ -8766,10 +8055,7 @@ window.HistoryView = class HistoryView {
         }
     }
 
-    /**
-     * Render message when no history data is available
-     * @param {HTMLElement} container - Container element
-     */
+    
     renderNoHistoryMessage(container) {
         const noDataMsg = document.createElement('p');
         noDataMsg.textContent = 'No history data available for this URL yet.';
@@ -8777,11 +8063,7 @@ window.HistoryView = class HistoryView {
         container.appendChild(noDataMsg);
     }
 
-    /**
-     * Add button to clear history data
-     * @param {HTMLElement} container - Container element
-     * @param {string} urlKey - Key for storing history data
-     */
+    
     addClearHistoryButton(container, urlKey) {
         const clearHistoryBtn = document.createElement('button');
         clearHistoryBtn.textContent = 'Clear History';
@@ -8802,11 +8084,7 @@ window.HistoryView = class HistoryView {
         container.appendChild(clearHistoryBtn);
     }
 
-    /**
-     * Render table showing history data
-     * @param {HTMLElement} container - Container element
-     * @param {Array} history - Array of history entries
-     */
+    
     renderHistoryTable(container, history) {
         // Create history table
         const table = document.createElement('table');
@@ -8865,63 +8143,11 @@ window.HistoryView = class HistoryView {
 
         container.appendChild(table);
     }
-
-    /**
-     * Handle loading state for history tab
-     * @param {boolean} isLoading - Whether history is loading
-     */
-    setLoadingState(isLoading) {
-        // Get the history tab content
-        const historyContent = document.getElementById('history-time-summary-content');
-        if (!historyContent) return;
-
-        // Ensure content has minimum height for loading screen
-        historyContent.style.minHeight = '300px';
-        historyContent.style.position = 'relative';
-
-        // Handle loading state
-        if (isLoading) {
-            // Check if we have access to the uiManager
-            if (this.uiManager && this.uiManager.addLoadingScreen) {
-                this.uiManager.addLoadingScreen(
-                    historyContent,
-                    'history-loading',
-                    'Loading history data...'
-                );
-            } else {
-                // Fallback loading message
-                const loadingMessage = document.createElement('div');
-                loadingMessage.id = 'history-loading-message';
-                loadingMessage.textContent = 'Loading history...';
-                loadingMessage.style.textAlign = 'center';
-                loadingMessage.style.padding = '20px';
-                loadingMessage.style.color = '#1f75cb';
-                historyContent.appendChild(loadingMessage);
-            }
-        } else {
-            // Remove loading screen if it exists
-            if (this.uiManager && this.uiManager.removeLoadingScreen) {
-                this.uiManager.removeLoadingScreen('history-loading');
-            } else {
-                // Remove fallback loading message
-                const loadingMessage = document.getElementById('history-loading-message');
-                if (loadingMessage) {
-                    loadingMessage.remove();
-                }
-            }
-        }
-    }
 }
 
 // File: lib/ui/views/BulkCommentsView.js
-/**
- * View for the Bulk Comments tab (previously API tab)
- */
 window.BulkCommentsView = class BulkCommentsView {
-    /**
-     * Constructor for BulkCommentsView
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
+    
     constructor(uiManager) {
         this.uiManager = uiManager;
         this.selectedIssues = []; // Store selected issues
@@ -8967,10 +8193,7 @@ window.BulkCommentsView = class BulkCommentsView {
         });
     }
 
-    /**
-     * Initialize label and assignee managers with error handling
-     * @param {Object} uiManager - Reference to the main UI manager
-     */
+    
     initializeManagers(uiManager) {
         // Try to get label manager from uiManager
         if (uiManager && uiManager.labelManager) {
@@ -9016,14 +8239,8 @@ window.BulkCommentsView = class BulkCommentsView {
             this.assigneeManager = window.assigneeManager;
         }
     }
-    /**
-     * Update assign shortcut with the provided items
-     * @param {Array} items - Items to show in the assign dropdown
-     */
-    /**
-     * Update assign shortcut with the provided items
-     * @param {Array} items - Items to show in the assign dropdown
-     */
+    
+    
     updateAssignShortcut(items) {
         if (!this.commandShortcuts) {
             console.error("Cannot update assign shortcut: commandShortcuts not available");
@@ -9124,9 +8341,7 @@ window.BulkCommentsView = class BulkCommentsView {
             console.error('Error updating assign shortcut:', e);
         }
     }
-    /**
-     * Initialize all shortcut types
-     */
+    
     initializeAllShortcuts() {
         if (!this.commandShortcuts) return;
 
@@ -9168,9 +8383,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Add milestone shortcut
-     */
+    
     addMilestoneShortcut() {
         if (!this.commandShortcuts) return;
 
@@ -9220,12 +8433,8 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Add assign shortcut
-     */
-    /**
-     * Add assign shortcut
-     */
+    
+    
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
 
@@ -9383,10 +8592,7 @@ window.BulkCommentsView = class BulkCommentsView {
 
 
 
-    /**
-     * Fetch members from the current group/project
-     * @returns {Promise<Array>} Promise resolving to array of members
-     */
+    
     async fetchGroupMembers() {
         try {
             // First, ensure we have an API instance
@@ -9439,10 +8645,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Set multiple selected issues
-     * @param {Array} issues - Array of selected issue objects
-     */
+    
     setSelectedIssues(issues) {
         // Make a defensive copy to prevent reference issues
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
@@ -9468,10 +8671,7 @@ window.BulkCommentsView = class BulkCommentsView {
         // Log for debugging
             }
 
-    /**
-     * Handler when an issue is removed from the selection
-     * @param {number} index - Index of the removed issue
-     */
+    
     onRemoveIssue(index) {
         if (this.selectedIssues.length > index) {
             // Store the removed issue for debugging
@@ -9505,10 +8705,7 @@ window.BulkCommentsView = class BulkCommentsView {
         // Log for debugging
             }
 
-    /**
-     * Create action buttons (select, submit, clear)
-     * @param {HTMLElement} container - Container element
-     */
+    
     createActionButtons(container) {
         // Buttons container
         const buttonContainer = document.createElement('div');
@@ -9605,9 +8802,7 @@ window.BulkCommentsView = class BulkCommentsView {
         container.appendChild(buttonContainer);
     }
 
-    /**
-     * Clear selected issues
-     */
+    
     clearSelectedIssues() {
         // Clear local selection
         this.selectedIssues = [];
@@ -9632,17 +8827,12 @@ window.BulkCommentsView = class BulkCommentsView {
         // Log for debugging
             }
 
-    /**
-     * For backwards compatibility - set a single selected issue
-     * @param {Object} issue - Selected issue object
-     */
+    
     setSelectedIssue(issue) {
         this.setSelectedIssues(issue ? [issue] : []);
     }
 
-    /**
-     * Render the Bulk Comments tab
-     */
+    
     render() {
         const bulkCommentsContent = document.getElementById('bulk-comments-content');
         if (!bulkCommentsContent) return;
@@ -9712,10 +8902,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Add comment utility section to Bulk Comments tab
-     * @param {HTMLElement} container - Container element
-     */
+    
     addCommentSection(container) {
         // Create comment tool section
         const commentSection = document.createElement('div');
@@ -9792,10 +8979,7 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
 
-    /**
-     * Get fallback labels when fetching fails
-     * @returns {Array} Array of fallback label items
-     */
+    
     getFallbackLabels() {
         return [
             { value: '', label: 'Add Label' },
@@ -9807,9 +8991,7 @@ window.BulkCommentsView = class BulkCommentsView {
         ];
     }
 
-    /**
-     * This function should be added to the BulkCommentsView.js file
-     */
+    
     createCommentInput(container) {
         // Create a wrapper for shortcuts with fixed dimensions
         const shortcutsWrapper = document.createElement('div');
@@ -9913,11 +9095,7 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
 
-    /**
-     * Insert text at cursor position in textarea
-     * @param {HTMLElement} textarea - The textarea element
-     * @param {string} text - Text to insert
-     */
+    
     insertTextAtCursor(textarea, text) {
         if (!textarea) return;
 
@@ -9947,10 +9125,7 @@ window.BulkCommentsView = class BulkCommentsView {
         textarea.focus();
     }
 
-    /**
-     * Create status message and progress bar elements
-     * @param {HTMLElement} container - Container element
-     */
+    
     createStatusElements(container) {
         // Status message with improved styling
         const statusMsg = document.createElement('div');
@@ -10004,9 +9179,7 @@ window.BulkCommentsView = class BulkCommentsView {
         container.appendChild(progressContainer);
     }
 
-    /**
-     * Show loading state for shortcuts
-     */
+    
     showLoadingState() {
         const statusEl = document.getElementById('comment-status');
         if (statusEl) {
@@ -10039,9 +9212,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Hide loading state for shortcuts
-     */
+    
     hideLoadingState() {
         const statusEl = document.getElementById('comment-status');
         if (statusEl) {
@@ -10298,10 +9469,7 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Add label shortcut using provided labels or from label manager
-     * @param {Array} customLabels - Optional custom labels to use instead of from labelManager
-     */
+    
     addLabelShortcut(customLabels) {
         if (!this.commandShortcuts) return;
 
@@ -10400,18 +9568,13 @@ window.BulkCommentsView = class BulkCommentsView {
         }
     }
 
-    /**
-     * Refresh the GitLab board
-     */
+    
     refreshBoard() {
         window.location.reload()
     }
 }
 
 // File: lib/ui/UIManager.js
-/**
- * Main UI Manager that coordinates all UI components
- */
 window.UIManager = class UIManager {
     constructor() {
         // Initialize GitLab API reference
@@ -10445,14 +9608,8 @@ window.UIManager = class UIManager {
         });
     }
 
-    /**
-     * Initialize the UI and create the container
-     * @param {HTMLElement} attachmentElement - Element to attach the UI to
-     */
-    /**
-     * Initialize the UI and create the container
-     * @param {HTMLElement} attachmentElement - Element to attach the UI to (defaults to document.body)
-     */
+    
+    
     initialize(attachmentElement = document.body) {
         // Create main container if it doesn't exist
         if (document.getElementById('assignee-time-summary')) {
@@ -10550,9 +9707,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Initialize managers with error handling
-     */
+    
     initializeManagers() {
         // Initialize Label Manager
         try {
@@ -10611,9 +9766,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Create header with title and buttons
-     */
+    
     createHeader() {
         this.headerDiv = document.createElement('div');
         this.headerDiv.style.display = 'flex';
@@ -10710,9 +9863,7 @@ window.UIManager = class UIManager {
         this.container.appendChild(this.headerDiv);
     }
 
-    /**
-     * Create board stats display
-     */
+    
     createBoardStats() {
         // Check if the boardStats element already exists
         const existingStats = document.getElementById('board-stats-summary');
@@ -10734,13 +9885,7 @@ window.UIManager = class UIManager {
         this.container.appendChild(this.boardStats);
     }
 
-    /**
-     * Update board statistics display
-     * @param {Object} stats - Board statistics data
-     * @param {number} stats.totalCards - Total number of cards
-     * @param {number} stats.withTimeCards - Cards with time estimates
-     * @param {number} stats.closedCards - Cards in closed/done board
-     */
+    
     updateBoardStats(stats) {
         if (!this.boardStats) return;
 
@@ -10775,9 +9920,7 @@ window.UIManager = class UIManager {
         this.boardStats.appendChild(closedStats);
     }
 
-    /**
-     * Toggle collapse state of the panel
-     */
+    
     toggleCollapse() {
         if (!this.contentWrapper || !this.collapseBtn) return;
 
@@ -10800,9 +9943,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Open settings modal
-     */
+    
     openSettings() {
         try {
             // Check if we have a SettingsManager
@@ -10835,10 +9976,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Update the header text (with total hours)
-     * @param {string} text - Header text to display
-     */
+    
     updateHeader(text) {
         if (this.header) {
             // Use innerHTML instead of textContent to allow HTML styling
@@ -10846,14 +9984,8 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Show loading state in the UI
-     * @param {string} message - Message to display
-     */
-    /**
-     * Show loading state in the UI
-     * @param {string} message - Message to display
-     */
+    
+    
     showLoading(message = 'Loading...') {
         // Check if loading element already exists
         let loadingEl = document.getElementById('assignee-time-summary-loading');
@@ -10911,9 +10043,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Hide loading state
-     */
+    
     hideLoading() {
         const loadingEl = document.getElementById('assignee-time-summary-loading');
         if (loadingEl) {
@@ -10921,10 +10051,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Show error message
-     * @param {string} message - Error message
-     */
+    
     showErrorMessage(message) {
         // First check if there's already an error message
         let errorEl = document.getElementById('assignee-time-summary-error');
@@ -10984,13 +10111,7 @@ window.UIManager = class UIManager {
         }, 10000);
     }
 
-    /**
-     * Add a loading screen to a specific container
-     * @param {HTMLElement|string} container - Container element or ID
-     * @param {string} name - Unique name for this loading screen
-     * @param {string} message - Optional message to display
-     * @returns {HTMLElement} The created loading screen element
-     */
+    
     addLoadingScreen(container, name, message = 'Loading...') {
         // Get container element if string ID was provided
         if (typeof container === 'string') {
@@ -11101,11 +10222,7 @@ window.UIManager = class UIManager {
         return loadingScreen;
     }
 
-    /**
-     * Remove a loading screen by name
-     * @param {string} name - Name of the loading screen to remove
-     * @param {boolean} fadeOut - Whether to fade out the loading screen
-     */
+    
     removeLoadingScreen(name, fadeOut = true) {
         const loadingScreen = document.getElementById(`loading-screen-${name}`);
         if (!loadingScreen) return;
@@ -11139,11 +10256,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Update the message of an existing loading screen
-     * @param {string} name - Name of the loading screen
-     * @param {string} message - New message to display
-     */
+    
     updateLoadingMessage(name, message) {
         const loadingScreen = document.getElementById(`loading-screen-${name}`);
         if (!loadingScreen) return;
@@ -11154,9 +10267,7 @@ window.UIManager = class UIManager {
         }
     }
 
-    /**
-     * Ensure tab content has proper minimum height for loading screens
-     */
+    
     ensureTabContentHeight() {
         // Find all tab content containers
         const tabContents = [
@@ -11209,17 +10320,12 @@ window.UIManager = class UIManager {
 // File: lib/ui/index.js
 window.uiManager = window.uiManager || new UIManager();
 
-/**
- * Create summary container wrapper function (used in main.js)
- * @returns {HTMLElement} The summary container element
- */
+
 window.createSummaryContainer = function createSummaryContainer() {
     uiManager.initialize();
     return uiManager.container;
 }
-/**
- * Create the UI Manager and connect settings
- */
+
 function createUIManager() {
     window.uiManager = window.uiManager || new UIManager();
 
@@ -11268,24 +10374,8 @@ function createUIManager() {
 
     return uiManager;
 }
-/**
- * Update the Summary Tab wrapper function
- * @param {Object} assigneeTimeMap - Map of assignees to time estimates
- * @param {number} totalEstimate - Total estimate in seconds
- * @param {number} cardsProcessed - Total cards processed
- * @param {number} cardsWithTime - Cards with time estimates
- * @param {string} currentMilestone - Current milestone name
- */
-/**
- * Update the Summary Tab wrapper function
- * @param {Object} assigneeTimeMap - Map of assignees to time estimates
- * @param {number} totalEstimate - Total estimate in seconds
- * @param {number} cardsProcessed - Total cards processed
- * @param {number} cardsWithTime - Cards with time estimates
- * @param {string} currentMilestone - Current milestone name
- * @param {Object} boardData - Data for each board
- * @param {Object} boardAssigneeData - Assignee data for each board
- */
+
+
 window.updateSummaryTab = function updateSummaryTab(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
     // Update board stats in UI Manager (if available from dataProcessor)
     if (typeof processBoards === 'function') {
@@ -11311,25 +10401,17 @@ window.updateSummaryTab = function updateSummaryTab(assigneeTimeMap, totalEstima
     );
 }
 
-/**
- * Update the Boards Tab wrapper function
- * @param {Object} boardData - Data for each board
- * @param {Object} boardAssigneeData - Assignee data for each board
- */
+
 window.updateBoardsTab = function updateBoardsTab(boardData, boardAssigneeData) {
     uiManager.boardsView.render(boardData, boardAssigneeData);
 }
 
-/**
- * Update Bulk Comments Tab wrapper function (previously API tab)
- */
+
 window.updateBulkCommentsTab = function updateBulkCommentsTab() {
     uiManager.bulkCommentsView.render();
 }
 
-/**
- * Override renderHistory function to use our class (called from history.js)
- */
+
 window.renderHistory = function renderHistory() {
     uiManager.historyView.render();
 }
@@ -11401,11 +10483,6 @@ setTimeout(() => {
 
 // File: lib/index.js
 
-/**
- * Create the UI Manager with proper initialization
- * @param {HTMLElement} attachmentElement - Element to attach the UI to
- * @returns {UIManager} The UI Manager instance
- */
 function createUIManager(attachmentElement = document.body) {
     // Create a GitLabAPI instance if it doesn't exist
     if (!window.gitlabApi) {
@@ -11460,9 +10537,7 @@ function createUIManager(attachmentElement = document.body) {
 
 let isInitialized = false;
 
-/**
- * Check if we're on a board page and initialize
- */
+
 function checkAndInit() {
     // Prevent duplicate initialization
     if (isInitialized) {
@@ -11494,12 +10569,7 @@ function checkAndInit() {
     }
 }
 
-/**
- * Wait for the boards element to be available in the DOM
- * @param {number} maxAttempts - Maximum number of attempts to find the element
- * @param {number} interval - Interval between attempts in ms
- * @returns {Promise<HTMLElement>} Promise resolving to the boards element
- */
+
 function waitForBoardsElement(maxAttempts = 30, interval = 500) {
     return new Promise((resolve, reject) => {
         let attempts = 0;
@@ -11546,10 +10616,7 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
     });
 }
 
-/**
- * Update summary information
- * @param {boolean} forceHistoryUpdate - Whether to force a history update
- */
+
 function updateSummary(forceHistoryUpdate = false) {
     if (!window.uiManager) {
         console.warn('UI Manager not initialized, cannot update summary');
@@ -11637,9 +10704,7 @@ function updateSummary(forceHistoryUpdate = false) {
         console.error('Error updating summary:', e);
     }
 }
-/**
- * Add change event listeners to each board
- */
+
 function addBoardChangeListeners() {
     try {
         const boardLists = document.querySelectorAll('.board-list');
@@ -11660,10 +10725,7 @@ function addBoardChangeListeners() {
         console.error('Error adding board change listeners:', e);
     }
 }
-/**
- * Set up the settings manager
- * @param {UIManager} uiManager - The UI manager instance
- */
+
 function setupSettingsManager(uiManager) {
     if (!window.settingsManager && typeof SettingsManager === 'function') {
         try {
@@ -11688,9 +10750,7 @@ function setupSettingsManager(uiManager) {
         }
     }
 }
-/**
- * Wait for boards to load before initializing
- */
+
 function waitForBoards() {
     // Check if we've already completed initialization
     if (window.boardsInitialized) {
@@ -11764,9 +10824,7 @@ function waitForBoards() {
     }, 500);
 }
 
-/**
- * Initialize renderHistory function for the history tab
- */
+
 function renderHistory() {
     try {
         if (window.uiManager?.historyView) {
@@ -11826,20 +10884,11 @@ window.addEventListener('resize', () => {
 (function () {
     'use strict';
 
-    // Setup global class references to ensure they're available
     function setupGlobalReferences() {
-        // These will be handled by the build process that combines all files
-        // No need to duplicate declarations here
     }
 
-    /**
-     * This file is the main entry point for the GitLab Sprint Helper userscript.
-     * Most of the code has been moved to modular files in the lib/ directory.
-     * This file just ensures the initialization is done only once.
-     */
+    
 
-    // No need to directly call functions here since lib/index.js
-    // already handles initialization when bundled
 })();
 
 })(window);

@@ -2,7 +2,7 @@
  * Build script for GitLab Sprint Helper
  *
  * This Node.js script combines and minifies all JavaScript files into a single output file.
- * Updated to work with the new directory structure.
+ * Updated to work with the new directory structure and remove block comments from both versions.
  */
 
 const fs = require('fs');
@@ -148,6 +148,9 @@ function processFileContent(filePath, alreadyIncluded) {
         let content = fs.readFileSync(filePath, 'utf8');
         const fileName = path.basename(filePath);
 
+        // Remove block comments (multiline comments)
+        content = content.replace(/\/\*[\s\S]*?\*\//g, '');
+
         // Handle export async function specially - must come first
         content = content.replace(/export\s+async\s+function\s+([A-Za-z0-9_]+)/g,
             'window.$1 = async function');
@@ -201,7 +204,10 @@ function processFileContent(filePath, alreadyIncluded) {
 // Get the main script content (excluding the UserScript header)
 function getMainScriptContent() {
     const content = fs.readFileSync(CONFIG.mainFile, 'utf8');
-    const withoutHeader = content.replace(/(\/\/ ==UserScript==[\s\S]*?\/\/ ==\/UserScript==)/, '');
+    // Remove the header and remove block comments
+    const withoutHeader = content
+        .replace(/(\/\/ ==UserScript==[\s\S]*?\/\/ ==\/UserScript==)/, '')
+        .replace(/\/\*[\s\S]*?\*\//g, ''); // Remove block comments
     return withoutHeader;
 }
 
