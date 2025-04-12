@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.3
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
-// @author       You
+// @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -15,50 +15,18 @@
 (function () {
     'use strict';
 
+    // Setup global class references to ensure they're available
     function setupGlobalReferences() {
-        // Expose classes globally to ensure they're available
-        window.LabelManager = LabelManager;
-        window.AssigneeManager = AssigneeManager;
-        window.SettingsManager = SettingsManager;
-        window.CommandShortcut = CommandShortcut;
-        window.Notification = Notification;
-
-        // Ensure gitlabApi is globally available
-        if (!window.gitlabApi && typeof GitLabAPI === 'function') {
-            try {
-                window.gitlabApi = new GitLabAPI();
-            } catch (e) {
-                console.error('Error creating global gitlabApi:', e);
-            }
-        }
+        // These will be handled by the build process that combines all files
+        // No need to duplicate declarations here
     }
 
-    setupGlobalReferences();
     /**
      * This file is the main entry point for the GitLab Sprint Helper userscript.
-     * After refactoring, most of the actual code has been moved to modular files in the lib/ directory.
-     * This file now just serves as the entry point that loads the library modules and exports the API.
+     * Most of the code has been moved to modular files in the lib/ directory.
+     * This file just ensures the initialization is done only once.
      */
 
-        // Reference to exported functions from our library
-        // These will be populated by the build process
-    const {
-            gitlabApi,
-            updateSummary,
-            checkAndInit,
-            waitForBoards,
-            processBoards,
-            renderHistory
-        } = window; // When bundled, our library will expose these on window
-
-    // Initial check for board page and initialize UI
-    checkAndInit();
-
-    // Expose functions globally for easier debugging
-    window.gitlabHelper = {
-        updateSummary,
-        gitlabApi,
-        processBoards,
-        renderHistory
-    };
+    // No need to directly call functions here since lib/index.js
+    // already handles initialization when bundled
 })();
