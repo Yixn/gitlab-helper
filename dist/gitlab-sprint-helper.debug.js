@@ -1256,7 +1256,7 @@ window.Dropdown = class Dropdown {
         dropdownMenu.style.borderRadius = '0 0 4px 4px';
         dropdownMenu.style.maxHeight = '200px';
         dropdownMenu.style.overflowY = 'auto';
-        dropdownMenu.style.zIndex = '1000';
+        dropdownMenu.style.zIndex = '100';
         dropdownMenu.style.display = 'none';
         dropdownMenu.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
 
@@ -1574,7 +1574,7 @@ window.Notification = class Notification {
         this.container = document.createElement('div');
         this.container.id = 'gitlab-helper-notifications';
         this.container.style.position = 'fixed';
-        this.container.style.zIndex = '10000';
+        this.container.style.zIndex = '100';
 
         // Set position styling
         switch (this.position) {
@@ -2436,7 +2436,6 @@ window.IssueSelector = class IssueSelector {
             }
         });
     }
-
     /**
      * Start issue selection mode with improved overlay UI
      */
@@ -2462,6 +2461,11 @@ window.IssueSelector = class IssueSelector {
             statusMsg.style.color = '#1f75cb';
         }
 
+        // Find the appropriate attachment element for selection elements
+        // Use the same element that the UI is attached to
+        const attachmentElement = this.uiManager?.attachmentElement || document.body;
+        console.log('Using attachment element for selection overlay:', attachmentElement);
+
         // Add semi-transparent page overlay
         const pageOverlay = document.createElement('div');
         pageOverlay.id = 'selection-page-overlay';
@@ -2470,16 +2474,16 @@ window.IssueSelector = class IssueSelector {
         pageOverlay.style.left = '0';
         pageOverlay.style.width = '100%';
         pageOverlay.style.height = '100%';
-        pageOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
-        pageOverlay.style.zIndex = '998';
+        pageOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';  // Semi-transparent - not too dark
+        pageOverlay.style.zIndex = '98';
         pageOverlay.style.pointerEvents = 'none';
-        document.body.appendChild(pageOverlay);
+        attachmentElement.appendChild(pageOverlay);  // Attach to same element as UI
 
         // Create clickable overlays for each card
-        this.createCardOverlays(currentSelection);
+        this.createCardOverlays(currentSelection, attachmentElement);
 
         // Add cancel button for clarity
-        this.createCancelButton();
+        this.createCancelButton(attachmentElement);  // Pass attachment element
 
         // Update Select Issues button if it exists
         const selectButton = document.getElementById('select-issues-button');
@@ -2494,35 +2498,36 @@ window.IssueSelector = class IssueSelector {
 
     /**
      * Create cancel button for exiting selection mode
+     * @param {HTMLElement} attachmentElement - Element to attach buttons to
      */
-    createCancelButton() {
+    createCancelButton(attachmentElement = document.body) {
         const cancelButton = document.createElement('div');
         cancelButton.id = 'selection-cancel-button';
         cancelButton.textContent = 'DONE';
         cancelButton.style.position = 'fixed';
         cancelButton.style.bottom = '20px';
-        cancelButton.style.right = '450px'; // Position next to the summary panel
-        cancelButton.style.backgroundColor = '#6c757d';
+        cancelButton.style.right = '20px';  // Position in bottom right
+        cancelButton.style.backgroundColor = '#28a745';  // Green for better visibility
         cancelButton.style.color = 'white';
         cancelButton.style.padding = '10px 20px';
         cancelButton.style.borderRadius = '4px';
         cancelButton.style.cursor = 'pointer';
         cancelButton.style.fontWeight = 'bold';
-        cancelButton.style.zIndex = '999';
-        cancelButton.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
+        cancelButton.style.zIndex = '99';
+        cancelButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';  // Stronger shadow for better visibility
         cancelButton.style.transition = 'all 0.2s ease';
 
         // Hover effect
         cancelButton.addEventListener('mouseenter', () => {
-            cancelButton.style.backgroundColor = '#5a6268';
+            cancelButton.style.backgroundColor = '#218838';  // Darker green on hover
             cancelButton.style.transform = 'translateY(-2px)';
-            cancelButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+            cancelButton.style.boxShadow = '0 6px 15px rgba(0, 0, 0, 0.5)';
         });
 
         cancelButton.addEventListener('mouseleave', () => {
-            cancelButton.style.backgroundColor = '#6c757d';
+            cancelButton.style.backgroundColor = '#28a745';
             cancelButton.style.transform = 'translateY(0)';
-            cancelButton.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
+            cancelButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
         });
 
         // Click handler to exit selection mode
@@ -2531,7 +2536,7 @@ window.IssueSelector = class IssueSelector {
             this.exitSelectionMode();
         });
 
-        document.body.appendChild(cancelButton);
+        attachmentElement.appendChild(cancelButton);
         this.selectionOverlays.push(cancelButton);
 
         // Also add selection counter
@@ -2542,23 +2547,24 @@ window.IssueSelector = class IssueSelector {
         selectionCounter.style.bottom = '20px';
         selectionCounter.style.left = '20px';
         selectionCounter.style.backgroundColor = this.selectedIssues.length > 0 ?
-            'rgba(40, 167, 69, 0.8)' : 'rgba(0, 0, 0, 0.7)';
+            'rgba(40, 167, 69, 0.9)' : 'rgba(0, 0, 0, 0.8)';  // More opaque for better visibility
         selectionCounter.style.color = 'white';
         selectionCounter.style.padding = '8px 16px';
         selectionCounter.style.borderRadius = '20px';
         selectionCounter.style.fontSize = '14px';
-        selectionCounter.style.zIndex = '999';
-        selectionCounter.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.3)';
+        selectionCounter.style.zIndex = '99';
+        selectionCounter.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';  // Stronger shadow
 
-        document.body.appendChild(selectionCounter);
+        attachmentElement.appendChild(selectionCounter);
         this.selectionOverlays.push(selectionCounter);
     }
 
     /**
      * Create semi-transparent clickable overlays for each card
      * @param {Array} currentSelection - Currently selected issues to maintain
+     * @param {HTMLElement} attachmentElement - Element to attach overlays to
      */
-    createCardOverlays(currentSelection = []) {
+    createCardOverlays(currentSelection = [], attachmentElement = document.body) {
         console.log('Creating card overlays for selection');
         const boardCards = document.querySelectorAll('.board-card');
         console.log(`Found ${boardCards.length} board cards to overlay`);
@@ -2583,7 +2589,7 @@ window.IssueSelector = class IssueSelector {
                 overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
                 overlay.style.border = '2px solid rgba(31, 117, 203, 0.6)';
                 overlay.style.borderRadius = '4px';
-                overlay.style.zIndex = '999';
+                overlay.style.zIndex = '99';
                 overlay.style.cursor = 'pointer';
                 overlay.style.transition = 'background-color 0.2s ease';
                 overlay.dataset.cardId = card.id || `card-${Date.now()}-${index}`;
@@ -2656,7 +2662,7 @@ window.IssueSelector = class IssueSelector {
                     this.toggleCardSelection(card, overlay);
                 });
 
-                document.body.appendChild(overlay);
+                attachmentElement.appendChild(overlay);
                 this.selectionOverlays.push(overlay);
             } catch (error) {
                 console.error('Error creating overlay for card:', error);
@@ -2676,9 +2682,9 @@ window.IssueSelector = class IssueSelector {
         helpText.style.padding = '8px 16px';
         helpText.style.borderRadius = '20px';
         helpText.style.fontSize = '14px';
-        helpText.style.zIndex = '999';
+        helpText.style.zIndex = '99';
         helpText.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.3)';
-        document.body.appendChild(helpText);
+        attachmentElement.appendChild(helpText);
         this.selectionOverlays.push(helpText);
 
         // Update initial counter
@@ -2893,11 +2899,16 @@ window.IssueSelector = class IssueSelector {
         this.isSelectingIssue = false;
 
         // Remove page overlay
-        document.getElementById('selection-page-overlay')?.remove();
+        const pageOverlay = document.getElementById('selection-page-overlay');
+        if (pageOverlay) {
+            pageOverlay.remove();
+        }
 
         // Remove all card overlays
         this.selectionOverlays.forEach(overlay => {
-            overlay.remove();
+            if (overlay && overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
         });
         this.selectionOverlays = [];
         this.selectedOverlays = [];
@@ -3299,17 +3310,14 @@ window.TabManager = class TabManager {
         this.tabContainer.appendChild(tab);
     }
 
-    /**
-     * Create content areas for each tab
-     * @param {HTMLElement} parentElement - Element to append content areas to
-     */
+    // Create content areas for each tab
     createContentAreas(parentElement) {
         // Summary tab content
         const summaryContent = document.createElement('div');
         summaryContent.id = 'assignee-time-summary-content';
         summaryContent.style.display = this.currentTab === 'summary' ? 'block' : 'none';
         summaryContent.style.position = 'relative'; // Explicitly set position relative
-        summaryContent.style.minHeight = '150px'; // Minimum height for the loader
+        summaryContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(summaryContent);
         this.contentAreas['summary'] = summaryContent;
 
@@ -3323,7 +3331,7 @@ window.TabManager = class TabManager {
         boardsContent.id = 'boards-time-summary-content';
         boardsContent.style.display = this.currentTab === 'boards' ? 'block' : 'none';
         boardsContent.style.position = 'relative'; // Explicitly set position relative
-        boardsContent.style.minHeight = '150px'; // Minimum height for the loader
+        boardsContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(boardsContent);
         this.contentAreas['boards'] = boardsContent;
 
@@ -3337,7 +3345,7 @@ window.TabManager = class TabManager {
         historyContent.id = 'history-time-summary-content';
         historyContent.style.display = this.currentTab === 'history' ? 'block' : 'none';
         historyContent.style.position = 'relative'; // Explicitly set position relative
-        historyContent.style.minHeight = '150px'; // Minimum height for the loader
+        historyContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(historyContent);
         this.contentAreas['history'] = historyContent;
 
@@ -3351,7 +3359,7 @@ window.TabManager = class TabManager {
         bulkCommentsContent.id = 'bulk-comments-content';
         bulkCommentsContent.style.display = this.currentTab === 'bulkcomments' ? 'block' : 'none';
         bulkCommentsContent.style.position = 'relative'; // Explicitly set position relative
-        bulkCommentsContent.style.minHeight = '150px'; // Minimum height for the loader
+        bulkCommentsContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(bulkCommentsContent);
         this.contentAreas['bulkcomments'] = bulkCommentsContent;
 
@@ -3832,7 +3840,7 @@ window.CommandManager = class CommandManager {
         modalOverlay.style.width = '100%';
         modalOverlay.style.height = '100%';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '1010';
+        modalOverlay.style.zIndex = '110';
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
@@ -5001,7 +5009,7 @@ window.AssigneeManager = class AssigneeManager {
         modalOverlay.style.width = '100%';
         modalOverlay.style.height = '100%';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '1010';
+        modalOverlay.style.zIndex = '110';
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
@@ -5493,7 +5501,7 @@ window.AssigneeManager = class AssigneeManager {
         modalOverlay.style.width = '100%';
         modalOverlay.style.height = '100%';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '1010';
+        modalOverlay.style.zIndex = '110';
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
@@ -6256,7 +6264,7 @@ window.MilestoneManager = class MilestoneManager {
         modalOverlay.style.width = '100%';
         modalOverlay.style.height = '100%';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '1010';
+        modalOverlay.style.zIndex = '110';
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
@@ -6571,7 +6579,7 @@ window.SettingsManager = class SettingsManager {
         modalOverlay.style.width = '100%';
         modalOverlay.style.height = '100%';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '1010';
+        modalOverlay.style.zIndex = '110';
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
@@ -8886,6 +8894,52 @@ window.HistoryView = class HistoryView {
 
         container.appendChild(table);
     }
+
+    /**
+     * Handle loading state for history tab
+     * @param {boolean} isLoading - Whether history is loading
+     */
+    setLoadingState(isLoading) {
+        // Get the history tab content
+        const historyContent = document.getElementById('history-time-summary-content');
+        if (!historyContent) return;
+
+        // Ensure content has minimum height for loading screen
+        historyContent.style.minHeight = '300px';
+        historyContent.style.position = 'relative';
+
+        // Handle loading state
+        if (isLoading) {
+            // Check if we have access to the uiManager
+            if (this.uiManager && this.uiManager.addLoadingScreen) {
+                this.uiManager.addLoadingScreen(
+                    historyContent,
+                    'history-loading',
+                    'Loading history data...'
+                );
+            } else {
+                // Fallback loading message
+                const loadingMessage = document.createElement('div');
+                loadingMessage.id = 'history-loading-message';
+                loadingMessage.textContent = 'Loading history...';
+                loadingMessage.style.textAlign = 'center';
+                loadingMessage.style.padding = '20px';
+                loadingMessage.style.color = '#1f75cb';
+                historyContent.appendChild(loadingMessage);
+            }
+        } else {
+            // Remove loading screen if it exists
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('history-loading');
+            } else {
+                // Remove fallback loading message
+                const loadingMessage = document.getElementById('history-loading-message');
+                if (loadingMessage) {
+                    loadingMessage.remove();
+                }
+            }
+        }
+    }
 }
 
 // File: lib/ui/views/BulkCommentsView.js
@@ -10071,9 +10125,6 @@ window.BulkCommentsView = class BulkCommentsView {
         });
     }
 
-    /**
-     * Submit comments to all selected issues
-     */
     async submitComments() {
         if (!this.commentInput) {
             this.notification.error('Comment input not found');
@@ -10124,25 +10175,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     'comment-submit',
                     `Sending comments to ${this.selectedIssues.length} issues...`
                 );
-
-                // Add backdrop styles
-                if (fullUILoadingScreen) {
-                    fullUILoadingScreen.style.position = 'absolute'; // Ensure absolute positioning
-                    fullUILoadingScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'; // Darker backdrop
-                    fullUILoadingScreen.style.zIndex = '2000'; // Higher z-index to be above everything
-
-                    // Make the spinner and text white for better visibility
-                    const spinner = fullUILoadingScreen.querySelector('.loading-spinner');
-                    if (spinner) {
-                        spinner.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                        spinner.style.borderTopColor = '#ffffff';
-                    }
-
-                    const messageEl = fullUILoadingScreen.querySelector('.loading-message');
-                    if (messageEl) {
-                        messageEl.style.color = '#ffffff';
-                    }
-                }
             }
         }
 
@@ -10250,11 +10282,6 @@ window.BulkCommentsView = class BulkCommentsView {
             submitBtn.style.cursor = 'pointer';
         }
 
-        // Remove loading screen
-        if (this.uiManager && this.uiManager.removeLoadingScreen) {
-            this.uiManager.removeLoadingScreen('comment-submit');
-        }
-
         // Update status based on results
         if (successCount === this.selectedIssues.length) {
             if (statusEl) {
@@ -10275,13 +10302,13 @@ window.BulkCommentsView = class BulkCommentsView {
                     progressContainer.style.display = 'none';
                 }
             }, 2000);
+            // Exit selection mode if active
+            if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
+                this.uiManager.issueSelector.exitSelectionMode();
+            }
 
             // End selection overlay and clear selected issues after a delay
             setTimeout(() => {
-                // Exit selection mode if active
-                if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
-                    this.uiManager.issueSelector.exitSelectionMode();
-                }
 
                 // Clear selected issues
                 this.clearSelectedIssues();
@@ -10470,8 +10497,13 @@ window.UIManager = class UIManager {
 
     /**
      * Initialize the UI and create the container
+     * @param {HTMLElement} attachmentElement - Element to attach the UI to
      */
-    initialize() {
+    /**
+     * Initialize the UI and create the container
+     * @param {HTMLElement} attachmentElement - Element to attach the UI to (defaults to document.body)
+     */
+    initialize(attachmentElement = document.body) {
         // Create main container if it doesn't exist
         if (document.getElementById('assignee-time-summary')) {
             this.container = document.getElementById('assignee-time-summary');
@@ -10485,18 +10517,18 @@ window.UIManager = class UIManager {
             return;
         }
 
-        // Create container with wider width
+        // Create container with fixed position
         this.container = document.createElement('div');
         this.container.id = 'assignee-time-summary';
-        this.container.style.position = 'fixed'; // This is fixed for the entire UI
-        this.container.style.bottom = '15px'; // Position at bottom-right as it was before
+        this.container.style.position = 'fixed'; // Using fixed position
+        this.container.style.bottom = '15px'; // Position at bottom-right
         this.container.style.right = '15px';
         this.container.style.backgroundColor = 'white';
         this.container.style.border = '1px solid #ddd';
         this.container.style.borderRadius = '4px';
         this.container.style.padding = '10px';
         this.container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        this.container.style.zIndex = '1000';
+        this.container.style.zIndex = '100';
         this.container.style.maxHeight = '80vh';
         this.container.style.overflow = 'hidden';
         this.container.style.fontSize = '14px';
@@ -10521,11 +10553,20 @@ window.UIManager = class UIManager {
         // Initialize tabs
         this.tabManager.initialize(this.contentWrapper);
 
+        // Ensure tab contents have proper height
+        this.ensureTabContentHeight();
+
         // Add content wrapper to container
         this.container.appendChild(this.contentWrapper);
 
-        // Add container to body
-        document.body.appendChild(this.container);
+        // Log the attachment element we're using
+        console.log('Attaching UI to element:', attachmentElement);
+
+        // Attach to the specified element
+        attachmentElement.appendChild(this.container);
+
+        // Store a reference to the attachment element
+        this.attachmentElement = attachmentElement;
 
         // Modified click event handler to exclude select issues function
         // and to exclude the selection overlays and badges
@@ -10864,6 +10905,10 @@ window.UIManager = class UIManager {
      * Show loading state in the UI
      * @param {string} message - Message to display
      */
+    /**
+     * Show loading state in the UI
+     * @param {string} message - Message to display
+     */
     showLoading(message = 'Loading...') {
         // Check if loading element already exists
         let loadingEl = document.getElementById('assignee-time-summary-loading');
@@ -10877,17 +10922,17 @@ window.UIManager = class UIManager {
             loadingEl.style.left = '0';
             loadingEl.style.width = '100%';
             loadingEl.style.height = '100%';
-            loadingEl.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+            loadingEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';  // Semi-transparent background
             loadingEl.style.display = 'flex';
             loadingEl.style.justifyContent = 'center';
             loadingEl.style.alignItems = 'center';
-            loadingEl.style.zIndex = '1001';
+            loadingEl.style.zIndex = '101';
             loadingEl.style.flexDirection = 'column';
 
             const spinnerSize = '40px';
             const spinnerHTML = `
-            <div style="width: ${spinnerSize}; height: ${spinnerSize}; border: 3px solid #f3f3f3; 
-                        border-top: 3px solid #1f75cb; border-radius: 50%; 
+            <div style="width: ${spinnerSize}; height: ${spinnerSize}; border: 3px solid rgba(255, 255, 255, 0.2); 
+                        border-top: 3px solid #ffffff; border-radius: 50%; 
                         animation: spin 1s linear infinite;"></div>
             <style>
                 @keyframes spin {
@@ -10903,7 +10948,10 @@ window.UIManager = class UIManager {
             loadingText.textContent = message;
             loadingText.style.marginTop = '10px';
             loadingText.style.fontWeight = 'bold';
-            loadingText.style.color = '#1f75cb';
+            loadingText.style.color = '#ffffff';  // White text
+            loadingText.style.maxWidth = '90%';   // Prevent text overflow
+            loadingText.style.textAlign = 'center'; // Center the text
+            loadingText.style.padding = '0 20px';  // Add some padding
             loadingEl.appendChild(loadingText);
 
             this.container.style.position = 'relative';
@@ -11032,7 +11080,7 @@ window.UIManager = class UIManager {
         loadingScreen.style.left = '0';
         loadingScreen.style.width = '100%';
         loadingScreen.style.height = '100%';
-        loadingScreen.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        loadingScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';  // Semi-transparent backdrop
 
         // Use flex for perfect centering
         loadingScreen.style.display = 'flex';
@@ -11040,7 +11088,7 @@ window.UIManager = class UIManager {
         loadingScreen.style.justifyContent = 'center';
         loadingScreen.style.alignItems = 'center';
 
-        loadingScreen.style.zIndex = '100';
+        loadingScreen.style.zIndex = '101';  // Higher z-index to be above other elements
         loadingScreen.style.transition = 'opacity 0.3s ease';
 
         // Create spinner animation
@@ -11049,8 +11097,8 @@ window.UIManager = class UIManager {
         spinner.style.width = '40px';
         spinner.style.height = '40px';
         spinner.style.borderRadius = '50%';
-        spinner.style.border = '3px solid rgba(31, 117, 203, 0.2)';
-        spinner.style.borderTopColor = '#1f75cb';
+        spinner.style.border = '3px solid rgba(255, 255, 255, 0.2)';  // White border for dark backdrop
+        spinner.style.borderTopColor = '#ffffff';  // White spinner for dark backdrop
         spinner.style.animation = 'gitlab-helper-spin 1s linear infinite';
 
         // Create loading message
@@ -11059,26 +11107,27 @@ window.UIManager = class UIManager {
         messageEl.textContent = message;
         messageEl.style.marginTop = '15px';
         messageEl.style.fontWeight = 'bold';
-        messageEl.style.color = '#555';
+        messageEl.style.color = '#ffffff';  // White text for dark backdrop
         messageEl.style.fontSize = '14px';
         messageEl.style.textAlign = 'center'; // Ensure text is centered
-        messageEl.style.padding = '0 10px'; // Add some padding for longer messages
+        messageEl.style.padding = '0 20px'; // Add some padding for longer messages
+        messageEl.style.maxWidth = '90%'; // Prevent text from overflowing on smaller screens
 
         // Add animation keyframes if they don't exist yet
         if (!document.getElementById('gitlab-helper-loading-styles')) {
             const styleEl = document.createElement('style');
             styleEl.id = 'gitlab-helper-loading-styles';
             styleEl.textContent = `
-            @keyframes gitlab-helper-spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-            @keyframes gitlab-helper-pulse {
-                0% { opacity: 0.6; }
-                50% { opacity: 1; }
-                100% { opacity: 0.6; }
-            }
-        `;
+        @keyframes gitlab-helper-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes gitlab-helper-pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+    `;
             document.head.appendChild(styleEl);
         }
 
@@ -11159,6 +11208,58 @@ window.UIManager = class UIManager {
         if (messageEl) {
             messageEl.textContent = message;
         }
+    }
+
+    /**
+     * Ensure tab content has proper minimum height for loading screens
+     */
+    ensureTabContentHeight() {
+        // Find all tab content containers
+        const tabContents = [
+            document.getElementById('assignee-time-summary-content'),
+            document.getElementById('boards-time-summary-content'),
+            document.getElementById('history-time-summary-content'),
+            document.getElementById('bulk-comments-content')
+        ];
+
+        // Get wrapper and header heights
+        const wrapper = document.getElementById('assignee-time-summary-wrapper');
+        const headerDiv = this.headerDiv || document.querySelector('#assignee-time-summary > div:first-child');
+
+        if (!wrapper || !headerDiv) {
+            console.warn('Could not find wrapper or header elements for height calculation');
+            // Fallback to fixed height
+            tabContents.forEach(content => {
+                if (content) {
+                    content.style.minHeight = '300px';
+                    content.style.position = 'relative';
+                }
+            });
+            return;
+        }
+
+        // Calculate available height
+        // outerHeight = height + padding + border + margin
+        const headerHeight = headerDiv.offsetHeight;
+        const tabNavHeight = 36; // Approximate height of tab navigation
+        const statsHeight = this.boardStats ? this.boardStats.offsetHeight : 0;
+
+        // Calculate the height we need to subtract from wrapper
+        const subtractHeight = headerHeight + tabNavHeight + statsHeight + 20; // +20px for padding/margins
+
+        console.log(`Calculated heights - Wrapper: ${wrapper.offsetHeight}px, Header: ${headerHeight}px, Tabs: ${tabNavHeight}px, Stats: ${statsHeight}px`);
+
+        // Set minimum height for each tab content
+        tabContents.forEach(content => {
+            if (content) {
+                // Set the height with calc() to make it dynamic
+                content.style.minHeight = `calc(100% - ${subtractHeight}px)`;
+                content.style.height = `calc(100% - ${subtractHeight}px)`;
+                content.style.position = 'relative';
+
+                console.log(`Set height for ${content.id}: calc(100% - ${subtractHeight}px)`);
+            }
+        });
     }
 }
 
@@ -11381,9 +11482,10 @@ setTimeout(() => {
 // Import UI modules
 /**
  * Create the UI Manager with proper initialization
+ * @param {HTMLElement} attachmentElement - Element to attach the UI to
  * @returns {UIManager} The UI Manager instance
  */
-function createUIManager() {
+function createUIManager(attachmentElement = document.body) {
     // Create a GitLabAPI instance if it doesn't exist
     if (!window.gitlabApi) {
         try {
@@ -11397,11 +11499,36 @@ function createUIManager() {
     try {
         window.uiManager = window.uiManager || new UIManager();
 
-        // Initialize UI
-        uiManager.initialize();
+        // Initialize UI with the attachment element
+        uiManager.initialize(attachmentElement);
 
         // Make UI Manager available globally
         window.uiManager = uiManager;
+
+        // Setup settings manager
+        if (!window.settingsManager && typeof SettingsManager === 'function') {
+            try {
+                window.settingsManager = new SettingsManager({
+                    labelManager: uiManager?.labelManager,
+                    assigneeManager: uiManager?.assigneeManager,
+                    gitlabApi: window.gitlabApi,
+                    onSettingsChanged: (type) => {
+                        console.log(`Settings changed: ${type}`);
+                        // Refresh UI components when settings change
+                        if (uiManager?.bulkCommentsView) {
+                            if (type === 'all' || type === 'labels') {
+                                uiManager.bulkCommentsView.addLabelShortcut();
+                            }
+                            if (type === 'all' || type === 'assignees') {
+                                uiManager.bulkCommentsView.addAssignShortcut();
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Error creating SettingsManager:', e);
+            }
+        }
 
         return uiManager;
     } catch (e) {
@@ -11409,6 +11536,7 @@ function createUIManager() {
         return null;
     }
 }
+
 
 // Add a global initialization flag to prevent duplicate initialization
 let isInitialized = false;
@@ -11424,44 +11552,86 @@ function checkAndInit() {
     }
 
     if (window.location.href.includes('/boards')) {
-        // Create the summary container
-        if (!document.getElementById('assignee-time-summary')) {
-            // Create UI Manager
-            const uiManager = createUIManager();
+        console.log('On a GitLab boards page, waiting for DOM elements...');
 
-            // Ensure SettingsManager is available globally
-            if (!window.settingsManager && typeof SettingsManager === 'function') {
-                try {
-                    window.settingsManager = new SettingsManager({
-                        labelManager: uiManager?.labelManager,
-                        assigneeManager: uiManager?.assigneeManager,
-                        gitlabApi: window.gitlabApi,
-                        onSettingsChanged: (type) => {
-                            console.log(`Settings changed: ${type}`);
-                            // Refresh UI components when settings change
-                            if (uiManager?.bulkCommentsView) {
-                                if (type === 'all' || type === 'labels') {
-                                    uiManager.bulkCommentsView.addLabelShortcut();
-                                }
-                                if (type === 'all' || type === 'assignees') {
-                                    uiManager.bulkCommentsView.addAssignShortcut();
-                                }
-                            }
-                        }
-                    });
-                } catch (e) {
-                    console.error('Error creating SettingsManager:', e);
-                }
-            }
-        }
+        // Wait for boards element before initializing
+        waitForBoardsElement()
+            .then(boardsElement => {
+                console.log('Ready to initialize UI with proper attachment point');
 
-        // Start waiting for boards
-        waitForBoards();
-        // Mark as initialized to prevent duplicate calls
-        isInitialized = true;
+                // Create UI Manager, passing the attachment element
+                const uiManager = createUIManager(boardsElement);
+
+                // Mark as initialized to prevent duplicate calls
+                isInitialized = true;
+
+                // Start waiting for boards
+                waitForBoards();
+            })
+            .catch(error => {
+                console.error('Error initializing UI:', error);
+                // Fallback initialization with body attachment
+                const uiManager = createUIManager(document.body);
+                isInitialized = true;
+                waitForBoards();
+            });
     }
 }
 
+/**
+ * Wait for the boards element to be available in the DOM
+ * @param {number} maxAttempts - Maximum number of attempts to find the element
+ * @param {number} interval - Interval between attempts in ms
+ * @returns {Promise<HTMLElement>} Promise resolving to the boards element
+ */
+function waitForBoardsElement(maxAttempts = 30, interval = 500) {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkForElement = () => {
+            attempts++;
+            console.log(`Attempt ${attempts}/${maxAttempts} to find boards element`);
+
+            // Try to find the element
+            const boardsElement = document.querySelector('[data-testid="boards-list"]');
+
+            if (boardsElement) {
+                console.log('Found boards-list element');
+                resolve(boardsElement);
+                return;
+            }
+
+            // Fallback to other possible selectors if the first one doesn't exist
+            const fallbackSelectors = [
+                '.boards-list',
+                '.board-list-component',
+                '.boards-app'
+            ];
+
+            for (const selector of fallbackSelectors) {
+                const element = document.querySelector(selector);
+                if (element) {
+                    console.log(`Found fallback element using selector: ${selector}`);
+                    resolve(element);
+                    return;
+                }
+            }
+
+            // If we've hit the maximum attempts, attach to body anyway
+            if (attempts >= maxAttempts) {
+                console.warn('Maximum attempts reached, attaching to body as fallback');
+                resolve(document.body);
+                return;
+            }
+
+            // Try again after interval
+            setTimeout(checkForElement, interval);
+        };
+
+        // Start checking
+        checkForElement();
+    });
+}
 
 /**
  * Update summary information
@@ -11578,7 +11748,36 @@ function addBoardChangeListeners() {
         console.error('Error adding board change listeners:', e);
     }
 }
-
+// Add this helper function to lib/index.js
+/**
+ * Set up the settings manager
+ * @param {UIManager} uiManager - The UI manager instance
+ */
+function setupSettingsManager(uiManager) {
+    if (!window.settingsManager && typeof SettingsManager === 'function') {
+        try {
+            window.settingsManager = new SettingsManager({
+                labelManager: uiManager?.labelManager,
+                assigneeManager: uiManager?.assigneeManager,
+                gitlabApi: window.gitlabApi,
+                onSettingsChanged: (type) => {
+                    console.log(`Settings changed: ${type}`);
+                    // Refresh UI components when settings change
+                    if (uiManager?.bulkCommentsView) {
+                        if (type === 'all' || type === 'labels') {
+                            uiManager.bulkCommentsView.addLabelShortcut();
+                        }
+                        if (type === 'all' || type === 'assignees') {
+                            uiManager.bulkCommentsView.addAssignShortcut();
+                        }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Error creating SettingsManager:', e);
+        }
+    }
+}
 /**
  * Wait for boards to load before initializing
  */
