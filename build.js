@@ -81,7 +81,10 @@ const CONFIG = {
         'SummaryTabView', 'BoardsTabView', 'HistoryTabView', 'ShortcutManager', 'ApiTabView',
         'IssueSelector', 'CommentShortcuts', 'updateSummary', 'renderHistory',
         'LabelManager', 'SettingsManager', 'IssueSelectionDisplay'
-    ]
+    ],
+
+    // Ignore patterns for file scanning
+    ignorePatterns: ['dist/**'] // Explicitly ignore the dist folder
 };
 
 // Ensure output directory exists
@@ -119,7 +122,9 @@ function extractUserScriptHeader(filePath) {
 
 // Find all JS files in the source directory
 function findAllJsFiles() {
-    return glob.sync(`${CONFIG.sourceDir}/**/*.js`);
+    return glob.sync(`${CONFIG.sourceDir}/**/*.js`, {
+        ignore: CONFIG.ignorePatterns // Add ignore patterns
+    });
 }
 
 // Process file content and fix variable redeclarations
