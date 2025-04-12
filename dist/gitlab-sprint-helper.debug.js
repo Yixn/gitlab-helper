@@ -488,7 +488,8 @@ window.GitLabAPI = GitLabAPI;
  * Process all boards and extract data
  * @returns {Object} Object containing processed board data
  */
-window.processBoards = function processBoards() {
+export async function processBoards() {
+    console.log('Starting board processing...');
     const assigneeTimeMap = {};
     const boardData = {};
     const boardAssigneeData = {};
@@ -498,51 +499,105 @@ window.processBoards = function processBoards() {
     let currentMilestone = null;
     let closedBoardCards = 0;
 
-    // Loop over all board lists
-    const boardLists = document.querySelectorAll('.board-list');
-
-    boardLists.forEach((boardList, listIndex) => {
-        // Get board title from the board list's Vue component
-        let boardTitle = 'Unknown';
-
-        try {
-            // First attempt to get the title from the Vue component
-            if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
-                const boardComponent = boardList.__vue__.$children.find(child =>
-                    child.$props && child.$props.list && child.$props.list.title);
-
-                if (boardComponent && boardComponent.$props.list.title) {
-                    boardTitle = boardComponent.$props.list.title;
-                }
-            }
-
-            // Fallback to DOM if Vue component approach failed
-            if (boardTitle === 'Unknown') {
-                const boardHeader = boardList.querySelector('.board-title-text');
-                if (boardHeader) {
-                    boardTitle = boardHeader.textContent.trim();
-                }
-            }
-        } catch (e) {
-            console.error('Error getting board title:', e);
-            // Fallback to DOM
-            const boardHeader = boardList.querySelector('.board-title-text');
-            if (boardHeader) {
-                boardTitle = boardHeader.textContent.trim();
-            }
+    try {
+        // Ensure API is available
+        const gitlabApi = window.gitlabApi;
+        if (!gitlabApi) {
+            console.warn('GitLab API not available, proceeding with DOM-only methods');
+        } else {
+            console.log('GitLab API available for API requests');
         }
 
-        // Initialize board data only if we have a valid title
-        if (boardTitle !== 'Unknown') {
-            if (!boardData[boardTitle]) {
-                boardData[boardTitle] = {
-                    tickets: 0,
-                    timeEstimate: 0
-                };
+        // Get path info for API requests
+        const pathInfo = getPathFromUrl();
+        if (!pathInfo) {
+            console.warn('Could not determine project/group path for API requests');
+        } else {
+            console.log('Path info for API requests:', pathInfo);
+        }
+
+        // Loop over all board lists
+        const boardLists = document.querySelectorAll('.board-list');
+        console.log(`Found ${boardLists.length} board lists`);
+
+        for (const boardList of boardLists) {
+            let boardTitle = 'Unknown';
+            let boardId = null;
+
+            try {
+                // First try to get board ID from Vue attributes
+                if (boardList.__vue__ && boardList.__vue__.$attrs) {
+                    boardId = boardList.__vue__.$attrs.id ||
+                        boardList.__vue__.$attrs['data-id'] ||
+                        boardList.__vue__.$attrs['list-id'];
+
+                    console.log(`Found board ID from Vue attributes: ${boardId}`);
+
+                    // If we found a board ID, try to fetch board data via API
+                    if (boardId && gitlabApi && pathInfo) {
+                        try {
+                            // Construct API endpoint
+                            const endpoint = `${pathInfo.type}s/${pathInfo.encodedPath}/boards/lists/${boardId}`;
+                            console.log(`Attempting API request to: ${endpoint}`);
+
+                            // Make API request
+                            const boardApiData = await gitlabApi.callGitLabApi(endpoint);
+
+                            if (boardApiData && boardApiData.title) {
+                                boardTitle = boardApiData.title;
+                                console.log(`Found board title via API: ${boardTitle}`);
+                            }
+                        } catch (apiError) {
+                            console.warn(`API request failed for board ID ${boardId}:`, apiError);
+                            // Continue with other methods
+                        }
+                    }
+                }
+
+                // Fallback to DOM or Vue component if API request failed
+                if (boardTitle === 'Unknown') {
+                    // Try DOM approach
+                    const boardHeader = boardList.querySelector('.board-title-text');
+                    if (boardHeader) {
+                        boardTitle = boardHeader.textContent.trim();
+                        console.log(`Found board title via DOM: ${boardTitle}`);
+                    }
+                    // Try Vue component approach
+                    else if (boardList.__vue__ && boardList.__vue__.$children) {
+                        const boardComponent = boardList.__vue__.$children.find(child =>
+                            child.$props && child.$props.list && child.$props.list.title);
+                        if (boardComponent && boardComponent.$props.list.title) {
+                            boardTitle = boardComponent.$props.list.title;
+                            console.log(`Found board title via Vue: ${boardTitle}`);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error getting board title:', e);
             }
 
-            if (!boardAssigneeData[boardTitle]) {
+            // Initialize board data
+            if (boardTitle !== 'Unknown') {
+                boardData[boardTitle] = {
+                    tickets: 0,
+                    timeEstimate: 0,
+                    boardId: boardId // Store the board ID for reference
+                };
                 boardAssigneeData[boardTitle] = {};
+            } else {
+                // If we still don't have a title but have an ID, use the ID as title
+                if (boardId) {
+                    boardTitle = `Board-${boardId}`;
+                    boardData[boardTitle] = {
+                        tickets: 0,
+                        timeEstimate: 0,
+                        boardId: boardId
+                    };
+                    boardAssigneeData[boardTitle] = {};
+                } else {
+                    console.warn('Could not determine title for a board list, skipping');
+                    continue; // Skip this board
+                }
             }
 
             // Check if this is a closed/done board
@@ -551,106 +606,203 @@ window.processBoards = function processBoards() {
                 lowerTitle.includes('closed') ||
                 lowerTitle.includes('complete') ||
                 lowerTitle.includes('finished');
-        } else {
-            return; // Skip processing this board
-        }
 
-        // Find all board-list-items in this list
-        const boardItems = boardList.querySelectorAll('.board-card');
+            // Find all cards in this list
+            const boardItems = boardList.querySelectorAll('.board-card');
+            console.log(`Board "${boardTitle}" has ${boardItems.length} cards`);
 
-        // Check if this is a closed/done board
-        const lowerTitle = boardTitle.toLowerCase();
-        const isClosedBoard = lowerTitle.includes('done') ||
-            lowerTitle.includes('closed') ||
-            lowerTitle.includes('complete') ||
-            lowerTitle.includes('finished');
+            // If this is a closed board, count its cards
+            if (isClosedBoard) {
+                closedBoardCards += boardItems.length;
+            }
 
-        // If this is a closed board, count its cards
-        if (isClosedBoard) {
-            closedBoardCards += boardItems.length;
-        }
+            // Process each card
+            for (const item of boardItems) {
+                try {
+                    cardsProcessed++;
+                    boardData[boardTitle].tickets++;
 
-        boardItems.forEach(item => {
-            try {
-                cardsProcessed++;
-                boardData[boardTitle].tickets++;
+                    // Multiple approaches to extract time estimates
+                    let timeEstimate = 0;
+                    let assignees = [];
+                    let foundTime = false;
+                    let cardId = null;
 
-                // Access the Vue instance on the board-card element
-                // and get the issue from $children, then access the $props
-                if (item.__vue__ && item.__vue__.$children) {
-                    // Find the issue in the $children array
-                    const issue = item.__vue__.$children.find(child =>
-                        child.$props && child.$props.item && child.$props.item.timeEstimate !== undefined);
+                    // Try to get card ID for API requests
+                    if (item.__vue__ && item.__vue__.$attrs) {
+                        cardId = item.__vue__.$attrs.id ||
+                            item.__vue__.$attrs['data-id'] ||
+                            item.__vue__.$attrs['card-id'];
+                    }
 
-                    if (issue && issue.$props) {
-                        const props = issue.$props;
+                    // Approach 1: Vue component (primary method)
+                    if (item.__vue__ && item.__vue__.$children) {
+                        const issueComponent = item.__vue__.$children.find(child =>
+                            child.$props && child.$props.item);
 
-                        // Try to get milestone information if not already found
-                        if (!currentMilestone && props.item && props.item.milestone) {
-                            currentMilestone = props.item.milestone.title;
-                        }
+                        if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
+                            const props = issueComponent.$props;
 
-                        if (props.item && props.item.timeEstimate) {
-                            cardsWithTime++;
-                            const timeEstimate = props.item.timeEstimate; // In seconds
-                            totalEstimate += timeEstimate;
-                            boardData[boardTitle].timeEstimate += timeEstimate;
-
-                            let assignees = [];
-                            if (props.item.assignees && props.item.assignees.nodes && props.item.assignees.nodes.length) {
-                                assignees = props.item.assignees.nodes;
-                            } else if (props.item.assignees && props.item.assignees.length > 0) {
-                                assignees = props.item.assignees;
+                            // Try to get milestone
+                            if (!currentMilestone && props.item && props.item.milestone) {
+                                currentMilestone = props.item.milestone.title;
                             }
 
-                            if (assignees.length > 0) {
-                                assignees.forEach(assignee => {
-                                    // Split time estimate equally among assignees if multiple
-                                    const assigneeShare = timeEstimate / assignees.length;
-                                    const name = assignee.name;
+                            // Get time estimate
+                            if (props.item && props.item.timeEstimate !== undefined) {
+                                timeEstimate = props.item.timeEstimate;
+                                foundTime = true;
+                                cardsWithTime++;
 
-                                    // Update global assignee data
-                                    if (!assigneeTimeMap[name]) {
-                                        assigneeTimeMap[name] = 0;
-                                    }
-                                    assigneeTimeMap[name] += assigneeShare;
+                                console.log(`Found time via Vue: ${timeEstimate} seconds for card`, props.item.title || 'Unknown');
+                            }
 
-                                    // Update board-specific assignee data
-                                    if (!boardAssigneeData[boardTitle][name]) {
-                                        boardAssigneeData[boardTitle][name] = {
-                                            tickets: 0,
-                                            timeEstimate: 0
-                                        };
-                                    }
-                                    boardAssigneeData[boardTitle][name].tickets++;
-                                    boardAssigneeData[boardTitle][name].timeEstimate += assigneeShare;
-                                });
-                            } else {
-                                // Handle unassigned
-                                // Global unassigned
-                                if (!assigneeTimeMap['Unassigned']) {
-                                    assigneeTimeMap['Unassigned'] = 0;
+                            // Get assignees
+                            if (props.item.assignees) {
+                                if (props.item.assignees.nodes && props.item.assignees.nodes.length) {
+                                    assignees = props.item.assignees.nodes;
+                                } else if (Array.isArray(props.item.assignees) && props.item.assignees.length > 0) {
+                                    assignees = props.item.assignees;
                                 }
-                                assigneeTimeMap['Unassigned'] += timeEstimate;
+                            }
 
-                                // Board-specific unassigned
-                                if (!boardAssigneeData[boardTitle]['Unassigned']) {
-                                    boardAssigneeData[boardTitle]['Unassigned'] = {
+                            // If we have an iid but no time, try API fetch
+                            if (!foundTime && props.item.iid && props.item.referencePath && gitlabApi) {
+                                cardId = props.item.iid;
+                                try {
+                                    console.log(`Attempting to fetch issue time data via API for ${cardId}`);
+                                    const issueData = await gitlabApi.getIssue(props.item);
+
+                                    if (issueData && issueData.time_stats &&
+                                        issueData.time_stats.time_estimate !== undefined) {
+                                        timeEstimate = issueData.time_stats.time_estimate;
+                                        foundTime = true;
+                                        cardsWithTime++;
+
+                                        console.log(`Found time via API: ${timeEstimate} seconds`);
+                                    }
+                                } catch (apiError) {
+                                    console.warn(`API request failed for card ${cardId}:`, apiError);
+                                }
+                            }
+                        }
+                    }
+
+                    // Approach 2: Look for time estimate directly in DOM (fallback)
+                    if (!foundTime) {
+                        const timeElement = item.querySelector('.board-card-time-stats');
+                        if (timeElement) {
+                            const timeText = timeElement.textContent.trim();
+                            console.log(`Found time via DOM: ${timeText}`);
+
+                            // Parse time in various formats: 2h, 2h 30m, 30m, etc.
+                            // First try to match hours and minutes
+                            let hours = 0;
+                            let minutes = 0;
+
+                            const hoursMatch = timeText.match(/(\d+)h/);
+                            if (hoursMatch && hoursMatch[1]) {
+                                hours = parseInt(hoursMatch[1]);
+                            }
+
+                            const minutesMatch = timeText.match(/(\d+)m/);
+                            if (minutesMatch && minutesMatch[1]) {
+                                minutes = parseInt(minutesMatch[1]);
+                            }
+
+                            timeEstimate = (hours * 3600) + (minutes * 60);
+
+                            if (timeEstimate > 0) {
+                                foundTime = true;
+                                cardsWithTime++;
+                                console.log(`Parsed time estimate: ${timeEstimate} seconds`);
+                            }
+                        }
+                    }
+
+                    // Try another approach if time estimate still not found
+                    if (!foundTime) {
+                        // Look for estimate in card title/description
+                        const cardTitle = item.querySelector('.board-card-title');
+                        if (cardTitle) {
+                            const titleText = cardTitle.textContent.trim();
+                            const estimateMatch = titleText.match(/\((\d+)h\)/);
+                            if (estimateMatch && estimateMatch[1]) {
+                                timeEstimate = parseInt(estimateMatch[1]) * 3600;
+                                foundTime = true;
+                                cardsWithTime++;
+                                console.log(`Found time in title: ${timeEstimate} seconds`);
+                            }
+                        }
+                    }
+
+                    // If we found time, update totals
+                    if (foundTime) {
+                        totalEstimate += timeEstimate;
+                        boardData[boardTitle].timeEstimate += timeEstimate;
+
+                        // Process assignees
+                        if (assignees.length > 0) {
+                            // Split time among assignees
+                            const assigneeShare = timeEstimate / assignees.length;
+
+                            assignees.forEach(assignee => {
+                                const name = assignee.name || assignee.username || 'Unknown';
+
+                                // Update global assignee data
+                                if (!assigneeTimeMap[name]) {
+                                    assigneeTimeMap[name] = 0;
+                                }
+                                assigneeTimeMap[name] += assigneeShare;
+
+                                // Update board-specific assignee data
+                                if (!boardAssigneeData[boardTitle][name]) {
+                                    boardAssigneeData[boardTitle][name] = {
                                         tickets: 0,
                                         timeEstimate: 0
                                     };
                                 }
-                                boardAssigneeData[boardTitle]['Unassigned'].tickets++;
-                                boardAssigneeData[boardTitle]['Unassigned'].timeEstimate += timeEstimate;
+                                boardAssigneeData[boardTitle][name].tickets++;
+                                boardAssigneeData[boardTitle][name].timeEstimate += assigneeShare;
+                            });
+                        } else {
+                            // Unassigned issue
+                            const unassignedName = 'Unassigned';
+
+                            // Global unassigned
+                            if (!assigneeTimeMap[unassignedName]) {
+                                assigneeTimeMap[unassignedName] = 0;
                             }
+                            assigneeTimeMap[unassignedName] += timeEstimate;
+
+                            // Board-specific unassigned
+                            if (!boardAssigneeData[boardTitle][unassignedName]) {
+                                boardAssigneeData[boardTitle][unassignedName] = {
+                                    tickets: 0,
+                                    timeEstimate: 0
+                                };
+                            }
+                            boardAssigneeData[boardTitle][unassignedName].tickets++;
+                            boardAssigneeData[boardTitle][unassignedName].timeEstimate += timeEstimate;
                         }
                     }
+                } catch (e) {
+                    console.error('Error processing card:', e);
                 }
-            } catch (e) {
-                console.error('Error processing card:', e);
             }
-        });
-    });
+        }
+
+        console.log(`Processed: ${cardsProcessed} cards, ${cardsWithTime} with time`);
+        console.log('Board data:', boardData);
+        console.log('Assignee data:', assigneeTimeMap);
+    } catch (e) {
+        console.error('Error in processBoards:', e);
+    }
+
+    // Make function accessible globally for debugging and to fix reference errors
+    if (typeof window !== 'undefined') {
+        window.processBoards = processBoards;
+    }
 
     return {
         assigneeTimeMap,
@@ -662,6 +814,11 @@ window.processBoards = function processBoards() {
         currentMilestone,
         closedBoardCards
     };
+}
+
+// Make sure it's available globally
+if (typeof window !== 'undefined') {
+    window.processBoards = processBoards;
 }
 
 // File: lib/core/History.js
@@ -8335,6 +8492,11 @@ window.SummaryView = class SummaryView {
         // Get board names in order
         const boardNames = Object.keys(boardData || {});
 
+        // Debug logging to help identify data issues
+        console.log('Board Names:', boardNames);
+        console.log('Board Data:', boardData);
+        console.log('Board Assignee Data:', boardAssigneeData);
+
         // Add total row at top
         const totalRow = document.createElement('tr');
         totalRow.style.borderBottom = '2px solid #ddd';
@@ -8358,34 +8520,30 @@ window.SummaryView = class SummaryView {
 
         // Create distribution for total across all boards
         if (boardNames.length > 0 && boardData) {
-            const distributionElements = boardNames.map(boardName => {
+            const distributionValues = boardNames.map((boardName, index) => {
                 const hoursFloat = parseFloat(formatHours(boardData[boardName]?.timeEstimate || 0));
-                const hours = Math.round(hoursFloat); // Round to integer
+                return Math.round(hoursFloat); // Round to integer
+            });
 
-                const span = document.createElement('span');
-                span.textContent = hours;
-                span.style.marginLeft = '0px';
+            // Always include all boards in the distribution with NO left padding
+            const distributionText = distributionValues.map((hours, index) => {
+                let spanHTML = `<span style="`;
 
                 // Style based on value
                 if (hours === 0) {
-                    span.style.color = '#aaa'; // Grey for zero values
+                    spanHTML += `color:#aaa;`; // Grey for zero values
                 }
 
                 // Make the last board green if greater than 0
-                if (boardName === boardNames[boardNames.length - 1] && hours > 0) {
-                    span.style.color = '#28a745'; // Green for last board with hours
+                if (index === distributionValues.length - 1 && hours > 0) {
+                    spanHTML += `color:#28a745;`; // Green for last board with hours
                 }
 
-                return span;
-            });
+                spanHTML += `">${hours}</span>`;
+                return spanHTML;
+            }).join('/');
 
-            // Add distribution elements with slashes between them
-            distributionElements.forEach((span, index) => {
-                totalDistributionCell.appendChild(span);
-                if (index < distributionElements.length - 1) {
-                    totalDistributionCell.appendChild(document.createTextNode('/'));
-                }
-            });
+            totalDistributionCell.innerHTML = distributionText;
         }
 
         totalRow.appendChild(totalLabelCell);
@@ -8423,37 +8581,33 @@ window.SummaryView = class SummaryView {
 
             // Create distribution for this assignee across all boards
             if (boardNames.length > 0 && boardAssigneeData) {
-                const distributionElements = boardNames.map((boardName, index) => {
+                const distributionValues = boardNames.map((boardName, index) => {
                     const assigneeInBoard = boardAssigneeData[boardName] &&
                         boardAssigneeData[boardName][name];
                     const hoursFloat = assigneeInBoard ?
                         parseFloat(formatHours(assigneeInBoard.timeEstimate)) : 0;
-                    const hours = Math.round(hoursFloat); // Round to integer
+                    return Math.round(hoursFloat); // Round to integer
+                });
 
-                    const span = document.createElement('span');
-                    span.textContent = hours;
-                    span.style.marginLeft = '0px';
+                // Always include all boards in the distribution with NO left padding on spans
+                const distributionText = distributionValues.map((hours, index) => {
+                    let spanHTML = `<span style="`;
 
                     // Style based on value
                     if (hours === 0) {
-                        span.style.color = '#aaa'; // Grey for zero values
+                        spanHTML += `color:#aaa;`; // Grey for zero values
                     }
 
                     // Make the last board green if greater than 0
-                    if (index === boardNames.length - 1 && hours > 0) {
-                        span.style.color = '#28a745'; // Green for last board with hours
+                    if (index === distributionValues.length - 1 && hours > 0) {
+                        spanHTML += `color:#28a745;`; // Green for last board with hours
                     }
 
-                    return span;
-                });
+                    spanHTML += `">${hours}</span>`;
+                    return spanHTML;
+                }).join('/');
 
-                // Add distribution elements with slashes between them
-                distributionElements.forEach((span, index) => {
-                    distributionCell.appendChild(span);
-                    if (index < distributionElements.length - 1) {
-                        distributionCell.appendChild(document.createTextNode('/'));
-                    }
-                });
+                distributionCell.innerHTML = distributionText;
             }
 
             row.appendChild(nameCell);
@@ -10684,7 +10838,138 @@ window.UIManager = class UIManager {
             this.header.textContent = text;
         }
     }
+    /**
+     * Show loading state in the UI
+     * @param {string} message - Message to display
+     */
+    showLoading(message = 'Loading...') {
+        // Check if loading element already exists
+        let loadingEl = document.getElementById('assignee-time-summary-loading');
+
+        if (!loadingEl) {
+            // Create loading element
+            loadingEl = document.createElement('div');
+            loadingEl.id = 'assignee-time-summary-loading';
+            loadingEl.style.position = 'absolute';
+            loadingEl.style.top = '0';
+            loadingEl.style.left = '0';
+            loadingEl.style.width = '100%';
+            loadingEl.style.height = '100%';
+            loadingEl.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+            loadingEl.style.display = 'flex';
+            loadingEl.style.justifyContent = 'center';
+            loadingEl.style.alignItems = 'center';
+            loadingEl.style.zIndex = '1001';
+            loadingEl.style.flexDirection = 'column';
+
+            const spinnerSize = '40px';
+            const spinnerHTML = `
+            <div style="width: ${spinnerSize}; height: ${spinnerSize}; border: 3px solid #f3f3f3; 
+                        border-top: 3px solid #1f75cb; border-radius: 50%; 
+                        animation: spin 1s linear infinite;"></div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        `;
+
+            loadingEl.innerHTML = spinnerHTML;
+
+            const loadingText = document.createElement('div');
+            loadingText.textContent = message;
+            loadingText.style.marginTop = '10px';
+            loadingText.style.fontWeight = 'bold';
+            loadingText.style.color = '#1f75cb';
+            loadingEl.appendChild(loadingText);
+
+            this.container.style.position = 'relative';
+            this.container.appendChild(loadingEl);
+        } else {
+            // Update existing loading element's message
+            const loadingText = loadingEl.querySelector('div:not([style*="animation"])');
+            if (loadingText) {
+                loadingText.textContent = message;
+            }
+            loadingEl.style.display = 'flex';
+        }
+    }
+
+    /**
+     * Hide loading state
+     */
+    hideLoading() {
+        const loadingEl = document.getElementById('assignee-time-summary-loading');
+        if (loadingEl) {
+            loadingEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * Show error message
+     * @param {string} message - Error message
+     */
+    showErrorMessage(message) {
+        // First check if there's already an error message
+        let errorEl = document.getElementById('assignee-time-summary-error');
+
+        if (!errorEl) {
+            // Create error element
+            errorEl = document.createElement('div');
+            errorEl.id = 'assignee-time-summary-error';
+            errorEl.style.margin = '10px 0';
+            errorEl.style.padding = '10px';
+            errorEl.style.backgroundColor = '#f8d7da';
+            errorEl.style.color = '#721c24';
+            errorEl.style.borderRadius = '4px';
+            errorEl.style.border = '1px solid #f5c6cb';
+            errorEl.style.fontSize = '14px';
+            errorEl.style.display = 'flex';
+            errorEl.style.justifyContent = 'space-between';
+            errorEl.style.alignItems = 'center';
+
+            const errorText = document.createElement('div');
+            errorText.textContent = message;
+            errorEl.appendChild(errorText);
+
+            // Add close button
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '&times;';
+            closeBtn.style.background = 'none';
+            closeBtn.style.border = 'none';
+            closeBtn.style.fontSize = '20px';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.color = '#721c24';
+            closeBtn.style.fontWeight = 'bold';
+            closeBtn.onclick = () => {
+                errorEl.remove();
+            };
+
+            errorEl.appendChild(closeBtn);
+
+            // Add to beginning of content
+            if (this.contentWrapper) {
+                this.contentWrapper.insertBefore(errorEl, this.contentWrapper.firstChild);
+            }
+        } else {
+            // Update existing error message
+            const errorText = errorEl.querySelector('div');
+            if (errorText) {
+                errorText.textContent = message;
+            }
+            errorEl.style.display = 'flex';
+        }
+
+        // Auto-hide error after 10 seconds
+        setTimeout(() => {
+            if (errorEl && errorEl.parentNode) {
+                errorEl.remove();
+            }
+        }, 10000);
+    }
 }
+
 
 // File: lib/ui/index.js
 // UI integration file for GitLab Assignee Time Summary
@@ -11004,6 +11289,11 @@ function updateSummary(forceHistoryUpdate = false) {
 
     try {
         // Process the board data
+        const result = processBoards();
+
+        // Debug logging
+        console.log('Board data processing result:', result);
+
         const {
             assigneeTimeMap,
             boardData,
@@ -11013,7 +11303,7 @@ function updateSummary(forceHistoryUpdate = false) {
             cardsWithTime,
             currentMilestone,
             closedBoardCards
-        } = processBoards();
+        } = result;
 
         // Wait to make sure the board is fully loaded before saving to history
         clearTimeout(loadingTimeout);
@@ -11040,6 +11330,10 @@ function updateSummary(forceHistoryUpdate = false) {
         const totalHours = (totalEstimate / 3600).toFixed(1);
         window.uiManager.updateHeader(`Summary ${totalHours}h`);
 
+        // Ensure we have valid board data and assignee data objects
+        const validBoardData = boardData || {};
+        const validBoardAssigneeData = boardAssigneeData || {};
+
         // Update the summary view with board data for distribution
         if (window.uiManager.summaryView) {
             window.uiManager.summaryView.render(
@@ -11048,14 +11342,14 @@ function updateSummary(forceHistoryUpdate = false) {
                 cardsProcessed,
                 cardsWithTime,
                 currentMilestone,
-                boardData,           // Pass boardData
-                boardAssigneeData    // Pass boardAssigneeData
+                validBoardData,       // Ensure we pass valid object
+                validBoardAssigneeData // Ensure we pass valid object
             );
         }
 
         // Update the boards view
         if (window.uiManager.boardsView) {
-            window.uiManager.boardsView.render(boardData, boardAssigneeData);
+            window.uiManager.boardsView.render(validBoardData, validBoardAssigneeData);
         }
 
         // Update Bulk Comments Tab if it exists and is visible
