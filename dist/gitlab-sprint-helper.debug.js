@@ -488,8 +488,7 @@ window.GitLabAPI = GitLabAPI;
  * Process all boards and extract data
  * @returns {Object} Object containing processed board data
  */
-export async function processBoards() {
-    console.log('Starting board processing...');
+window.processBoards = function processBoards() {
     const assigneeTimeMap = {};
     const boardData = {};
     const boardAssigneeData = {};
@@ -499,105 +498,51 @@ export async function processBoards() {
     let currentMilestone = null;
     let closedBoardCards = 0;
 
-    try {
-        // Ensure API is available
-        const gitlabApi = window.gitlabApi;
-        if (!gitlabApi) {
-            console.warn('GitLab API not available, proceeding with DOM-only methods');
-        } else {
-            console.log('GitLab API available for API requests');
-        }
+    // Loop over all board lists
+    const boardLists = document.querySelectorAll('.board-list');
 
-        // Get path info for API requests
-        const pathInfo = getPathFromUrl();
-        if (!pathInfo) {
-            console.warn('Could not determine project/group path for API requests');
-        } else {
-            console.log('Path info for API requests:', pathInfo);
-        }
+    boardLists.forEach((boardList, listIndex) => {
+        // Get board title from the board list's Vue component
+        let boardTitle = "U" + listIndex.toString();
 
-        // Loop over all board lists
-        const boardLists = document.querySelectorAll('.board-list');
-        console.log(`Found ${boardLists.length} board lists`);
+        try {
+            // First attempt to get the title from the Vue component
+            if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+                const boardComponent = boardList.__vue__.$children.find(child =>
+                    child.$props && child.$props.list && child.$props.list.title);
 
-        for (const boardList of boardLists) {
-            let boardTitle = 'Unknown';
-            let boardId = null;
-
-            try {
-                // First try to get board ID from Vue attributes
-                if (boardList.__vue__ && boardList.__vue__.$attrs) {
-                    boardId = boardList.__vue__.$attrs.id ||
-                        boardList.__vue__.$attrs['data-id'] ||
-                        boardList.__vue__.$attrs['list-id'];
-
-                    console.log(`Found board ID from Vue attributes: ${boardId}`);
-
-                    // If we found a board ID, try to fetch board data via API
-                    if (boardId && gitlabApi && pathInfo) {
-                        try {
-                            // Construct API endpoint
-                            const endpoint = `${pathInfo.type}s/${pathInfo.encodedPath}/boards/lists/${boardId}`;
-                            console.log(`Attempting API request to: ${endpoint}`);
-
-                            // Make API request
-                            const boardApiData = await gitlabApi.callGitLabApi(endpoint);
-
-                            if (boardApiData && boardApiData.title) {
-                                boardTitle = boardApiData.title;
-                                console.log(`Found board title via API: ${boardTitle}`);
-                            }
-                        } catch (apiError) {
-                            console.warn(`API request failed for board ID ${boardId}:`, apiError);
-                            // Continue with other methods
-                        }
-                    }
+                if (boardComponent && boardComponent.$props.list.title) {
+                    boardTitle = boardComponent.$props.list.title;
                 }
-
-                // Fallback to DOM or Vue component if API request failed
-                if (boardTitle === 'Unknown') {
-                    // Try DOM approach
-                    const boardHeader = boardList.querySelector('.board-title-text');
-                    if (boardHeader) {
-                        boardTitle = boardHeader.textContent.trim();
-                        console.log(`Found board title via DOM: ${boardTitle}`);
-                    }
-                    // Try Vue component approach
-                    else if (boardList.__vue__ && boardList.__vue__.$children) {
-                        const boardComponent = boardList.__vue__.$children.find(child =>
-                            child.$props && child.$props.list && child.$props.list.title);
-                        if (boardComponent && boardComponent.$props.list.title) {
-                            boardTitle = boardComponent.$props.list.title;
-                            console.log(`Found board title via Vue: ${boardTitle}`);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('Error getting board title:', e);
             }
 
-            // Initialize board data
-            if (boardTitle !== 'Unknown') {
+            // Fallback to DOM if Vue component approach failed
+            if (boardTitle === 'Unknown') {
+                const boardHeader = boardList.querySelector('.board-title-text');
+                if (boardHeader) {
+                    boardTitle = boardHeader.textContent.trim();
+                }
+            }
+        } catch (e) {
+            console.error('Error getting board title:', e);
+            // Fallback to DOM
+            const boardHeader = boardList.querySelector('.board-title-text');
+            if (boardHeader) {
+                boardTitle = boardHeader.textContent.trim();
+            }
+        }
+
+        // Initialize board data only if we have a valid title
+        if (boardTitle !== 'Unknown') {
+            if (!boardData[boardTitle]) {
                 boardData[boardTitle] = {
                     tickets: 0,
-                    timeEstimate: 0,
-                    boardId: boardId // Store the board ID for reference
+                    timeEstimate: 0
                 };
+            }
+
+            if (!boardAssigneeData[boardTitle]) {
                 boardAssigneeData[boardTitle] = {};
-            } else {
-                // If we still don't have a title but have an ID, use the ID as title
-                if (boardId) {
-                    boardTitle = `Board-${boardId}`;
-                    boardData[boardTitle] = {
-                        tickets: 0,
-                        timeEstimate: 0,
-                        boardId: boardId
-                    };
-                    boardAssigneeData[boardTitle] = {};
-                } else {
-                    console.warn('Could not determine title for a board list, skipping');
-                    continue; // Skip this board
-                }
             }
 
             // Check if this is a closed/done board
@@ -606,203 +551,106 @@ export async function processBoards() {
                 lowerTitle.includes('closed') ||
                 lowerTitle.includes('complete') ||
                 lowerTitle.includes('finished');
+        } else {
+            return; // Skip processing this board
+        }
 
-            // Find all cards in this list
-            const boardItems = boardList.querySelectorAll('.board-card');
-            console.log(`Board "${boardTitle}" has ${boardItems.length} cards`);
+        // Find all board-list-items in this list
+        const boardItems = boardList.querySelectorAll('.board-card');
 
-            // If this is a closed board, count its cards
-            if (isClosedBoard) {
-                closedBoardCards += boardItems.length;
-            }
+        // Check if this is a closed/done board
+        const lowerTitle = boardTitle.toLowerCase();
+        const isClosedBoard = lowerTitle.includes('done') ||
+            lowerTitle.includes('closed') ||
+            lowerTitle.includes('complete') ||
+            lowerTitle.includes('finished');
 
-            // Process each card
-            for (const item of boardItems) {
-                try {
-                    cardsProcessed++;
-                    boardData[boardTitle].tickets++;
+        // If this is a closed board, count its cards
+        if (isClosedBoard) {
+            closedBoardCards += boardItems.length;
+        }
 
-                    // Multiple approaches to extract time estimates
-                    let timeEstimate = 0;
-                    let assignees = [];
-                    let foundTime = false;
-                    let cardId = null;
+        boardItems.forEach(item => {
+            try {
+                cardsProcessed++;
+                boardData[boardTitle].tickets++;
 
-                    // Try to get card ID for API requests
-                    if (item.__vue__ && item.__vue__.$attrs) {
-                        cardId = item.__vue__.$attrs.id ||
-                            item.__vue__.$attrs['data-id'] ||
-                            item.__vue__.$attrs['card-id'];
-                    }
+                // Access the Vue instance on the board-card element
+                // and get the issue from $children, then access the $props
+                if (item.__vue__ && item.__vue__.$children) {
+                    // Find the issue in the $children array
+                    const issue = item.__vue__.$children.find(child =>
+                        child.$props && child.$props.item && child.$props.item.timeEstimate !== undefined);
 
-                    // Approach 1: Vue component (primary method)
-                    if (item.__vue__ && item.__vue__.$children) {
-                        const issueComponent = item.__vue__.$children.find(child =>
-                            child.$props && child.$props.item);
+                    if (issue && issue.$props) {
+                        const props = issue.$props;
 
-                        if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
-                            const props = issueComponent.$props;
+                        // Try to get milestone information if not already found
+                        if (!currentMilestone && props.item && props.item.milestone) {
+                            currentMilestone = props.item.milestone.title;
+                        }
 
-                            // Try to get milestone
-                            if (!currentMilestone && props.item && props.item.milestone) {
-                                currentMilestone = props.item.milestone.title;
+                        if (props.item && props.item.timeEstimate) {
+                            cardsWithTime++;
+                            const timeEstimate = props.item.timeEstimate; // In seconds
+                            totalEstimate += timeEstimate;
+                            boardData[boardTitle].timeEstimate += timeEstimate;
+
+                            let assignees = [];
+                            if (props.item.assignees && props.item.assignees.nodes && props.item.assignees.nodes.length) {
+                                assignees = props.item.assignees.nodes;
+                            } else if (props.item.assignees && props.item.assignees.length > 0) {
+                                assignees = props.item.assignees;
                             }
 
-                            // Get time estimate
-                            if (props.item && props.item.timeEstimate !== undefined) {
-                                timeEstimate = props.item.timeEstimate;
-                                foundTime = true;
-                                cardsWithTime++;
+                            if (assignees.length > 0) {
+                                assignees.forEach(assignee => {
+                                    // Split time estimate equally among assignees if multiple
+                                    const assigneeShare = timeEstimate / assignees.length;
+                                    const name = assignee.name;
 
-                                console.log(`Found time via Vue: ${timeEstimate} seconds for card`, props.item.title || 'Unknown');
-                            }
-
-                            // Get assignees
-                            if (props.item.assignees) {
-                                if (props.item.assignees.nodes && props.item.assignees.nodes.length) {
-                                    assignees = props.item.assignees.nodes;
-                                } else if (Array.isArray(props.item.assignees) && props.item.assignees.length > 0) {
-                                    assignees = props.item.assignees;
-                                }
-                            }
-
-                            // If we have an iid but no time, try API fetch
-                            if (!foundTime && props.item.iid && props.item.referencePath && gitlabApi) {
-                                cardId = props.item.iid;
-                                try {
-                                    console.log(`Attempting to fetch issue time data via API for ${cardId}`);
-                                    const issueData = await gitlabApi.getIssue(props.item);
-
-                                    if (issueData && issueData.time_stats &&
-                                        issueData.time_stats.time_estimate !== undefined) {
-                                        timeEstimate = issueData.time_stats.time_estimate;
-                                        foundTime = true;
-                                        cardsWithTime++;
-
-                                        console.log(`Found time via API: ${timeEstimate} seconds`);
+                                    // Update global assignee data
+                                    if (!assigneeTimeMap[name]) {
+                                        assigneeTimeMap[name] = 0;
                                     }
-                                } catch (apiError) {
-                                    console.warn(`API request failed for card ${cardId}:`, apiError);
+                                    assigneeTimeMap[name] += assigneeShare;
+
+                                    // Update board-specific assignee data
+                                    if (!boardAssigneeData[boardTitle][name]) {
+                                        boardAssigneeData[boardTitle][name] = {
+                                            tickets: 0,
+                                            timeEstimate: 0
+                                        };
+                                    }
+                                    boardAssigneeData[boardTitle][name].tickets++;
+                                    boardAssigneeData[boardTitle][name].timeEstimate += assigneeShare;
+                                });
+                            } else {
+                                // Handle unassigned
+                                // Global unassigned
+                                if (!assigneeTimeMap['Unassigned']) {
+                                    assigneeTimeMap['Unassigned'] = 0;
                                 }
-                            }
-                        }
-                    }
+                                assigneeTimeMap['Unassigned'] += timeEstimate;
 
-                    // Approach 2: Look for time estimate directly in DOM (fallback)
-                    if (!foundTime) {
-                        const timeElement = item.querySelector('.board-card-time-stats');
-                        if (timeElement) {
-                            const timeText = timeElement.textContent.trim();
-                            console.log(`Found time via DOM: ${timeText}`);
-
-                            // Parse time in various formats: 2h, 2h 30m, 30m, etc.
-                            // First try to match hours and minutes
-                            let hours = 0;
-                            let minutes = 0;
-
-                            const hoursMatch = timeText.match(/(\d+)h/);
-                            if (hoursMatch && hoursMatch[1]) {
-                                hours = parseInt(hoursMatch[1]);
-                            }
-
-                            const minutesMatch = timeText.match(/(\d+)m/);
-                            if (minutesMatch && minutesMatch[1]) {
-                                minutes = parseInt(minutesMatch[1]);
-                            }
-
-                            timeEstimate = (hours * 3600) + (minutes * 60);
-
-                            if (timeEstimate > 0) {
-                                foundTime = true;
-                                cardsWithTime++;
-                                console.log(`Parsed time estimate: ${timeEstimate} seconds`);
-                            }
-                        }
-                    }
-
-                    // Try another approach if time estimate still not found
-                    if (!foundTime) {
-                        // Look for estimate in card title/description
-                        const cardTitle = item.querySelector('.board-card-title');
-                        if (cardTitle) {
-                            const titleText = cardTitle.textContent.trim();
-                            const estimateMatch = titleText.match(/\((\d+)h\)/);
-                            if (estimateMatch && estimateMatch[1]) {
-                                timeEstimate = parseInt(estimateMatch[1]) * 3600;
-                                foundTime = true;
-                                cardsWithTime++;
-                                console.log(`Found time in title: ${timeEstimate} seconds`);
-                            }
-                        }
-                    }
-
-                    // If we found time, update totals
-                    if (foundTime) {
-                        totalEstimate += timeEstimate;
-                        boardData[boardTitle].timeEstimate += timeEstimate;
-
-                        // Process assignees
-                        if (assignees.length > 0) {
-                            // Split time among assignees
-                            const assigneeShare = timeEstimate / assignees.length;
-
-                            assignees.forEach(assignee => {
-                                const name = assignee.name || assignee.username || 'Unknown';
-
-                                // Update global assignee data
-                                if (!assigneeTimeMap[name]) {
-                                    assigneeTimeMap[name] = 0;
-                                }
-                                assigneeTimeMap[name] += assigneeShare;
-
-                                // Update board-specific assignee data
-                                if (!boardAssigneeData[boardTitle][name]) {
-                                    boardAssigneeData[boardTitle][name] = {
+                                // Board-specific unassigned
+                                if (!boardAssigneeData[boardTitle]['Unassigned']) {
+                                    boardAssigneeData[boardTitle]['Unassigned'] = {
                                         tickets: 0,
                                         timeEstimate: 0
                                     };
                                 }
-                                boardAssigneeData[boardTitle][name].tickets++;
-                                boardAssigneeData[boardTitle][name].timeEstimate += assigneeShare;
-                            });
-                        } else {
-                            // Unassigned issue
-                            const unassignedName = 'Unassigned';
-
-                            // Global unassigned
-                            if (!assigneeTimeMap[unassignedName]) {
-                                assigneeTimeMap[unassignedName] = 0;
+                                boardAssigneeData[boardTitle]['Unassigned'].tickets++;
+                                boardAssigneeData[boardTitle]['Unassigned'].timeEstimate += timeEstimate;
                             }
-                            assigneeTimeMap[unassignedName] += timeEstimate;
-
-                            // Board-specific unassigned
-                            if (!boardAssigneeData[boardTitle][unassignedName]) {
-                                boardAssigneeData[boardTitle][unassignedName] = {
-                                    tickets: 0,
-                                    timeEstimate: 0
-                                };
-                            }
-                            boardAssigneeData[boardTitle][unassignedName].tickets++;
-                            boardAssigneeData[boardTitle][unassignedName].timeEstimate += timeEstimate;
                         }
                     }
-                } catch (e) {
-                    console.error('Error processing card:', e);
                 }
+            } catch (e) {
+                console.error('Error processing card:', e);
             }
-        }
-
-        console.log(`Processed: ${cardsProcessed} cards, ${cardsWithTime} with time`);
-        console.log('Board data:', boardData);
-        console.log('Assignee data:', assigneeTimeMap);
-    } catch (e) {
-        console.error('Error in processBoards:', e);
-    }
-
-    // Make function accessible globally for debugging and to fix reference errors
-    if (typeof window !== 'undefined') {
-        window.processBoards = processBoards;
-    }
+        });
+    });
 
     return {
         assigneeTimeMap,
@@ -814,11 +662,6 @@ export async function processBoards() {
         currentMilestone,
         closedBoardCards
     };
-}
-
-// Make sure it's available globally
-if (typeof window !== 'undefined') {
-    window.processBoards = processBoards;
 }
 
 // File: lib/core/History.js
@@ -8520,12 +8363,13 @@ window.SummaryView = class SummaryView {
 
         // Create distribution for total across all boards
         if (boardNames.length > 0 && boardData) {
-            const distributionValues = boardNames.map((boardName, index) => {
-                const hoursFloat = parseFloat(formatHours(boardData[boardName]?.timeEstimate || 0));
+            const distributionValues = boardNames.map(boardName => {
+                const boardDataObj = boardData[boardName] || { timeEstimate: 0 };
+                const hoursFloat = parseFloat(formatHours(boardDataObj.timeEstimate || 0));
                 return Math.round(hoursFloat); // Round to integer
             });
 
-            // Always include all boards in the distribution with NO left padding
+            // Always include all boards in the distribution
             const distributionText = distributionValues.map((hours, index) => {
                 let spanHTML = `<span style="`;
 
@@ -8581,15 +8425,15 @@ window.SummaryView = class SummaryView {
 
             // Create distribution for this assignee across all boards
             if (boardNames.length > 0 && boardAssigneeData) {
-                const distributionValues = boardNames.map((boardName, index) => {
-                    const assigneeInBoard = boardAssigneeData[boardName] &&
-                        boardAssigneeData[boardName][name];
-                    const hoursFloat = assigneeInBoard ?
-                        parseFloat(formatHours(assigneeInBoard.timeEstimate)) : 0;
+                const distributionValues = boardNames.map(boardName => {
+                    // Get this assignee's data for this board, defaulting to zero
+                    const boardAssignees = boardAssigneeData[boardName] || {};
+                    const assigneeInBoard = boardAssignees[name] || { timeEstimate: 0 };
+                    const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
                     return Math.round(hoursFloat); // Round to integer
                 });
 
-                // Always include all boards in the distribution with NO left padding on spans
+                // Always include all boards in the distribution
                 const distributionText = distributionValues.map((hours, index) => {
                     let spanHTML = `<span style="`;
 

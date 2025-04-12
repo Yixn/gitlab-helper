@@ -148,6 +148,10 @@ function processFileContent(filePath, alreadyIncluded) {
         let content = fs.readFileSync(filePath, 'utf8');
         const fileName = path.basename(filePath);
 
+        // Handle export async function specially - must come first
+        content = content.replace(/export\s+async\s+function\s+([A-Za-z0-9_]+)/g,
+            'window.$1 = async function');
+
         // Handle export default class
         content = content.replace(/export\s+default\s+class\s+([A-Za-z0-9_]+)/g,
             'class $1');
