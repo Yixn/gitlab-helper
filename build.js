@@ -36,7 +36,7 @@ const CONFIG = {
     sourceDir: './lib',
     mainFile: './main.js',
     outputFile: './dist/gitlab-sprint-helper.js',
-    // Use dev path from .env if available, otherwise use default
+    // Use dev path from .env if available, otherwise use null
     devOutputFile: envConfig.DEV_OUTPUT_PATH || null,
     fileOrder: [
         // Core utilities first

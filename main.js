@@ -14,6 +14,7 @@
 
 (function() {
     'use strict';
+
     // Track if board is fully loaded
     let boardFullyLoaded = false;
     let loadingTimeout;
@@ -59,8 +60,8 @@
         updateBoardsTab(boardData, boardAssigneeData);
 
         // Update API Info Tab if it exists and is visible
-        const apiInfoTab = document.getElementById('api-info-content');
-        if (apiInfoTab && apiInfoTab.style.display === 'block') {
+        const bulkCommentsContent = document.getElementById('bulk-comments-content');
+        if (bulkCommentsContent && bulkCommentsContent.style.display === 'block') {
             updateApiInfoTab();
         }
     }
@@ -81,20 +82,6 @@
                 subtree: true
             });
         });
-    }
-
-    // Function to initialize the summary panel
-    function initSummary() {
-        // Create container if it doesn't exist
-        if (!document.getElementById('assignee-time-summary')) {
-            createSummaryContainer();
-        }
-
-        // Do initial calculation
-        updateSummary();
-
-        // Add change listeners to each board
-        addBoardChangeListeners();
     }
 
     // Wait for boards to load before initializing
