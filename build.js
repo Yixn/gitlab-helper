@@ -12,11 +12,32 @@ const path = require('path');
 const { minify } = require('terser');
 const glob = require('glob');
 
+// Load .env file if it exists
+let envConfig = {};
+try {
+    if (fs.existsSync('.env')) {
+        const envContent = fs.readFileSync('.env', 'utf8');
+        envContent.split('\n').forEach(line => {
+            const parts = line.split('=');
+            if (parts.length === 2) {
+                const key = parts[0].trim();
+                const value = parts[1].trim();
+                envConfig[key] = value;
+            }
+        });
+        console.log('Loaded .env file');
+    }
+} catch (error) {
+    console.error('Error loading .env file:', error);
+}
+
 // Configuration
 const CONFIG = {
     sourceDir: './lib',
     mainFile: './main.js',
     outputFile: './dist/gitlab-sprint-helper.js',
+    // Use dev path from .env if available, otherwise use default
+    devOutputFile: envConfig.DEV_OUTPUT_PATH || null,
     fileOrder: [
         // Core utilities first
         'utils.js',
@@ -26,12 +47,20 @@ const CONFIG = {
 
         // UI components in dependency order
         'ui/TabManager.js',
+        'ui/CommentShortcuts.js',  // CommentShortcuts needs to be earlier
+
+        // New refactored components in correct dependency order
+        'ui/ShortcutManager.js',   // ShortcutManager first
+        'ui/LabelManager.js',      // LabelManager depends on ShortcutManager
+        'ui/IssueSelectionDisplay.js',
+        'ui/SettingsManager.js',   // SettingsManager depends on LabelManager
+        'ui/ApiTabView.js',        // ApiTabView depends on all the above
+
+        // Remaining UI components
         'ui/SummaryTabView.js',
         'ui/BoardsTabView.js',
         'ui/HistoryTabView.js',
-        'ui/CommentShortcuts.js',
         'ui/IssueSelector.js',
-        'ui/ApiTabView.js',
         'ui/UIManager.js',
         'ui.js',
     ],
@@ -49,8 +78,9 @@ const CONFIG = {
     // Keywords to preserve during minification
     keywordsToPreserve: [
         'gitlabApi', 'uiManager', 'GitLabAPI', 'UIManager', 'TabManager',
-        'SummaryTabView', 'BoardsTabView', 'HistoryTabView', 'ApiTabView',
-        'IssueSelector', 'CommentShortcuts', 'updateSummary', 'renderHistory'
+        'SummaryTabView', 'BoardsTabView', 'HistoryTabView', 'ShortcutManager', 'ApiTabView',
+        'IssueSelector', 'CommentShortcuts', 'updateSummary', 'renderHistory',
+        'LabelManager', 'SettingsManager', 'IssueSelectionDisplay'
     ]
 };
 
@@ -58,6 +88,14 @@ const CONFIG = {
 const outputDir = path.dirname(CONFIG.outputFile);
 if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
+}
+
+// Ensure dev output directory exists if specified
+if (CONFIG.devOutputFile) {
+    const devOutputDir = path.dirname(CONFIG.devOutputFile);
+    if (!fs.existsSync(devOutputDir)) {
+        fs.mkdirSync(devOutputDir, { recursive: true });
+    }
 }
 
 // Extract UserScript header from main.js
@@ -95,6 +133,12 @@ function processFileContent(filePath, alreadyIncluded) {
 
         let content = fs.readFileSync(filePath, 'utf8');
         const fileName = path.basename(filePath);
+
+        // Fix class declarations to prevent redeclaration errors
+        const classPattern = /class\s+([A-Za-z0-9_]+)\s*{/g;
+        content = content.replace(classPattern, (match, className) => {
+            return `window.${className} = window.${className} || class ${className} {`;
+        });
 
         // Apply variable fixes
         CONFIG.variablesToFix.forEach(variable => {
@@ -136,21 +180,52 @@ async function buildBundle() {
 
     // Process files in the specified order
     const allFiles = findAllJsFiles();
+    const fileMap = new Map(); // Map filename to full path
 
-    for (const fileName of CONFIG.fileOrder) {
-        const filePath = path.join(CONFIG.sourceDir, fileName);
-        const matchingFiles = allFiles.filter(file => file.endsWith(fileName));
+    // Build a map of file names to full paths for easier lookup
+    allFiles.forEach(filePath => {
+        const fileName = path.basename(filePath);
+        fileMap.set(fileName, filePath);
 
-        if (matchingFiles.length > 0) {
-            console.log(`Adding ${fileName}`);
-            bundle += processFileContent(matchingFiles[0], alreadyIncluded);
-        } else {
-            console.warn(`Warning: File not found: ${fileName}`);
+        // Also map by the relative path from sourceDir
+        const relativePath = path.relative(CONFIG.sourceDir, filePath);
+        fileMap.set(relativePath, filePath);
+    });
+
+    // Process files in the specified order
+    for (const fileEntry of CONFIG.fileOrder) {
+        // Try direct match with full path
+        let filePath = path.join(CONFIG.sourceDir, fileEntry);
+
+        // If file doesn't exist directly, try to find it in our map
+        if (!fs.existsSync(filePath)) {
+            // Try to match by filename or relative path
+            const fileName = path.basename(fileEntry);
+            if (fileMap.has(fileEntry)) {
+                filePath = fileMap.get(fileEntry);
+            } else if (fileMap.has(fileName)) {
+                filePath = fileMap.get(fileName);
+            } else {
+                console.warn(`Warning: File not found: ${fileEntry}`);
+                continue;
+            }
         }
+
+        // Check if we've already processed this file
+        if (alreadyIncluded.includes(filePath)) {
+            console.log(`Skipping already processed file: ${fileEntry}`);
+            continue;
+        }
+
+        console.log(`Adding ${fileEntry}`);
+        bundle += processFileContent(filePath, alreadyIncluded);
     }
 
-    // Include any remaining files
-    const remainingFiles = allFiles.filter(file => !alreadyIncluded.includes(file));
+    // Check for any remaining files that weren't in the specified order
+    const processedPaths = new Set(alreadyIncluded.map(p => path.normalize(p)));
+    const remainingFiles = allFiles.filter(file =>
+        !alreadyIncluded.some(included => path.normalize(included) === path.normalize(file))
+    );
 
     for (const filePath of remainingFiles) {
         console.log(`Adding unlisted file: ${path.relative(process.cwd(), filePath)}`);
@@ -176,6 +251,12 @@ async function buildBundle() {
 
     fs.writeFileSync(unminifiedOutput, header + '\n' + bundle);
     console.log(`Debug version written to ${unminifiedOutput}`);
+
+    // Write to dev output path if configured
+    if (CONFIG.devOutputFile) {
+        fs.writeFileSync(CONFIG.devOutputFile, header + '\n' + bundle);
+        console.log(`Debug version also written to custom dev path: ${CONFIG.devOutputFile}`);
+    }
 
     console.log('Minifying...');
 

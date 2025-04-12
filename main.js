@@ -24,11 +24,6 @@
         boardFullyLoaded = false;
         clearTimeout(loadingTimeout);
 
-        const statusDiv = document.getElementById('assignee-time-summary-status');
-        if (statusDiv) {
-            statusDiv.textContent = 'Analyzing board...';
-        }
-
         // Process the board data
         const {
             assigneeTimeMap,
@@ -37,7 +32,8 @@
             totalEstimate,
             cardsProcessed,
             cardsWithTime,
-            currentMilestone
+            currentMilestone,
+            closedBoardCards
         } = processBoards();
 
         // Wait to make sure the board is fully loaded before saving to history
