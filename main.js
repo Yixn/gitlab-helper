@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  Display a summary of assignees' time estimates on GitLab boards
 // @author       You
 // @match        https://gitlab.com/*/boards/*
