@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.8.1
-// @description  Display a summary of assignees' time estimates on GitLab boards
+// @version      0.9.0
+// @description  Display a summary of assignees' time estimates on GitLab boards with API integration
 // @author       You
 // @match        https://gitlab.com/*/boards/*
 // @grant        GM_setValue
@@ -12,6 +12,7 @@
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/dataProcessor.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/history.js
 // @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/utils.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/api.js
 // @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
 // @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
 // ==/UserScript==
@@ -65,6 +66,12 @@
 
         // Update the UI - BOARDS TAB
         updateBoardsTab(boardData, boardAssigneeData);
+
+        // Update API Info Tab if it exists and is visible
+        const apiInfoTab = document.getElementById('api-info-content');
+        if (apiInfoTab && apiInfoTab.style.display === 'block') {
+            updateApiInfoTab();
+        }
     }
 
     // Add change event listeners to each board
@@ -164,4 +171,10 @@
             setTimeout(checkAndInit, 1000); // Delay to ensure page has loaded
         }
     }).observe(document, {subtree: true, childList: true});
+
+    // Expose functions globally for easier debugging
+    window.gitlabHelper = {
+        updateSummary,
+        gitlabApi
+    };
 })();
