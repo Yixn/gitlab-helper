@@ -3308,29 +3308,57 @@ window.TabManager = class TabManager {
         const summaryContent = document.createElement('div');
         summaryContent.id = 'assignee-time-summary-content';
         summaryContent.style.display = this.currentTab === 'summary' ? 'block' : 'none';
+        summaryContent.style.position = 'relative'; // Explicitly set position relative
+        summaryContent.style.minHeight = '150px'; // Minimum height for the loader
         parentElement.appendChild(summaryContent);
         this.contentAreas['summary'] = summaryContent;
+
+        // Add loading screen to summary tab
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            this.uiManager.addLoadingScreen(summaryContent, 'summary-tab', 'Loading summary data...');
+        }
 
         // Boards tab content
         const boardsContent = document.createElement('div');
         boardsContent.id = 'boards-time-summary-content';
         boardsContent.style.display = this.currentTab === 'boards' ? 'block' : 'none';
+        boardsContent.style.position = 'relative'; // Explicitly set position relative
+        boardsContent.style.minHeight = '150px'; // Minimum height for the loader
         parentElement.appendChild(boardsContent);
         this.contentAreas['boards'] = boardsContent;
+
+        // Add loading screen to boards tab
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            this.uiManager.addLoadingScreen(boardsContent, 'boards-tab', 'Loading board data...');
+        }
 
         // History tab content
         const historyContent = document.createElement('div');
         historyContent.id = 'history-time-summary-content';
         historyContent.style.display = this.currentTab === 'history' ? 'block' : 'none';
+        historyContent.style.position = 'relative'; // Explicitly set position relative
+        historyContent.style.minHeight = '150px'; // Minimum height for the loader
         parentElement.appendChild(historyContent);
         this.contentAreas['history'] = historyContent;
+
+        // Add loading screen to history tab
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            this.uiManager.addLoadingScreen(historyContent, 'history-tab', 'Loading history data...');
+        }
 
         // Bulk Comments tab content (renamed from API)
         const bulkCommentsContent = document.createElement('div');
         bulkCommentsContent.id = 'bulk-comments-content';
         bulkCommentsContent.style.display = this.currentTab === 'bulkcomments' ? 'block' : 'none';
+        bulkCommentsContent.style.position = 'relative'; // Explicitly set position relative
+        bulkCommentsContent.style.minHeight = '150px'; // Minimum height for the loader
         parentElement.appendChild(bulkCommentsContent);
         this.contentAreas['bulkcomments'] = bulkCommentsContent;
+
+        // Add loading screen to bulk comments tab
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            this.uiManager.addLoadingScreen(bulkCommentsContent, 'bulkcomments-tab', 'Loading comment tools...');
+        }
     }
 
     /**
@@ -3362,8 +3390,18 @@ window.TabManager = class TabManager {
         // Initialize tab content if needed
         if (tabId === 'history' && typeof window.renderHistory === 'function') {
             window.renderHistory(); // Call external renderHistory function
+
+            // Remove loading screen if exists
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('history-tab');
+            }
         } else if (tabId === 'bulkcomments' && this.uiManager.bulkCommentsView) {
             this.uiManager.bulkCommentsView.render();
+
+            // Remove loading screen if exists
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('bulkcomments-tab');
+            }
         }
     }
 
@@ -8217,14 +8255,35 @@ window.SummaryView = class SummaryView {
         // Handle case with no data
         if (cardsWithTime === 0) {
             this.renderNoDataMessage(summaryContent);
+
+            // Remove loading screen
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('summary-tab');
+            }
             return;
         }
 
         // Convert seconds to hours for display
         const totalHours = formatHours(totalEstimate);
 
-        // Update the header to include total hours
-        this.uiManager.updateHeader(`Summary ${totalHours}h`);
+        // Calculate hours in done boards
+        let doneHours = 0;
+        for (const boardName in boardData) {
+            const lowerBoardName = boardName.toLowerCase();
+            if (lowerBoardName.includes('done') ||
+                lowerBoardName.includes('closed') ||
+                lowerBoardName.includes('complete') ||
+                lowerBoardName.includes('finished')) {
+
+                doneHours += boardData[boardName].timeEstimate || 0;
+            }
+        }
+        const doneHoursFormatted = formatHours(doneHours);
+
+        // Update the header to include total hours and done hours
+        this.uiManager.updateHeader(
+            `Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`
+        );
 
         // Show milestone info if available
         if (currentMilestone) {
@@ -8233,6 +8292,11 @@ window.SummaryView = class SummaryView {
 
         // Create and populate the data table with hour distribution
         this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData);
+
+        // Remove loading screen
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('summary-tab');
+        }
     }
 
     /**
@@ -8477,7 +8541,6 @@ window.BoardsView = class BoardsView {
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
-
     /**
      * Render or update the Boards tab with data
      * @param {Object} boardData - Map of board names to board data
@@ -8510,6 +8573,11 @@ window.BoardsView = class BoardsView {
         });
 
         boardsContent.appendChild(boardsList);
+
+        // Remove loading screen
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('boards-tab');
+        }
     }
 
     /**
@@ -8699,6 +8767,11 @@ window.HistoryView = class HistoryView {
         // If no history, show message
         if (history.length === 0) {
             this.renderNoHistoryMessage(historyContent);
+
+            // Remove loading screen
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('history-tab');
+            }
             return;
         }
 
@@ -8707,6 +8780,11 @@ window.HistoryView = class HistoryView {
 
         // Create and populate history table
         this.renderHistoryTable(historyContent, history);
+
+        // Remove loading screen
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('history-tab');
+        }
     }
 
     /**
@@ -9577,7 +9655,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
             // Show loading state
             this.isLoading = true;
-            this.showLoadingState();
 
             // Now fetch data for the shortcuts asynchronously
             if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
@@ -9588,12 +9665,22 @@ window.BulkCommentsView = class BulkCommentsView {
                         this.addLabelShortcut();
                         this.isLoading = false;
                         this.hideLoadingState();
+
+                        // Remove loading screen
+                        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                            this.uiManager.removeLoadingScreen('bulkcomments-tab');
+                        }
                     })
                     .catch(error => {
                         console.error('Error loading labels:', error);
                         this.addLabelShortcut(this.getFallbackLabels());
                         this.isLoading = false;
                         this.hideLoadingState();
+
+                        // Remove loading screen
+                        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                            this.uiManager.removeLoadingScreen('bulkcomments-tab');
+                        }
                     });
             } else {
                 // No label manager, just use fallbacks
@@ -9601,11 +9688,21 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.addLabelShortcut(this.getFallbackLabels());
                 this.isLoading = false;
                 this.hideLoadingState();
+
+                // Remove loading screen
+                if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                    this.uiManager.removeLoadingScreen('bulkcomments-tab');
+                }
             }
         } else {
             console.error('Command shortcuts not initialized');
             this.isLoading = false;
             this.hideLoadingState();
+
+            // Remove loading screen
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('bulkcomments-tab');
+            }
         }
     }
 
@@ -10007,6 +10104,48 @@ window.BulkCommentsView = class BulkCommentsView {
             return;
         }
 
+        // Create a full-UI loading overlay
+        let fullUILoadingScreen;
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            // Get the main container for the entire UI
+            const mainContainer = document.getElementById('assignee-time-summary');
+            if (mainContainer) {
+                // Make sure the main container has positioning context
+                const containerPosition = window.getComputedStyle(mainContainer).position;
+                if (containerPosition === 'static') {
+                    mainContainer.style.position = 'relative';
+                    // Store the original position to restore later
+                    mainContainer.dataset.originalPosition = containerPosition;
+                }
+
+                // Add a full-UI loading screen with backdrop
+                fullUILoadingScreen = this.uiManager.addLoadingScreen(
+                    mainContainer,
+                    'comment-submit',
+                    `Sending comments to ${this.selectedIssues.length} issues...`
+                );
+
+                // Add backdrop styles
+                if (fullUILoadingScreen) {
+                    fullUILoadingScreen.style.position = 'absolute'; // Ensure absolute positioning
+                    fullUILoadingScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'; // Darker backdrop
+                    fullUILoadingScreen.style.zIndex = '2000'; // Higher z-index to be above everything
+
+                    // Make the spinner and text white for better visibility
+                    const spinner = fullUILoadingScreen.querySelector('.loading-spinner');
+                    if (spinner) {
+                        spinner.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                        spinner.style.borderTopColor = '#ffffff';
+                    }
+
+                    const messageEl = fullUILoadingScreen.querySelector('.loading-message');
+                    if (messageEl) {
+                        messageEl.style.color = '#ffffff';
+                    }
+                }
+            }
+        }
+
         // Update status and show progress bar
         if (statusEl) {
             statusEl.textContent = `Submitting comments to ${this.selectedIssues.length} issues...`;
@@ -10038,6 +10177,7 @@ window.BulkCommentsView = class BulkCommentsView {
         const gitlabApi = this.gitlabApi || window.gitlabApi || (this.uiManager && this.uiManager.gitlabApi);
 
         if (!gitlabApi) {
+            // Handle API not available error
             this.notification.error('GitLab API not available');
             if (statusEl) {
                 statusEl.textContent = 'Error: GitLab API not available.';
@@ -10052,6 +10192,11 @@ window.BulkCommentsView = class BulkCommentsView {
 
             if (progressContainer) {
                 progressContainer.style.display = 'none';
+            }
+
+            // Remove loading screen if it exists
+            if (this.uiManager && this.uiManager.removeLoadingScreen && fullUILoadingScreen) {
+                this.uiManager.removeLoadingScreen('comment-submit');
             }
 
             return;
@@ -10073,6 +10218,14 @@ window.BulkCommentsView = class BulkCommentsView {
 
             if (progressLabel) {
                 progressLabel.textContent = `Processing ${i+1} of ${this.selectedIssues.length} issues...`;
+            }
+
+            // Update loading screen message
+            if (this.uiManager && this.uiManager.updateLoadingMessage) {
+                this.uiManager.updateLoadingMessage(
+                    'comment-submit',
+                    `Sending comment to issue #${issue.iid || i+1} (${i+1}/${this.selectedIssues.length})...`
+                );
             }
 
             try {
@@ -10097,6 +10250,11 @@ window.BulkCommentsView = class BulkCommentsView {
             submitBtn.style.cursor = 'pointer';
         }
 
+        // Remove loading screen
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('comment-submit');
+        }
+
         // Update status based on results
         if (successCount === this.selectedIssues.length) {
             if (statusEl) {
@@ -10106,7 +10264,7 @@ window.BulkCommentsView = class BulkCommentsView {
 
             this.notification.success(`Added comment to ${successCount} issues`);
 
-            // Clear the input after success - FIXED: use this.commentInput instead of commentEl
+            // Clear the input after success
             if (this.commentInput) {
                 this.commentInput.value = '';
             }
@@ -10311,6 +10469,98 @@ window.UIManager = class UIManager {
     }
 
     /**
+     * Initialize the UI and create the container
+     */
+    initialize() {
+        // Create main container if it doesn't exist
+        if (document.getElementById('assignee-time-summary')) {
+            this.container = document.getElementById('assignee-time-summary');
+
+            // Also get reference to the content wrapper if it exists
+            this.contentWrapper = document.getElementById('assignee-time-summary-wrapper');
+
+            // Ensure container has position relative for loading screens
+            this.container.style.position = 'relative';
+
+            return;
+        }
+
+        // Create container with wider width
+        this.container = document.createElement('div');
+        this.container.id = 'assignee-time-summary';
+        this.container.style.position = 'fixed'; // This is fixed for the entire UI
+        this.container.style.bottom = '15px'; // Position at bottom-right as it was before
+        this.container.style.right = '15px';
+        this.container.style.backgroundColor = 'white';
+        this.container.style.border = '1px solid #ddd';
+        this.container.style.borderRadius = '4px';
+        this.container.style.padding = '10px';
+        this.container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        this.container.style.zIndex = '1000';
+        this.container.style.maxHeight = '80vh';
+        this.container.style.overflow = 'hidden';
+        this.container.style.fontSize = '14px';
+        this.container.style.width = '400px'; // Increased width from 350px to 400px
+        this.container.style.transition = 'height 0.3s ease-in-out';
+
+        // Create content wrapper (for collapsing)
+        this.contentWrapper = document.createElement('div');
+        this.contentWrapper.id = 'assignee-time-summary-wrapper';
+        this.contentWrapper.style.display = 'block';
+        this.contentWrapper.style.maxHeight = '70vh';
+        this.contentWrapper.style.minHeight = '350px'; // Add minimum height of 350px
+        this.contentWrapper.style.overflowY = 'auto';
+        this.contentWrapper.style.position = 'relative'; // Ensure content wrapper has position relative
+
+        // Create header
+        this.createHeader();
+
+        // Create board stats display
+        this.createBoardStats();
+
+        // Initialize tabs
+        this.tabManager.initialize(this.contentWrapper);
+
+        // Add content wrapper to container
+        this.container.appendChild(this.contentWrapper);
+
+        // Add container to body
+        document.body.appendChild(this.container);
+
+        // Modified click event handler to exclude select issues function
+        // and to exclude the selection overlays and badges
+        this.container.addEventListener('click', (e) => {
+            // If issue selection is active and the click is inside our container
+            // (but not on the selection overlays themselves or buttons from the bulk comments tab)
+            if (this.issueSelector && this.issueSelector.isSelectingIssue &&
+                !e.target.classList.contains('card-selection-overlay') &&
+                !e.target.classList.contains('selection-badge') &&
+                // Don't abort when clicking these elements
+                !e.target.closest('#bulk-comments-content button') &&
+                !e.target.closest('#issue-comment-input') &&
+                !e.target.closest('#shortcuts-wrapper') &&
+                !e.target.closest('#selected-issues-list') &&
+                !e.target.closest('#selection-cancel-button')) {
+                this.issueSelector.exitSelectionMode();
+            }
+        });
+
+        // Check if it should be collapsed initially (from localStorage)
+        try {
+            const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
+            if (isCollapsed) {
+                this.contentWrapper.style.display = 'none';
+                if (this.collapseBtn) {
+                    this.collapseBtn.textContent = '▲';
+                }
+                this.container.style.height = 'auto';
+            }
+        } catch (e) {
+            console.warn('Error loading collapsed state:', e);
+        }
+    }
+
+    /**
      * Initialize managers with error handling
      */
     initializeManagers() {
@@ -10371,89 +10621,6 @@ window.UIManager = class UIManager {
                 milestones: [],
                 fetchMilestones: () => Promise.resolve([])
             };
-        }
-    }
-
-    /**
-     * Initialize the UI and create the container
-     */
-    initialize() {
-        // Create main container if it doesn't exist
-        if (document.getElementById('assignee-time-summary')) {
-            this.container = document.getElementById('assignee-time-summary');
-            return;
-        }
-
-        // Create container with wider width
-        this.container = document.createElement('div');
-        this.container.id = 'assignee-time-summary';
-        this.container.style.position = 'fixed';
-        this.container.style.bottom = '15px'; // Position at bottom-right as it was before
-        this.container.style.right = '15px';
-        this.container.style.backgroundColor = 'white';
-        this.container.style.border = '1px solid #ddd';
-        this.container.style.borderRadius = '4px';
-        this.container.style.padding = '10px';
-        this.container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        this.container.style.zIndex = '1000';
-        this.container.style.maxHeight = '80vh';
-        this.container.style.overflow = 'hidden';
-        this.container.style.fontSize = '14px';
-        this.container.style.width = '400px'; // Increased width from 350px to 400px
-        this.container.style.transition = 'height 0.3s ease-in-out';
-
-        // Create content wrapper (for collapsing)
-        this.contentWrapper = document.createElement('div');
-        this.contentWrapper.id = 'assignee-time-summary-wrapper';
-        this.contentWrapper.style.display = 'block';
-        this.contentWrapper.style.maxHeight = '70vh';
-        this.contentWrapper.style.overflowY = 'auto';
-
-        // Create header
-        this.createHeader();
-
-        // Create board stats display
-        this.createBoardStats();
-
-        // Initialize tabs
-        this.tabManager.initialize(this.contentWrapper);
-
-        // Add content wrapper to container
-        this.container.appendChild(this.contentWrapper);
-
-        // Add container to body
-        document.body.appendChild(this.container);
-
-        // Modified click event handler to exclude select issues function
-        // and to exclude the selection overlays and badges
-        this.container.addEventListener('click', (e) => {
-            // If issue selection is active and the click is inside our container
-            // (but not on the selection overlays themselves or buttons from the bulk comments tab)
-            if (this.issueSelector && this.issueSelector.isSelectingIssue &&
-                !e.target.classList.contains('card-selection-overlay') &&
-                !e.target.classList.contains('selection-badge') &&
-                // Don't abort when clicking these elements
-                !e.target.closest('#bulk-comments-content button') &&
-                !e.target.closest('#issue-comment-input') &&
-                !e.target.closest('#shortcuts-wrapper') &&
-                !e.target.closest('#selected-issues-list') &&
-                !e.target.closest('#selection-cancel-button')) {
-                this.issueSelector.exitSelectionMode();
-            }
-        });
-
-        // Check if it should be collapsed initially (from localStorage)
-        try {
-            const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
-            if (isCollapsed) {
-                this.contentWrapper.style.display = 'none';
-                if (this.collapseBtn) {
-                    this.collapseBtn.textContent = '▲';
-                }
-                this.container.style.height = 'auto';
-            }
-        } catch (e) {
-            console.warn('Error loading collapsed state:', e);
         }
     }
 
@@ -10560,6 +10727,15 @@ window.UIManager = class UIManager {
      * Create board stats display
      */
     createBoardStats() {
+        // Check if the boardStats element already exists
+        const existingStats = document.getElementById('board-stats-summary');
+        if (existingStats) {
+            // If it exists, just store the reference and return
+            this.boardStats = existingStats;
+            return;
+        }
+
+        // Otherwise create a new one
         this.boardStats = document.createElement('div');
         this.boardStats.id = 'board-stats-summary';
         this.boardStats.style.fontSize = '13px';
@@ -10679,9 +10855,11 @@ window.UIManager = class UIManager {
      */
     updateHeader(text) {
         if (this.header) {
-            this.header.textContent = text;
+            // Use innerHTML instead of textContent to allow HTML styling
+            this.header.innerHTML = text;
         }
     }
+
     /**
      * Show loading state in the UI
      * @param {string} message - Message to display
@@ -10811,6 +10989,176 @@ window.UIManager = class UIManager {
                 errorEl.remove();
             }
         }, 10000);
+    }
+
+    /**
+     * Add a loading screen to a specific container
+     * @param {HTMLElement|string} container - Container element or ID
+     * @param {string} name - Unique name for this loading screen
+     * @param {string} message - Optional message to display
+     * @returns {HTMLElement} The created loading screen element
+     */
+    addLoadingScreen(container, name, message = 'Loading...') {
+        // Get container element if string ID was provided
+        if (typeof container === 'string') {
+            container = document.getElementById(container);
+        }
+
+        // Return if container not found
+        if (!container) {
+            console.warn(`Container not found for loading screen: ${name}`);
+            return null;
+        }
+
+        // Check if this loading screen already exists
+        const existingLoader = document.getElementById(`loading-screen-${name}`);
+        if (existingLoader) {
+            // Just update the message if it exists
+            const messageEl = existingLoader.querySelector('.loading-message');
+            if (messageEl) {
+                messageEl.textContent = message;
+            }
+            return existingLoader;
+        }
+
+        // Create loading screen overlay
+        const loadingScreen = document.createElement('div');
+        loadingScreen.id = `loading-screen-${name}`;
+        loadingScreen.className = 'gitlab-helper-loading-screen';
+
+        // Position absolutely over the container
+        loadingScreen.style.position = 'absolute';
+        loadingScreen.style.top = '0';
+        loadingScreen.style.left = '0';
+        loadingScreen.style.width = '100%';
+        loadingScreen.style.height = '100%';
+        loadingScreen.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+
+        // Use flex for perfect centering
+        loadingScreen.style.display = 'flex';
+        loadingScreen.style.flexDirection = 'column';
+        loadingScreen.style.justifyContent = 'center';
+        loadingScreen.style.alignItems = 'center';
+
+        loadingScreen.style.zIndex = '100';
+        loadingScreen.style.transition = 'opacity 0.3s ease';
+
+        // Create spinner animation
+        const spinner = document.createElement('div');
+        spinner.className = 'loading-spinner';
+        spinner.style.width = '40px';
+        spinner.style.height = '40px';
+        spinner.style.borderRadius = '50%';
+        spinner.style.border = '3px solid rgba(31, 117, 203, 0.2)';
+        spinner.style.borderTopColor = '#1f75cb';
+        spinner.style.animation = 'gitlab-helper-spin 1s linear infinite';
+
+        // Create loading message
+        const messageEl = document.createElement('div');
+        messageEl.className = 'loading-message';
+        messageEl.textContent = message;
+        messageEl.style.marginTop = '15px';
+        messageEl.style.fontWeight = 'bold';
+        messageEl.style.color = '#555';
+        messageEl.style.fontSize = '14px';
+        messageEl.style.textAlign = 'center'; // Ensure text is centered
+        messageEl.style.padding = '0 10px'; // Add some padding for longer messages
+
+        // Add animation keyframes if they don't exist yet
+        if (!document.getElementById('gitlab-helper-loading-styles')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'gitlab-helper-loading-styles';
+            styleEl.textContent = `
+            @keyframes gitlab-helper-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            @keyframes gitlab-helper-pulse {
+                0% { opacity: 0.6; }
+                50% { opacity: 1; }
+                100% { opacity: 0.6; }
+            }
+        `;
+            document.head.appendChild(styleEl);
+        }
+
+        // Assemble the loading screen
+        loadingScreen.appendChild(spinner);
+        loadingScreen.appendChild(messageEl);
+
+        // Make sure container has position set for absolute positioning to work
+        const containerPosition = window.getComputedStyle(container).position;
+        if (containerPosition === 'static' || !containerPosition) {
+            // Log a message to help debug positioning issues
+            console.log(`Setting position: relative on container for loading screen: ${name}`);
+
+            // Set container to relative positioning
+            container.style.position = 'relative';
+
+            // Store original position to restore later
+            container.dataset.originalPosition = containerPosition;
+        }
+
+        // Append to container
+        container.appendChild(loadingScreen);
+
+        // Add a subtle animation to the message
+        messageEl.style.animation = 'gitlab-helper-pulse 2s ease infinite';
+
+        return loadingScreen;
+    }
+
+    /**
+     * Remove a loading screen by name
+     * @param {string} name - Name of the loading screen to remove
+     * @param {boolean} fadeOut - Whether to fade out the loading screen
+     */
+    removeLoadingScreen(name, fadeOut = true) {
+        const loadingScreen = document.getElementById(`loading-screen-${name}`);
+        if (!loadingScreen) return;
+
+        // Get parent container to restore position if needed
+        const container = loadingScreen.parentNode;
+
+        if (fadeOut) {
+            // Fade out animation
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+                if (loadingScreen.parentNode) {
+                    loadingScreen.parentNode.removeChild(loadingScreen);
+                }
+
+                // Restore original position if we changed it
+                if (container && container.dataset.originalPosition) {
+                    container.style.position = container.dataset.originalPosition;
+                    delete container.dataset.originalPosition;
+                }
+            }, 300); // Match the transition duration
+        } else {
+            // Remove immediately
+            loadingScreen.parentNode.removeChild(loadingScreen);
+
+            // Restore original position if we changed it
+            if (container && container.dataset.originalPosition) {
+                container.style.position = container.dataset.originalPosition;
+                delete container.dataset.originalPosition;
+            }
+        }
+    }
+
+    /**
+     * Update the message of an existing loading screen
+     * @param {string} name - Name of the loading screen
+     * @param {string} message - New message to display
+     */
+    updateLoadingMessage(name, message) {
+        const loadingScreen = document.getElementById(`loading-screen-${name}`);
+        if (!loadingScreen) return;
+
+        const messageEl = loadingScreen.querySelector('.loading-message');
+        if (messageEl) {
+            messageEl.textContent = message;
+        }
     }
 }
 
@@ -11234,9 +11582,6 @@ function addBoardChangeListeners() {
 /**
  * Wait for boards to load before initializing
  */
-/**
- * Wait for boards to load before initializing
- */
 function waitForBoards() {
     // Check if we've already completed initialization
     if (window.boardsInitialized) {
@@ -11244,21 +11589,30 @@ function waitForBoards() {
         return;
     }
 
-    const statusDiv = document.createElement('div');
-    statusDiv.id = 'assignee-time-summary-status';
-    statusDiv.style.color = '#666';
-    statusDiv.style.fontStyle = 'italic';
-    statusDiv.style.marginBottom = '10px';
-    statusDiv.textContent = 'Waiting for boards to load...';
+    // Use the existing board stats element if it exists
+    let statusDiv = document.getElementById('board-stats-summary');
 
-    if (window.uiManager?.contentWrapper) {
-        // Remove any existing status div first to prevent duplicates
-        const existingStatus = document.getElementById('assignee-time-summary-status');
-        if (existingStatus) {
-            existingStatus.remove();
+    // If board stats div doesn't exist yet, create a temporary one
+    if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.id = 'board-stats-summary';
+        statusDiv.style.fontSize = '13px';
+        statusDiv.style.color = '#555';
+        statusDiv.style.marginBottom = '10px';
+
+        if (window.uiManager?.container) {
+            window.uiManager.container.appendChild(statusDiv);
+        } else {
+            // If UI manager container doesn't exist, add to a temporary location
+            const tempContainer = document.createElement('div');
+            tempContainer.id = 'temp-stats-container';
+            tempContainer.appendChild(statusDiv);
+            document.body.appendChild(tempContainer);
         }
-        window.uiManager.contentWrapper.prepend(statusDiv);
     }
+
+    // Update the text
+    statusDiv.textContent = 'Waiting for boards to load...';
 
     let attempts = 0;
     const maxAttempts = 30; // Max wait time: 30*500ms = 15 seconds
@@ -11279,10 +11633,7 @@ function waitForBoards() {
                 // Mark boards as initialized to prevent duplicate setup
                 window.boardsInitialized = true;
 
-                // Remove status message after successful initialization
-                if (statusDiv) {
-                    statusDiv.remove();
-                }
+                // The status div will be naturally updated by updateSummary
             }, 1000);
         } else if (attempts >= maxAttempts) {
             // Timeout reached, proceed with whatever boards we have
@@ -11296,10 +11647,7 @@ function waitForBoards() {
                 // Mark boards as initialized to prevent duplicate setup
                 window.boardsInitialized = true;
 
-                // Remove status message after initialization
-                if (statusDiv) {
-                    statusDiv.remove();
-                }
+                // The status div will be naturally updated by updateSummary
             }, 1000);
         } else if (boardLists.length > 0 && statusDiv) {
             // Update status with current count
