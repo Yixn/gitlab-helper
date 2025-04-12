@@ -1,93 +1,227 @@
-# gitlab-helper
+# GitLab Sprint Helper
 
+A powerful browser extension for GitLab that enhances issue management with time tracking, multi-issue selection, and comment shortcuts.
 
+![GitLab Sprint Helper Screenshot](https://example.com/screenshot.png)
 
-## Getting started
+## Features
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### Time Tracking & Analysis
+- **Assignee Time Summary**: View total estimated hours per assignee
+- **Board-specific Breakdowns**: See time distribution across different board lists
+- **Historical Tracking**: Keep track of how estimates change over time
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Multi-Issue Selection
+- **Select Multiple Issues**: Select and act on multiple issues at once
+- **Batch Comments**: Add the same comment to multiple issues simultaneously
+- **Visual Selection**: Clear visual indicators for selected issues
 
-## Add your files
+### Comment Shortcuts
+- **Time Estimation**: Quickly add `/estimate` commands with predefined values
+- **Labels**: Easily apply labels to issues via dropdown
+- **Milestone Management**: Set milestones without typing the full command
+- **Custom Values**: Support for custom inputs when standard options aren't enough
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/daniel_linkster/gitlab-helper.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://gitlab.com/daniel_linkster/gitlab-helper/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### GitLab API Integration
+- **Direct API Access**: Seamless integration with GitLab's API
+- **Issue Information**: View detailed issue information
+- **Comment Management**: Add and manage comments directly from the extension
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+
+### Option 1: Install from Tampermonkey Gallery (Recommended)
+1. Make sure you have the [Tampermonkey](https://www.tampermonkey.net/) browser extension installed
+2. Visit [our script page](https://example.com/gitlab-sprint-helper) in the Tampermonkey gallery
+3. Click "Install"
+
+### Option 2: Manual Installation
+1. Install [Tampermonkey](https://www.tampermonkey.net/) for your browser
+2. Create a new script in Tampermonkey
+3. Copy the contents of `dist/gitlab-sprint-helper.user.js` and paste into the new script
+4. Save the script
+
+### Option 3: Development Version
+1. Clone this repository
+2. Install dependencies with `npm install`
+3. Build the script with `npm run build`
+4. In Tampermonkey, create a new script and paste the contents of `dist/gitlab-sprint-helper.user.js`
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Time Tracking Panel
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Once installed, the GitLab Sprint Helper panel appears in the bottom-right corner of GitLab board pages. The panel includes:
+
+1. **Summary Tab**: Shows total hours per assignee
+2. **Boards Tab**: Shows time distribution across board lists
+3. **History Tab**: Tracks historical changes in time estimates
+4. **API Tab**: Provides API tools for working with issues
+
+### Multi-Issue Selection
+
+To select and work with multiple issues:
+
+1. Navigate to the **API Tab**
+2. Click the **Select Issues** button
+3. Click on issues to select them (click again to deselect)
+4. Use the **DONE** button to confirm selection
+5. Add your comment in the text area
+6. Click **Add Comment** to apply to all selected issues
+
+### Comment Shortcuts
+
+The API tab includes helpful shortcuts for common GitLab commands:
+
+1. **/estimate**: Set time estimates (1h, 2h, 4h, 8h, 16h, 32h, or custom)
+2. **/label**: Add labels to issues
+3. **/milestone**: Set or change milestone
+4. **/assign**: Assign issues to users
+5. **/due**: Set due dates
+
+Simply select an option from the dropdown menu, and the command will be inserted into your comment.
+
+## Development
+
+### Project Structure
+
+```
+├── dist/                  # Build output
+├── lib/                   # Source code modules
+│   ├── api.js             # GitLab API integration
+│   ├── dataProcessor.js   # Data processing logic
+│   ├── history.js         # History tracking functions
+│   ├── utils.js           # Utility functions
+│   ├── ui/                # UI Components
+│   │   ├── ApiTabView.js
+│   │   ├── BoardsTabView.js
+│   │   ├── CommentShortcuts.js
+│   │   ├── HistoryTabView.js
+│   │   ├── IssueSelector.js
+│   │   ├── SummaryTabView.js
+│   │   ├── TabManager.js
+│   │   └── UIManager.js
+│   └── ui.js              # UI integration
+├── main.js                # Main entry point with UserScript header
+├── build.js               # Build script
+├── watch.js               # Development file watcher
+└── package.json           # Project configuration
+```
+
+### Building the Extension
+
+#### Prerequisites
+
+- Node.js (v12 or newer)
+- npm (comes with Node.js)
+
+#### Setup
+
+1. Clone the repository
+   ```
+   git clone https://github.com/yourusername/gitlab-sprint-helper.git
+   cd gitlab-sprint-helper
+   ```
+
+2. Install dependencies
+   ```
+   npm install
+   ```
+
+#### Development Build
+
+For development with automatic rebuilding when files change:
+
+```
+npm run watch
+```
+
+#### Production Build
+
+To create a production-ready minified script:
+
+```
+npm run build
+```
+
+This creates:
+- `dist/gitlab-sprint-helper.user.js` - Minified for production
+- `dist/gitlab-sprint-helper.debug.user.js` - Unminified for debugging
+
+### Adding New Features
+
+#### Adding a New Tab
+
+1. Create a new view class in `lib/ui/YourTabView.js`
+2. Update `TabManager.js` to include your new tab
+3. Add any necessary logic to `UIManager.js`
+
+#### Adding a New Comment Shortcut
+
+1. Open `lib/ui/CommentShortcuts.js`
+2. Add a new shortcut definition using the `addCustomShortcut` method
+3. Update the ApiTabView to initialize your shortcut
+
+### Testing
+
+Currently, we use manual testing on GitLab board pages. Future plans include automated testing.
+
+## Compatibility
+
+- **Browsers**: Chrome, Firefox, Edge, Safari (with Tampermonkey)
+- **GitLab Versions**: 13.0+
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Panel not appearing**
+   - Make sure you're on a GitLab board page (URL contains `/boards`)
+   - Try refreshing the page
+   - Check browser console for errors
+
+2. **Issues not loading**
+   - GitLab's Vue.js components may have changed structure
+   - Check browser console for errors
+   - Verify you have sufficient permissions in GitLab
+
+3. **Comment shortcuts not working**
+   - Ensure the API tab is active
+   - Check if GitLab has changed their comment command syntax
+
+### Reporting Bugs
+
+If you encounter any issues:
+
+1. Check the [issue tracker](https://github.com/yourusername/gitlab-sprint-helper/issues)
+2. Include your browser and GitLab version
+3. Provide steps to reproduce the issue
+4. If possible, include screenshots or error messages
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+We welcome contributions! Please follow these steps:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Build the script (`npm run build`)
+5. Test thoroughly
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### Code Style
+
+- Use clear, descriptive function and variable names
+- Add comments for complex logic
+- Follow JavaScript best practices
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Thanks to all contributors who have helped improve this extension
+- GitLab for their excellent API documentation
+- Tampermonkey for making browser extensions easier to develop

@@ -1,0 +1,19 @@
+{
+  "name": "gitlab-sprint-helper",
+  "version": "1.0.2",
+  "description": "GitLab Sprint Helper with time tracking, multi-issue selection, and comment shortcuts",
+  "main": "main.js",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node watch.js"
+  },
+  "author": "You",
+  "license": "MIT",
+  "dependencies": {
+    "glob": "^8.1.0",
+    "terser": "^5.16.6"
+  },
+  "devDependencies": {
+    "chokidar": "^3.5.3"
+  }
+}
