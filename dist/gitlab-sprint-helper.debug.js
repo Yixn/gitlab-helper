@@ -28,42 +28,27 @@ window.generateColorFromString = function generateColorFromString(str) {
         hash = ((hash << 5) - hash) + str.charCodeAt(i);
         hash |= 0; // Convert to 32bit integer
     }
-
-    // Generate pastel colors for better readability
     const hue = Math.abs(hash) % 360;
     return `hsl(${hue}, 70%, 75%)`;
 }
 
 
 window.getContrastColor = function getContrastColor(bgColor) {
-    // For HSL colors
     if (bgColor.startsWith('hsl')) {
-        // Extract lightness from HSL
         const matches = bgColor.match(/hsl\(\s*\d+\s*,\s*\d+%\s*,\s*(\d+)%\s*\)/);
         if (matches && matches[1]) {
             const lightness = parseInt(matches[1], 10);
             return lightness > 60 ? 'black' : 'white';
         }
     }
-
-    // Convert other color formats to RGB for contrast calculation
     let r = 0, g = 0, b = 0;
-
-    // Try to parse color
     try {
-        // Create a temporary element to compute the color
         const elem = document.createElement('div');
         elem.style.backgroundColor = bgColor;
         document.body.appendChild(elem);
-
-        // Get computed style
         const style = window.getComputedStyle(elem);
         const rgb = style.backgroundColor;
-
-        // Remove element
         document.body.removeChild(elem);
-
-        // Parse RGB values
         const rgbMatch = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
         if (rgbMatch) {
             r = parseInt(rgbMatch[1], 10);
@@ -71,7 +56,6 @@ window.getContrastColor = function getContrastColor(bgColor) {
             b = parseInt(rgbMatch[3], 10);
         }
     } catch (e) {
-        // Fallback for HSL and other formats
         if (bgColor.startsWith('hsl')) {
             return bgColor.match(/hsl\(\s*\d+\s*,\s*\d+%\s*,\s*(\d+)%/) ?
                 (parseInt(bgColor.match(/hsl\(\s*\d+\s*,\s*\d+%\s*,\s*(\d+)%/)[1], 10) > 60 ? 'black' : 'white') :
@@ -79,11 +63,7 @@ window.getContrastColor = function getContrastColor(bgColor) {
         }
         return 'black'; // Default to black on error
     }
-
-    // Calculate luminance (perceived brightness)
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-    // Use white text on dark backgrounds, black on light
     return luminance > 0.5 ? 'black' : 'white';
 }
 
@@ -94,11 +74,7 @@ window.getPathFromUrl = function getPathFromUrl() {
     try {
                 
         const pathname = window.location.pathname;
-
-        // Check if this is a group board
         if (pathname.includes('/groups/') && pathname.includes('/-/boards')) {
-            // Extract group path for group boards
-            // Format: /groups/[group-path]/-/boards
             const groupPattern = /\/groups\/([^\/]+(?:\/[^\/]+)*)\/?-?\/?boards/;
             const match = pathname.match(groupPattern);
 
@@ -108,14 +84,8 @@ window.getPathFromUrl = function getPathFromUrl() {
             }
 
             const path = match[1];
-            
-            // Make sure we don't have "/-" at the end of the path
             const cleanPath = path.replace(/\/-$/, '');
-
-            // Correctly encode the path
             const encodedPath = encodeURIComponent(cleanPath);
-            
-            // Construct group API URL
             const apiUrl = `groups/${encodedPath}/labels`;
             
             return {
@@ -125,10 +95,7 @@ window.getPathFromUrl = function getPathFromUrl() {
                 apiUrl
             };
         }
-        // Check if this is a project board
         else if (pathname.includes('/-/boards')) {
-            // Extract project path for project boards
-            // Format: /[project-path]/-/boards
             const projectPattern = /^\/([^\/]+(?:\/[^\/]+)*)\/-\/boards/;
             const match = pathname.match(projectPattern);
 
@@ -138,11 +105,7 @@ window.getPathFromUrl = function getPathFromUrl() {
             }
 
             const path = match[1];
-            
-            // Correctly encode the path
             const encodedPath = encodeURIComponent(path);
-            
-            // Construct project API URL
             const apiUrl = `projects/${encodedPath}/labels`;
             
             return {
@@ -164,7 +127,6 @@ window.getPathFromUrl = function getPathFromUrl() {
 
 window.getCurrentUrlKey = function getCurrentUrlKey() {
     const url = window.location.href;
-    // Remove any fragment identifiers
     return url.split('#')[0];
 }
 
@@ -188,8 +150,6 @@ window.GitLabAPI = class GitLabAPI {
             data = null,
             params = null
         } = options;
-
-        // Build URL with query parameters if provided
         let url = `${this.baseUrl}/${endpoint}`;
         if (params) {
             const queryParams = new URLSearchParams();
@@ -204,8 +164,6 @@ window.GitLabAPI = class GitLabAPI {
                 url += `?${queryString}`;
             }
         }
-
-        // Set up fetch options
         const fetchOptions = {
             method,
             headers: {
@@ -213,18 +171,12 @@ window.GitLabAPI = class GitLabAPI {
             },
             credentials: 'same-origin' // Include cookies
         };
-
-        // Add CSRF token for non-GET requests
         if (method !== 'GET' && this.csrfToken) {
             fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
         }
-
-        // Add request body for methods that support it
         if (data && ['POST', 'PUT', 'PATCH'].includes(method)) {
             fetchOptions.body = JSON.stringify(data);
         }
-
-        // Execute the fetch request
         return fetch(url, fetchOptions)
             .then(response => {
                 if (!response.ok) {
@@ -268,16 +220,12 @@ window.processBoards = function processBoards() {
     let cardsWithTime = 0;
     let currentMilestone = null;
     let closedBoardCards = 0;
-
-    // Loop over all board lists
     const boardLists = document.querySelectorAll('.board-list');
 
     boardLists.forEach((boardList, listIndex) => {
-        // Get board title from the board list's Vue component
         let boardTitle = "U" + listIndex.toString();
 
         try {
-            // First attempt to get the title from the Vue component
             if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
                 const boardComponent = boardList.__vue__.$children.find(child =>
                     child.$props && child.$props.list && child.$props.list.title);
@@ -286,8 +234,6 @@ window.processBoards = function processBoards() {
                     boardTitle = boardComponent.$props.list.title;
                 }
             }
-
-            // Fallback to DOM if Vue component approach failed
             if (boardTitle === 'Unknown') {
                 const boardHeader = boardList.querySelector('.board-title-text');
                 if (boardHeader) {
@@ -296,14 +242,11 @@ window.processBoards = function processBoards() {
             }
         } catch (e) {
             console.error('Error getting board title:', e);
-            // Fallback to DOM
             const boardHeader = boardList.querySelector('.board-title-text');
             if (boardHeader) {
                 boardTitle = boardHeader.textContent.trim();
             }
         }
-
-        // Initialize board data only if we have a valid title
         if (boardTitle !== 'Unknown') {
             if (!boardData[boardTitle]) {
                 boardData[boardTitle] = {
@@ -315,8 +258,6 @@ window.processBoards = function processBoards() {
             if (!boardAssigneeData[boardTitle]) {
                 boardAssigneeData[boardTitle] = {};
             }
-
-            // Check if this is a closed/done board
             const lowerTitle = boardTitle.toLowerCase();
             const isClosedBoard = lowerTitle.includes('done') ||
                 lowerTitle.includes('closed') ||
@@ -325,18 +266,12 @@ window.processBoards = function processBoards() {
         } else {
             return; // Skip processing this board
         }
-
-        // Find all board-list-items in this list
         const boardItems = boardList.querySelectorAll('.board-card');
-
-        // Check if this is a closed/done board
         const lowerTitle = boardTitle.toLowerCase();
         const isClosedBoard = lowerTitle.includes('done') ||
             lowerTitle.includes('closed') ||
             lowerTitle.includes('complete') ||
             lowerTitle.includes('finished');
-
-        // If this is a closed board, count its cards
         if (isClosedBoard) {
             closedBoardCards += boardItems.length;
         }
@@ -345,18 +280,12 @@ window.processBoards = function processBoards() {
             try {
                 cardsProcessed++;
                 boardData[boardTitle].tickets++;
-
-                // Access the Vue instance on the board-card element
-                // and get the issue from $children, then access the $props
                 if (item.__vue__ && item.__vue__.$children) {
-                    // Find the issue in the $children array
                     const issue = item.__vue__.$children.find(child =>
                         child.$props && child.$props.item && child.$props.item.timeEstimate !== undefined);
 
                     if (issue && issue.$props) {
                         const props = issue.$props;
-
-                        // Try to get milestone information if not already found
                         if (!currentMilestone && props.item && props.item.milestone) {
                             currentMilestone = props.item.milestone.title;
                         }
@@ -376,17 +305,12 @@ window.processBoards = function processBoards() {
 
                             if (assignees.length > 0) {
                                 assignees.forEach(assignee => {
-                                    // Split time estimate equally among assignees if multiple
                                     const assigneeShare = timeEstimate / assignees.length;
                                     const name = assignee.name;
-
-                                    // Update global assignee data
                                     if (!assigneeTimeMap[name]) {
                                         assigneeTimeMap[name] = 0;
                                     }
                                     assigneeTimeMap[name] += assigneeShare;
-
-                                    // Update board-specific assignee data
                                     if (!boardAssigneeData[boardTitle][name]) {
                                         boardAssigneeData[boardTitle][name] = {
                                             tickets: 0,
@@ -397,14 +321,10 @@ window.processBoards = function processBoards() {
                                     boardAssigneeData[boardTitle][name].timeEstimate += assigneeShare;
                                 });
                             } else {
-                                // Handle unassigned
-                                // Global unassigned
                                 if (!assigneeTimeMap['Unassigned']) {
                                     assigneeTimeMap['Unassigned'] = 0;
                                 }
                                 assigneeTimeMap['Unassigned'] += timeEstimate;
-
-                                // Board-specific unassigned
                                 if (!boardAssigneeData[boardTitle]['Unassigned']) {
                                     boardAssigneeData[boardTitle]['Unassigned'] = {
                                         tickets: 0,
@@ -441,21 +361,12 @@ window.saveHistoryEntry = function saveHistoryEntry(totalEstimate, milestoneInfo
         const now = new Date();
         const dateString = now.toISOString();
         const totalHours = (totalEstimate / 3600).toFixed(1);
-
-        // Get current URL for storing history by URL
         const urlKey = getHistoryKey();
-
-        // Prepare milestone info for storage
         let currentMilestone = "None";
         if (milestoneInfo) {
-            // Clean up milestone text (remove line breaks, trim whitespace)
             currentMilestone = milestoneInfo.replace(/\n/g, ' ').trim();
         }
-
-        // Get existing history for this URL
         let history = GM_getValue(urlKey, []);
-
-        // Create the new entry
         const newEntry = {
             date: dateString,
             timestamp: now.getTime(),
@@ -463,37 +374,24 @@ window.saveHistoryEntry = function saveHistoryEntry(totalEstimate, milestoneInfo
             milestone: currentMilestone,
             url: window.location.href
         };
-
-        // Check if the new entry is different from the last one
         let shouldSave = false;
 
         if (history.length === 0) {
-            // Always save if this is the first entry
             shouldSave = true;
         } else {
             const lastEntry = history[history.length - 1];
-            // Only save if the hours or milestone changed, even on forced updates
             if (lastEntry.totalHours !== newEntry.totalHours || lastEntry.milestone !== newEntry.milestone) {
                 shouldSave = true;
             } else if (forceUpdate) {
-                // If forcing update but values are identical, maybe just update timestamp
-                // without creating a duplicate entry
             }
         }
-
-        // Save the new entry if it's different
         if (shouldSave) {
             history.push(newEntry);
-            // Limit history size (keep last 100 entries)
             if (history.length > 100) {
                 history = history.slice(-100);
             }
             GM_setValue(urlKey, history);
-
-            // Re-render the history tab if it's currently visible
             if (document.getElementById('history-time-summary-content').style.display === 'block') {
-                // Importing UIManager would create circular dependencies,
-                // so we'll rely on the global function to re-render
                 if (typeof window.renderHistory === 'function') {
                     window.renderHistory();
                 }
@@ -528,8 +426,6 @@ window.loadFromStorage = function loadFromStorage(key, defaultValue = null) {
         if (value === null) {
             return defaultValue;
         }
-
-        // Only try to parse as JSON if it looks like JSON (starts with { or [)
         if (value.trim().startsWith('{') || value.trim().startsWith('[')) {
             try {
                 return JSON.parse(value);
@@ -538,8 +434,6 @@ window.loadFromStorage = function loadFromStorage(key, defaultValue = null) {
                 return value;
             }
         }
-
-        // Otherwise return as plain string
         return value;
     } catch (error) {
         console.error(`Error loading from localStorage (${key}):`, error);
@@ -573,23 +467,14 @@ const DEFAULT_SETTINGS = {
 window.getLabelWhitelist = function getLabelWhitelist() {
     try {
         const whitelist = loadFromStorage(STORAGE_KEYS.LABEL_WHITELIST, null);
-
-        // Handle various scenarios
         if (whitelist === null) {
-            // Return a copy of the default whitelist
             return [...DEFAULT_SETTINGS.labelWhitelist];
         }
-
-        // Ensure it's an array
         if (!Array.isArray(whitelist)) {
             console.warn('Label whitelist is not an array, using default');
             return [...DEFAULT_SETTINGS.labelWhitelist];
         }
-
-        // Ensure all elements are strings
         const cleanedWhitelist = whitelist.filter(item => typeof item === 'string');
-
-        // If everything was filtered out, use default
         if (cleanedWhitelist.length === 0 && whitelist.length > 0) {
             console.warn('Label whitelist contained no valid strings, using default');
             return [...DEFAULT_SETTINGS.labelWhitelist];
@@ -605,16 +490,11 @@ window.getLabelWhitelist = function getLabelWhitelist() {
 
 window.saveLabelWhitelist = function saveLabelWhitelist(whitelist) {
     try {
-        // Validate whitelist
         if (!Array.isArray(whitelist)) {
             console.warn('Attempting to save invalid whitelist (not an array), using empty array instead');
             whitelist = [];
         }
-
-        // Filter out non-string items
         const cleanedWhitelist = whitelist.filter(item => typeof item === 'string');
-
-        // Save the cleaned whitelist
         return saveToStorage(STORAGE_KEYS.LABEL_WHITELIST, cleanedWhitelist);
     } catch (error) {
         console.error('Error saving label whitelist:', error);
@@ -625,13 +505,8 @@ window.saveLabelWhitelist = function saveLabelWhitelist(whitelist) {
 
 window.resetLabelWhitelist = function resetLabelWhitelist() {
     try {
-        // Create a copy of the default whitelist
         const defaultWhitelist = [...DEFAULT_SETTINGS.labelWhitelist];
-
-        // Save it to storage
         saveToStorage(STORAGE_KEYS.LABEL_WHITELIST, defaultWhitelist);
-
-        // Return the default whitelist
         return defaultWhitelist;
     } catch (error) {
         console.error('Error resetting label whitelist:', error);
@@ -643,20 +518,13 @@ window.resetLabelWhitelist = function resetLabelWhitelist() {
 window.getAssigneeWhitelist = function getAssigneeWhitelist() {
     try {
         const whitelist = loadFromStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, null);
-
-        // Handle various scenarios
         if (whitelist === null) {
-            // Return a copy of the default whitelist (empty array)
             return [];
         }
-
-        // Ensure it's an array
         if (!Array.isArray(whitelist)) {
             console.warn('Assignee whitelist is not an array, using empty array');
             return [];
         }
-
-        // Ensure all elements are objects with username
         return whitelist.filter(item =>
             item && typeof item === 'object' && typeof item.username === 'string'
         );
@@ -669,18 +537,13 @@ window.getAssigneeWhitelist = function getAssigneeWhitelist() {
 
 window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
     try {
-        // Validate whitelist
         if (!Array.isArray(whitelist)) {
             console.warn('Attempting to save invalid assignee whitelist (not an array), using empty array instead');
             whitelist = [];
         }
-
-        // Filter out invalid items
         const cleanedWhitelist = whitelist.filter(item =>
             item && typeof item === 'object' && typeof item.username === 'string'
         );
-
-        // Save the cleaned whitelist
         return saveToStorage(STORAGE_KEYS.ASSIGNEE_WHITELIST, cleanedWhitelist);
     } catch (error) {
         console.error('Error saving assignee whitelist:', error);
@@ -692,24 +555,17 @@ window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
 window.getLastActiveTab = function getLastActiveTab() {
     try {
         const tabId = loadFromStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, null);
-
-        // Validate the tab ID
         if (tabId === null) {
             return DEFAULT_SETTINGS.lastActiveTab;
         }
-
-        // Ensure it's a string
         if (typeof tabId !== 'string') {
             const stringTabId = String(tabId);
-            // Check if we can convert to string sensibly
             if (stringTabId && ['summary', 'boards', 'history', 'bulkcomments'].includes(stringTabId)) {
                 return stringTabId;
             }
             console.warn('Invalid tab ID format, using default');
             return DEFAULT_SETTINGS.lastActiveTab;
         }
-
-        // Check if it's a valid tab ID
         if (!['summary', 'boards', 'history', 'bulkcomments'].includes(tabId)) {
             console.warn(`Unknown tab ID: ${tabId}, using default`);
             return DEFAULT_SETTINGS.lastActiveTab;
@@ -725,16 +581,11 @@ window.getLastActiveTab = function getLastActiveTab() {
 
 window.saveLastActiveTab = function saveLastActiveTab(tabId) {
     try {
-        // Convert to string just in case
         const tabIdStr = String(tabId);
-
-        // Validate the tab ID
         if (!['summary', 'boards', 'history', 'bulkcomments'].includes(tabIdStr)) {
             console.warn(`Attempting to save invalid tab ID: ${tabIdStr}, using default`);
             return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, DEFAULT_SETTINGS.lastActiveTab);
         }
-
-        // Save the tab ID
         return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, tabIdStr);
     } catch (error) {
         console.error('Error saving last active tab:', error);
@@ -753,26 +604,19 @@ window.Notification = class Notification {
         this.duration = options.duration || 3000;
         this.animationDuration = options.animationDuration || '0.3s';
         this.container = null;
-
-        // Initialize container
         this.createContainer();
     }
 
     
     createContainer() {
-        // Check if container already exists
         if (document.getElementById('gitlab-helper-notifications')) {
             this.container = document.getElementById('gitlab-helper-notifications');
             return;
         }
-
-        // Create container based on position
         this.container = document.createElement('div');
         this.container.id = 'gitlab-helper-notifications';
         this.container.style.position = 'fixed';
         this.container.style.zIndex = '100';
-
-        // Set position styling
         switch (this.position) {
             case 'top-right':
                 this.container.style.top = '20px';
@@ -802,20 +646,15 @@ window.Notification = class Notification {
                 this.container.style.right = '20px';
                 break;
         }
-
-        // Add container to document
         document.body.appendChild(this.container);
     }
 
     
     show(options) {
-        // Get options
         const message = options.message || '';
         const type = options.type || 'info';
         const duration = options.duration || this.duration;
         const onClose = options.onClose || null;
-
-        // Create notification element
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
         notification.style.padding = '12px 16px';
@@ -830,8 +669,6 @@ window.Notification = class Notification {
         notification.style.opacity = '0';
         notification.style.transform = this.getInitialTransform();
         notification.style.transition = `opacity ${this.animationDuration} ease, transform ${this.animationDuration} ease`;
-
-        // Set color based on type
         switch (type) {
             case 'success':
                 notification.style.backgroundColor = '#28a745';
@@ -851,13 +688,9 @@ window.Notification = class Notification {
                 notification.style.color = 'white';
                 break;
         }
-
-        // Add message
         const messageContainer = document.createElement('div');
         messageContainer.style.flex = '1';
         messageContainer.textContent = message;
-
-        // Add close button
         const closeButton = document.createElement('button');
         closeButton.innerHTML = '&times;';
         closeButton.style.backgroundColor = 'transparent';
@@ -870,8 +703,6 @@ window.Notification = class Notification {
         closeButton.style.opacity = '0.7';
         closeButton.style.transition = 'opacity 0.2s ease';
         closeButton.style.outline = 'none';
-
-        // Hover effect for close button
         closeButton.addEventListener('mouseenter', () => {
             closeButton.style.opacity = '1';
         });
@@ -879,26 +710,16 @@ window.Notification = class Notification {
         closeButton.addEventListener('mouseleave', () => {
             closeButton.style.opacity = '0.7';
         });
-
-        // Close notification on click
         closeButton.addEventListener('click', () => {
             this.close(notification, onClose);
         });
-
-        // Add elements to notification
         notification.appendChild(messageContainer);
         notification.appendChild(closeButton);
-
-        // Add notification to container
         this.container.appendChild(notification);
-
-        // Trigger animation
         setTimeout(() => {
             notification.style.opacity = '1';
             notification.style.transform = 'translateY(0)';
         }, 10);
-
-        // Auto-close after duration
         if (duration > 0) {
             setTimeout(() => {
                 this.close(notification, onClose);
@@ -910,25 +731,16 @@ window.Notification = class Notification {
 
     
     close(notification, callback = null) {
-        // Skip if already animating out
         if (notification.dataset.closing === 'true') {
             return;
         }
-
-        // Mark as closing
         notification.dataset.closing = 'true';
-
-        // Animate out
         notification.style.opacity = '0';
         notification.style.transform = this.getInitialTransform();
-
-        // Remove after animation
         setTimeout(() => {
             if (notification.parentNode === this.container) {
                 this.container.removeChild(notification);
             }
-
-            // Call callback if provided
             if (callback && typeof callback === 'function') {
                 callback();
             }
@@ -937,7 +749,6 @@ window.Notification = class Notification {
 
     
     getInitialTransform() {
-        // Different animations based on position
         if (this.position.startsWith('top')) {
             return 'translateY(-20px)';
         } else {
@@ -996,12 +807,9 @@ window.CommandShortcut = class CommandShortcut {
 
     
     initialize(parentElement) {
-        // Clear existing container if present
         if (this.shortcutsContainer && this.shortcutsContainer.parentNode) {
             this.shortcutsContainer.parentNode.removeChild(this.shortcutsContainer);
         }
-
-        // Create shortcuts container
         this.shortcutsContainer = document.createElement('div');
         this.shortcutsContainer.className = 'command-shortcuts-container';
         this.shortcutsContainer.style.marginBottom = '10px';
@@ -1009,22 +817,15 @@ window.CommandShortcut = class CommandShortcut {
         this.shortcutsContainer.style.flexDirection = 'column'; // Changed to column to ensure consistent order
         this.shortcutsContainer.style.gap = '8px';
         this.shortcutsContainer.style.alignItems = 'stretch';
-
-        // Append to parent element
         parentElement.appendChild(this.shortcutsContainer);
-
-        // Initialize default shortcuts
         this.initializeEstimateShortcut();
     }
 
     
     initializeEstimateShortcut() {
-        // Check if the shortcut already exists and remove it if it does
         if (this.shortcuts['estimate']) {
             this.removeShortcut('estimate');
         }
-
-        // Create shortcut and add it to shortcuts container
         this.addCustomShortcut({
             type: 'estimate',
             label: '/estimate',
@@ -1051,13 +852,10 @@ window.CommandShortcut = class CommandShortcut {
     
     removeShortcut(type) {
         if (this.shortcuts[type] && this.shortcuts[type].element) {
-            // Remove shortcut from DOM
             const element = this.shortcuts[type].element;
             if (element.parentNode) {
                 element.parentNode.removeChild(element);
             }
-
-            // Remove from shortcuts object
             delete this.shortcuts[type];
         }
     }
@@ -1065,10 +863,7 @@ window.CommandShortcut = class CommandShortcut {
     
     handleCustomEstimate() {
         const customValue = prompt('Enter custom estimate hours (whole numbers only):', '');
-
-        // Validate input - must be a positive integer
         if (customValue === null || customValue === '') {
-            // User cancelled or entered empty string
             return;
         }
 
@@ -1077,8 +872,6 @@ window.CommandShortcut = class CommandShortcut {
             alert('Please enter a valid positive whole number.');
             return;
         }
-
-        // Insert the valid estimate
         this.insertEstimateText(parsedValue.toString());
     }
 
@@ -1087,43 +880,26 @@ window.CommandShortcut = class CommandShortcut {
         if (!this.targetElement) return;
 
         const estimateText = `/estimate ${hours}h`;
-
-        // Get current text
         const currentText = this.targetElement.value;
-
-        // Check if there's already an estimate command
         const estimateRegex = /\/estimate\s+\d+h/g;
         const hasEstimate = estimateRegex.test(currentText);
 
         if (hasEstimate) {
-            // Replace existing estimate with new one
             this.targetElement.value = currentText.replace(estimateRegex, estimateText);
         } else {
-            // Insert new estimate at cursor position
             const startPos = this.targetElement.selectionStart;
             const endPos = this.targetElement.selectionEnd;
-
-            // Check if we need to add a new line before the estimate
             let insertText = estimateText;
             if (startPos > 0 && currentText.charAt(startPos - 1) !== '\n' && currentText.length > 0) {
                 insertText = '\n' + insertText;
             }
-
-            // Insert text at cursor position
-            // Update textarea value
             this.targetElement.value = currentText.substring(0, startPos) +
                 insertText +
                 currentText.substring(endPos);
-
-            // Set cursor position after inserted text
             const newCursorPos = startPos + insertText.length;
             this.targetElement.setSelectionRange(newCursorPos, newCursorPos);
         }
-
-        // Set focus back to textarea
         this.targetElement.focus();
-
-        // Call the callback if provided
         if (typeof this.onShortcutInsert === 'function') {
             this.onShortcutInsert('estimate', hours);
         }
@@ -1135,13 +911,9 @@ window.CommandShortcut = class CommandShortcut {
             console.error("Shortcuts container not initialized");
             return null;
         }
-
-        // Check if already exists and remove it first
         if (this.shortcuts && this.shortcuts[options.type]) {
             this.removeShortcut(options.type);
         }
-
-        // Create shortcut container with consistent styling
         const shortcutContainer = document.createElement('div');
         shortcutContainer.className = `shortcut-item ${options.type}-shortcut`;
         shortcutContainer.style.display = 'flex';
@@ -1156,8 +928,6 @@ window.CommandShortcut = class CommandShortcut {
         shortcutContainer.style.height = '36px'; // Fixed height
         shortcutContainer.style.boxSizing = 'border-box';
         shortcutContainer.dataset.shortcutType = options.type; // Add data attribute for ordering
-
-        // Create label with consistent styling
         const shortcutLabel = document.createElement('div');
         shortcutLabel.textContent = options.label;
         shortcutLabel.style.fontSize = '13px';
@@ -1166,15 +936,11 @@ window.CommandShortcut = class CommandShortcut {
         shortcutLabel.style.minWidth = '100px';
         shortcutLabel.style.flexShrink = '0'; // Prevent shrinking
         shortcutLabel.style.whiteSpace = 'nowrap';
-
-        // Create dropdown container with fixed width
         const dropdownContainer = document.createElement('div');
         dropdownContainer.style.flex = '1';
         dropdownContainer.style.position = 'relative';
         dropdownContainer.style.height = '24px'; // Fixed height
         dropdownContainer.style.marginLeft = '10px';
-
-        // Create select element with consistent width
         const dropdown = document.createElement('select');
         dropdown.className = `${options.type}-dropdown`;
         dropdown.style.width = '100%';
@@ -1186,15 +952,11 @@ window.CommandShortcut = class CommandShortcut {
         dropdown.style.borderRadius = '4px';
         dropdown.style.backgroundColor = '#fff';
         dropdown.style.boxSizing = 'border-box';
-
-        // Add placeholder option first
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
         placeholderOption.textContent = options.items[0]?.label || 'Select...';
         placeholderOption.selected = true;
         dropdown.appendChild(placeholderOption);
-
-        // Add other options
         if (options.items && options.items.length > 0) {
             options.items.forEach((item, index) => {
                 if (index === 0) return; // Skip the first one, already added as placeholder
@@ -1205,8 +967,6 @@ window.CommandShortcut = class CommandShortcut {
                 dropdown.appendChild(option);
             });
         }
-
-        // Add change event listener
         dropdown.addEventListener('change', (e) => {
             const selectedValue = e.target.value;
             if (selectedValue && options.onSelect) {
@@ -1214,21 +974,15 @@ window.CommandShortcut = class CommandShortcut {
                 e.target.value = ''; // Reset after selection
             }
         });
-
-        // Append elements to container
         dropdownContainer.appendChild(dropdown);
         shortcutContainer.appendChild(shortcutLabel);
         shortcutContainer.appendChild(dropdownContainer);
-
-        // Find the correct position to insert this shortcut (based on a predefined order)
         const shortcutOrder = ['estimate', 'label', 'milestone', 'assign'];
         const thisTypeIndex = shortcutOrder.indexOf(options.type);
 
         if (thisTypeIndex === -1) {
-            // Not in predefined order, just append
             this.shortcutsContainer.appendChild(shortcutContainer);
         } else {
-            // Find the right position based on the order
             let inserted = false;
             const existingShortcuts = this.shortcutsContainer.querySelectorAll('.shortcut-item');
 
@@ -1237,20 +991,15 @@ window.CommandShortcut = class CommandShortcut {
                 const existingIndex = shortcutOrder.indexOf(existingType);
 
                 if (existingIndex > thisTypeIndex) {
-                    // Insert before this shortcut
                     this.shortcutsContainer.insertBefore(shortcutContainer, existingShortcuts[i]);
                     inserted = true;
                     break;
                 }
             }
-
-            // If not inserted yet, append at the end
             if (!inserted) {
                 this.shortcutsContainer.appendChild(shortcutContainer);
             }
         }
-
-        // Store reference
         this.shortcuts[options.type] = {
             element: shortcutContainer,
             dropdown: dropdown,
@@ -1274,8 +1023,6 @@ window.SelectionDisplay = class SelectionDisplay {
     
     createSelectionContainer(container) {
         this.container = container;
-
-        // Selected issues container with improved styling
         const selectedIssuesContainer = document.createElement('div');
         selectedIssuesContainer.style.marginBottom = '12px';
         selectedIssuesContainer.style.padding = '8px';
@@ -1291,30 +1038,20 @@ window.SelectionDisplay = class SelectionDisplay {
         issueLabel.style.marginBottom = '5px';
         issueLabel.textContent = 'Selected Issues:';
         selectedIssuesContainer.appendChild(issueLabel);
-
-        // This will be our container for issue list
         const selectedIssuesList = document.createElement('div');
         selectedIssuesList.id = 'selected-issues-list';
         selectedIssuesList.style.fontSize = '14px';
-
-        // Store reference to the list for updates
         this.issuesList = selectedIssuesList;
-
-        // Display "No issues selected" initially
         this.displayNoIssuesMessage();
 
         selectedIssuesContainer.appendChild(selectedIssuesList);
         container.appendChild(selectedIssuesContainer);
-
-        // Update display with any existing issues
         this.updateDisplay();
     }
 
     
     displayNoIssuesMessage() {
         if (!this.issuesList) return;
-
-        // Check if message already exists
         const existingMessage = this.issuesList.querySelector('#no-issues-selected');
         if (existingMessage) return;
 
@@ -1332,16 +1069,9 @@ window.SelectionDisplay = class SelectionDisplay {
             console.error('Issues list not initialized');
             return;
         }
-
-        // Clear existing list
         this.issuesList.innerHTML = '';
-
-        // If no issues are selected
         if (!this.selectedIssues || this.selectedIssues.length === 0) {
-            // Show "No issues selected" message
             this.displayNoIssuesMessage();
-
-            // Reset container styling
             const container = this.issuesList.parentElement;
             if (container) {
                 container.style.borderColor = '#ccc';
@@ -1350,17 +1080,12 @@ window.SelectionDisplay = class SelectionDisplay {
 
             return;
         }
-
-        // Enhance container styling when issues are selected
         const container = this.issuesList.parentElement;
         if (container) {
             container.style.borderColor = '#1f75cb';
             container.style.backgroundColor = 'rgba(31, 117, 203, 0.05)';
         }
-
-        // Create list of issues
         this.selectedIssues.forEach((issue, index) => {
-            // Skip null or undefined issues
             if (!issue) return;
 
             const issueItem = document.createElement('div');
@@ -1374,7 +1099,6 @@ window.SelectionDisplay = class SelectionDisplay {
             issueItem.style.alignItems = 'center';
 
             const issueInfo = document.createElement('div');
-            // Use safe access to issue properties
             const issueId = issue.iid || 'Unknown';
             const issueTitle = issue.title || 'Untitled Issue';
             issueInfo.innerHTML = `<strong>#${issueId}</strong> - ${issueTitle}`;
@@ -1383,8 +1107,6 @@ window.SelectionDisplay = class SelectionDisplay {
             issueInfo.style.whiteSpace = 'nowrap';
             issueInfo.style.marginRight = '5px';
             issueItem.appendChild(issueInfo);
-
-            // Add remove button
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '×';
             removeBtn.style.backgroundColor = 'transparent';
@@ -1395,8 +1117,6 @@ window.SelectionDisplay = class SelectionDisplay {
             removeBtn.style.cursor = 'pointer';
             removeBtn.style.padding = '0 5px';
             removeBtn.title = 'Remove this issue';
-
-            // Add hover effect
             removeBtn.addEventListener('mouseenter', () => {
                 removeBtn.style.color = '#c82333';
             });
@@ -1404,8 +1124,6 @@ window.SelectionDisplay = class SelectionDisplay {
             removeBtn.addEventListener('mouseleave', () => {
                 removeBtn.style.color = '#dc3545';
             });
-
-            // Add click handler to remove this issue
             removeBtn.onclick = (e) => {
                 e.stopPropagation();
                 this.removeIssue(index);
@@ -1414,27 +1132,17 @@ window.SelectionDisplay = class SelectionDisplay {
             issueItem.appendChild(removeBtn);
             this.issuesList.appendChild(issueItem);
         });
-
-        // Log for debugging
             }
 
     
     removeIssue(index) {
         if (index >= 0 && index < this.selectedIssues.length) {
-            // Store the issue before removing for logging
-// Remove the issue
             this.selectedIssues.splice(index, 1);
-
-            // Update display
             this.updateDisplay();
-
-            // Call callback if provided - this is important for syncing with IssueSelector
             if (typeof this.onRemoveIssue === 'function') {
                 this.onRemoveIssue(index);
             } else {
-                // Fallback sync with IssueSelector if callback not provided
                 try {
-                    // Try to find IssueSelector through global uiManager
                     if (window.uiManager && window.uiManager.issueSelector) {
                         window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
                     }
@@ -1442,21 +1150,14 @@ window.SelectionDisplay = class SelectionDisplay {
                     console.error('Error syncing with IssueSelector:', e);
                 }
             }
-
-            // Log for debugging
                     }
     }
 
 
     
     setSelectedIssues(issues) {
-        // Make a copy of the array to avoid reference issues
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
-
-        // Update the display
         this.updateDisplay();
-
-        // Log for debugging
             }
 }
 
@@ -1472,8 +1173,6 @@ window.IssueSelector = class IssueSelector {
         this.selectionOverlays = [];
         this.selectedOverlays = []; // Track which overlays are selected
         this.selectedIssues = options.initialSelection || []; // Store multiple selected issues
-
-        // Add escape key handler to document
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isSelectingIssue) {
                 this.exitSelectionMode();
@@ -1481,32 +1180,19 @@ window.IssueSelector = class IssueSelector {
         });
     }
 
-    // File: lib/ui/components/IssueSelector.js
-
     startSelection() {
-        
-        // If already in selection mode, don't create duplicate overlays
         if (this.isSelectingIssue) {
                         return;
         }
 
         this.isSelectingIssue = true;
-
-        // Don't reset selected issues when starting selection mode
-        // Instead, maintain the current selection
         const currentSelection = [...this.selectedIssues];
-
-        // Update status message
         const statusMsg = document.getElementById('comment-status');
         if (statusMsg) {
             statusMsg.textContent = 'Click on cards to select/deselect issues. Press ESC or click DONE when finished.';
             statusMsg.style.color = '#1f75cb';
         }
-
-        // Look for the .boards-list element first
         let boardsContainer = document.querySelector('.boards-list');
-
-        // Fall back to other selectors if not found
         if (!boardsContainer) {
             const possibleSelectors = [
                 '[data-testid="boards-list"]',
@@ -1526,26 +1212,16 @@ window.IssueSelector = class IssueSelector {
                 }
             }
         }
-
-        // Fall back to body if all else fails
         if (!boardsContainer) {
             console.warn('Could not find boards container, falling back to document.body');
             boardsContainer = document.body;
         }
-
-        
-        // Ensure the container has positioning context
         boardsContainer.style.position = 'relative';
-
-        // Calculate the full width of .boards-list including any overflow
         const fullWidth = Math.max(
             boardsContainer.scrollWidth,
             boardsContainer.offsetWidth,
             boardsContainer.clientWidth
         );
-
-        
-        // Add semi-transparent page overlay
         const pageOverlay = document.createElement('div');
         pageOverlay.id = 'selection-page-overlay';
         pageOverlay.style.position = 'absolute';
@@ -1557,14 +1233,8 @@ window.IssueSelector = class IssueSelector {
         pageOverlay.style.zIndex = '98';
         pageOverlay.style.pointerEvents = 'none';
         boardsContainer.appendChild(pageOverlay);
-
-        // Create clickable overlays for each card
         this.createCardOverlays(currentSelection, boardsContainer);
-
-        // Add cancel button for clarity - but as fixed element to the document body
         this.createFixedControls();
-
-        // Update Select Issues button if it exists
         const selectButton = document.getElementById('select-issues-button');
         if (selectButton) {
             selectButton.dataset.active = 'true';
@@ -1577,26 +1247,17 @@ window.IssueSelector = class IssueSelector {
 
     createCardOverlays(currentSelection = [], attachmentElement = document.body) {
                 const boardCards = document.querySelectorAll('.board-card');
-        
-        // Clear previous selection state, but remember currently selected issues
         this.selectedIssues = currentSelection || [];
         this.selectedOverlays = [];
 
         boardCards.forEach((card, index) => {
             try {
-                // Get card position and dimensions
                 const rect = card.getBoundingClientRect();
-
-                // Adjust for scrolling - convert to absolute position relative to the attachment element
                 const attachmentRect = attachmentElement.getBoundingClientRect();
                 const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
                 const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-                // Calculate position relative to attachment element
                 const offsetLeft = rect.left - attachmentRect.left + scrollLeft;
                 const offsetTop = rect.top - attachmentRect.top + scrollTop;
-
-                // Create overlay for this card
                 const overlay = document.createElement('div');
                 overlay.className = 'card-selection-overlay';
                 overlay.style.position = 'absolute';  // Use absolute positioning
@@ -1612,27 +1273,18 @@ window.IssueSelector = class IssueSelector {
                 overlay.style.transition = 'background-color 0.2s ease';
                 overlay.dataset.cardId = card.id || `card-${Date.now()}-${index}`;
                 overlay.dataset.selected = 'false';
-
-                // Store reference to the original card
                 overlay.originalCard = card;
-
-                // Get issue data to check if this card was previously selected
                 const issueItem = this.getIssueItemFromCard(card);
 
                 if (issueItem) {
                     overlay.dataset.issueId = `${issueItem.iid}-${issueItem.referencePath}`;
-
-                    // If the card's issue is in the currentSelection array, mark it as selected
                     if (currentSelection.some(issue =>
                         issue.iid === issueItem.iid &&
                         issue.referencePath === issueItem.referencePath)) {
-                        // This card should be pre-selected
                         overlay.dataset.selected = 'true';
                         overlay.style.backgroundColor = 'rgba(0, 177, 106, 0.3)';
                         overlay.style.borderColor = 'rgba(0, 177, 106, 0.8)';
                         overlay.style.boxShadow = '0 0 12px rgba(0, 177, 106, 0.3)';
-
-                        // Add badge number
                         const badgeNumber = this.selectedOverlays.length + 1;
                         const badge = document.createElement('div');
                         badge.className = 'selection-badge';
@@ -1653,13 +1305,9 @@ window.IssueSelector = class IssueSelector {
                         badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
 
                         overlay.appendChild(badge);
-
-                        // Add to selected overlays
                         this.selectedOverlays.push(overlay);
                     }
                 }
-
-                // Hover effect
                 overlay.addEventListener('mouseenter', () => {
                     if (overlay.dataset.selected !== 'true') {
                         overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.3)';
@@ -1673,8 +1321,6 @@ window.IssueSelector = class IssueSelector {
                         overlay.style.boxShadow = 'none';
                     }
                 });
-
-                // Click handler - now toggles selection
                 overlay.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.toggleCardSelection(card, overlay);
@@ -1696,32 +1342,23 @@ window.IssueSelector = class IssueSelector {
         if (counter) {
             const count = this.selectedIssues.length;
             counter.textContent = `${count} issue${count !== 1 ? 's' : ''} selected`;
-
-            // Change color based on selection count
             if (count > 0) {
                 counter.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
             } else {
                 counter.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
         }
-
-        // Notify listeners of selection change
         if (typeof this.onSelectionChange === 'function') {
             this.onSelectionChange(this.selectedIssues);
         }
-
-        // Update the selection display in bulk comments view
         this.syncSelectionWithBulkCommentsView();
     }
 
     
     getIssueItemFromCard(boardCard) {
         try {
-            // Try to access Vue component
             if (boardCard.__vue__) {
-                // Check if the card has $children
                 if (boardCard.__vue__.$children && boardCard.__vue__.$children.length > 0) {
-                    // Find the issue in the $children array
                     const issueComponent = boardCard.__vue__.$children.find(child =>
                         child.$props && child.$props.item);
 
@@ -1729,13 +1366,9 @@ window.IssueSelector = class IssueSelector {
                         return issueComponent.$props.item;
                     }
                 }
-
-                // Alternative: try $options.children
                 if (boardCard.__vue__.$options &&
                     boardCard.__vue__.$options.children &&
                     boardCard.__vue__.$options.children.length > 0) {
-
-                    // Find the issue component through $options.children
                     const issueComponent = boardCard.__vue__.$options.children.find(child =>
                         child.$props && child.$props.item);
 
@@ -1743,24 +1376,18 @@ window.IssueSelector = class IssueSelector {
                         return issueComponent.$props.item;
                     }
                 }
-
-                // Alternative: try direct props access
                 if (boardCard.__vue__.$props && boardCard.__vue__.$props.item) {
                     return boardCard.__vue__.$props.item;
                 }
             }
-
-            // Last resort: try to find through DOM inspection
             const issueId = boardCard.querySelector('[data-issue-id]')?.dataset?.issueId;
             const titleElement = boardCard.querySelector('.board-card-title');
 
             if (issueId && titleElement) {
-                // Create a minimal issue item with essential properties
                 return {
                     iid: issueId,
                     title: titleElement.textContent.trim(),
                     referencePath: window.location.pathname.split('/boards')[0],
-                    // Add other necessary properties as needed
                 };
             }
         } catch (e) {
@@ -1783,14 +1410,10 @@ window.IssueSelector = class IssueSelector {
     
     exitSelectionMode() {
                 this.isSelectingIssue = false;
-
-        // Remove page overlay
         const pageOverlay = document.getElementById('selection-page-overlay');
         if (pageOverlay) {
             pageOverlay.remove();
         }
-
-        // Remove all selection overlays
         this.selectionOverlays.forEach(overlay => {
             if (overlay && overlay.parentNode) {
                 overlay.parentNode.removeChild(overlay);
@@ -1798,21 +1421,13 @@ window.IssueSelector = class IssueSelector {
         });
         this.selectionOverlays = [];
         this.selectedOverlays = [];
-
-        // We don't clear selectedIssues as we want to keep the current selection
-
-        // Update the Select Issues button if it exists
         const selectButton = document.getElementById('select-issues-button');
         if (selectButton) {
             selectButton.dataset.active = 'false';
             selectButton.style.backgroundColor = '#6c757d'; // Gray when inactive
             selectButton.textContent = '📎 Select Issues';
         }
-
-        // Ensure selection is synced with bulk comments view
         this.syncSelectionWithBulkCommentsView();
-
-        // Call completion callback if provided
         if (typeof this.onSelectionComplete === 'function') {
             this.onSelectionComplete(this.selectedIssues);
         }
@@ -1836,44 +1451,28 @@ window.IssueSelector = class IssueSelector {
 
     toggleCardSelection(card, overlay) {
         if (!this.isSelectingIssue) return;
-
-        // Get issue data from card
         const issueItem = this.getIssueItemFromCard(card);
 
         if (issueItem) {
-            
-            // Check if already selected
             const isSelected = overlay.dataset.selected === 'true';
 
             if (isSelected) {
-                // Deselect
                 overlay.dataset.selected = 'false';
                 overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
                 overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
                 overlay.style.boxShadow = 'none';
-
-                // Remove from selected issues
                 this.selectedIssues = this.selectedIssues.filter(issue =>
                     !(issue.iid === issueItem.iid &&
                         issue.referencePath === issueItem.referencePath)
                 );
-
-                // Remove from selected overlays
                 this.selectedOverlays = this.selectedOverlays.filter(o => o !== overlay);
-
-                // Remove badge
                 overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
-
-                // Renumber badges on remaining selected overlays
                 this.renumberBadges();
             } else {
-                // Select
                 overlay.dataset.selected = 'true';
                 overlay.style.backgroundColor = 'rgba(0, 177, 106, 0.3)';
                 overlay.style.borderColor = 'rgba(0, 177, 106, 0.8)';
                 overlay.style.boxShadow = '0 0 12px rgba(0, 177, 106, 0.3)';
-
-                // Add number badge to indicate selection order
                 const badgeNumber = this.selectedIssues.length + 1;
 
                 const badge = document.createElement('div');
@@ -1893,27 +1492,15 @@ window.IssueSelector = class IssueSelector {
                 badge.style.fontWeight = 'bold';
                 badge.style.fontSize = '12px';
                 badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
-
-                // Remove existing badge if any
                 overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
                 overlay.appendChild(badge);
-
-                // Add to selected issues
                 this.selectedIssues.push(issueItem);
-
-                // Add to selected overlays
                 this.selectedOverlays.push(overlay);
             }
-
-            // Update the selection counter
             this.updateSelectionCounter();
-
-            // Immediately update the BulkCommentsView UI to keep it in sync
             this.syncSelectionWithBulkCommentsView();
         } else {
             console.error('Failed to get issue item from card');
-
-            // Visual feedback for failure
             overlay.style.backgroundColor = 'rgba(220, 53, 69, 0.4)';
             overlay.style.borderColor = 'rgba(220, 53, 69, 0.8)';
 
@@ -1921,8 +1508,6 @@ window.IssueSelector = class IssueSelector {
                 overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
                 overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
             }, 500);
-
-            // Update status message
             const statusMsg = document.getElementById('comment-status');
             if (statusMsg) {
                 statusMsg.textContent = 'Could not extract issue data from this card. Try another one.';
@@ -1934,7 +1519,6 @@ window.IssueSelector = class IssueSelector {
     
     syncSelectionWithBulkCommentsView() {
         try {
-            // Update the selection display
             if (this.uiManager && this.uiManager.bulkCommentsView) {
                 this.uiManager.bulkCommentsView.setSelectedIssues([...this.selectedIssues]);
             } else if (window.uiManager && window.uiManager.bulkCommentsView) {
@@ -1954,20 +1538,14 @@ window.IssueSelector = class IssueSelector {
     
     repositionOverlays() {
         if (!this.isSelectingIssue) return;
-
-        // Find the boards container again in case the DOM has changed
         const boardsContainer = document.querySelector('[data-testid="boards-list"]') || document.body;
         const attachmentRect = boardsContainer.getBoundingClientRect();
         const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
         const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        // Reposition card overlays
         this.selectionOverlays.forEach(overlay => {
             if (overlay.className === 'card-selection-overlay' && overlay.originalCard) {
                 const card = overlay.originalCard;
                 const rect = card.getBoundingClientRect();
-
-                // Calculate position relative to attachment element
                 const offsetLeft = rect.left - attachmentRect.left + scrollLeft;
                 const offsetTop = rect.top - attachmentRect.top + scrollTop;
 
@@ -1977,40 +1555,30 @@ window.IssueSelector = class IssueSelector {
                 overlay.style.height = `${rect.height}px`;
             }
         });
-
-        // Reposition elements like the done button and counter within the container
         const doneButton = document.getElementById('selection-cancel-button');
         if (doneButton) {
-            // Keep at bottom right of container
             doneButton.style.bottom = '20px';
             doneButton.style.right = '20px';
         }
 
         const counter = document.getElementById('selection-counter');
         if (counter) {
-            // Keep at bottom left of container
             counter.style.bottom = '20px';
             counter.style.left = '20px';
         }
 
         const helpText = document.getElementById('selection-help-text');
         if (helpText) {
-            // Keep at top center of container
             helpText.style.top = '10px';
             helpText.style.left = '50%';
         }
     }
     
     setSelectedIssues(issues) {
-        // Make a defensive copy to prevent reference issues
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
-
-        // If we're in selection mode, update the visual overlays to match the new selection
         if (this.isSelectingIssue && this.selectionOverlays.length > 0) {
             this.updateOverlaysFromSelection();
         }
-
-        // Update status message if it exists
         const statusEl = document.getElementById('comment-status');
         if (statusEl && !this.isSelectingIssue) { // Only update if not in selection mode
             const count = this.selectedIssues.length;
@@ -2022,53 +1590,36 @@ window.IssueSelector = class IssueSelector {
                 statusEl.style.color = '#666';
             }
         }
-
-        // Ensure other components are updated
         this.syncSelectionWithBulkCommentsView();
-
-        // Log for debugging
             }
     updateOverlaysFromSelection() {
         if (!this.isSelectingIssue) return;
 
         try {
-            // Reset all card overlays to unselected state
             const cardOverlays = this.selectionOverlays.filter(o => o.className === 'card-selection-overlay');
 
             cardOverlays.forEach(overlay => {
                 if (overlay.dataset && overlay.originalCard) {
-                    // Set to unselected state
                     overlay.dataset.selected = 'false';
                     overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
                     overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
                     overlay.style.boxShadow = 'none';
-
-                    // Remove any existing badges
                     overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
                 }
             });
-
-            // Clear selected overlays
             this.selectedOverlays = [];
-
-            // Now go through selected issues and update corresponding overlays
             this.selectedIssues.forEach((issue, index) => {
                 if (!issue) return;
-
-                // Find the corresponding overlay for this issue
                 const matchingOverlay = cardOverlays.find(overlay => {
                     if (!overlay.dataset || !overlay.dataset.issueId) return false;
                     return overlay.dataset.issueId === `${issue.iid}-${issue.referencePath}`;
                 });
 
                 if (matchingOverlay) {
-                    // Mark as selected
                     matchingOverlay.dataset.selected = 'true';
                     matchingOverlay.style.backgroundColor = 'rgba(0, 177, 106, 0.3)';
                     matchingOverlay.style.borderColor = 'rgba(0, 177, 106, 0.8)';
                     matchingOverlay.style.boxShadow = '0 0 12px rgba(0, 177, 106, 0.3)';
-
-                    // Add badge with selection order
                     const badgeNumber = index + 1;
                     const badge = document.createElement('div');
                     badge.className = 'selection-badge';
@@ -2089,20 +1640,15 @@ window.IssueSelector = class IssueSelector {
                     badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
 
                     matchingOverlay.appendChild(badge);
-
-                    // Add to selected overlays
                     this.selectedOverlays.push(matchingOverlay);
                 }
             });
-
-            // Update the selection counter
             this.updateSelectionCounter();
         } catch (error) {
             console.error('Error updating overlays from selection:', error);
         }
     }
     createFixedControls() {
-        // Create DONE button - fixed position
         const cancelButton = document.createElement('div');
         cancelButton.id = 'selection-cancel-button';
         cancelButton.textContent = 'DONE';
@@ -2118,8 +1664,6 @@ window.IssueSelector = class IssueSelector {
         cancelButton.style.zIndex = '999';  // Higher z-index
         cancelButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
         cancelButton.style.transition = 'all 0.2s ease';
-
-        // Hover effect
         cancelButton.addEventListener('mouseenter', () => {
             cancelButton.style.backgroundColor = '#218838';
             cancelButton.style.transform = 'translateY(-2px)';
@@ -2131,8 +1675,6 @@ window.IssueSelector = class IssueSelector {
             cancelButton.style.transform = 'translateY(0)';
             cancelButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
         });
-
-        // Click handler to exit selection mode
         cancelButton.addEventListener('click', (e) => {
             e.stopPropagation();
             this.exitSelectionMode();
@@ -2140,8 +1682,6 @@ window.IssueSelector = class IssueSelector {
 
         document.body.appendChild(cancelButton);
         this.selectionOverlays.push(cancelButton);
-
-        // Create selection counter - fixed position
         const selectionCounter = document.createElement('div');
         selectionCounter.id = 'selection-counter';
         selectionCounter.textContent = `${this.selectedIssues.length} issues selected`;
@@ -2159,8 +1699,6 @@ window.IssueSelector = class IssueSelector {
 
         document.body.appendChild(selectionCounter);
         this.selectionOverlays.push(selectionCounter);
-
-        // Create help text - fixed at top
         const helpText = document.createElement('div');
         helpText.id = 'selection-help-text';
         helpText.textContent = 'Click on issues to select/deselect them • Press ESC or click DONE when finished';
@@ -2189,8 +1727,6 @@ window.TabManager = class TabManager {
         this.tabContainer = null;
         this.tabs = {};
         this.contentAreas = {};
-
-        // Get last active tab or default to 'summary'
         try {
             this.currentTab = getLastActiveTab() || 'summary';
         } catch (e) {
@@ -2202,22 +1738,15 @@ window.TabManager = class TabManager {
 
     
     initialize(parentElement) {
-        // Create tab container
         this.tabContainer = document.createElement('div');
         this.tabContainer.style.display = 'flex';
         this.tabContainer.style.marginBottom = '10px';
         this.tabContainer.style.borderBottom = '1px solid #ddd';
-
-        // Create tabs
         this.createTab('summary', 'Summary', this.currentTab === 'summary');
         this.createTab('boards', 'Boards', this.currentTab === 'boards');
         this.createTab('history', 'History', this.currentTab === 'history');
         this.createTab('bulkcomments', 'Bulk Comments', this.currentTab === 'bulkcomments'); // Renamed from "API" to "Bulk Comments"
-
-        // Append tab container to parent
         parentElement.appendChild(this.tabContainer);
-
-        // Create content areas for each tab
         this.createContentAreas(parentElement);
     }
 
@@ -2242,10 +1771,7 @@ window.TabManager = class TabManager {
         this.tabs[id] = tab;
         this.tabContainer.appendChild(tab);
     }
-
-    // Create content areas for each tab
     createContentAreas(parentElement) {
-        // Summary tab content
         const summaryContent = document.createElement('div');
         summaryContent.id = 'assignee-time-summary-content';
         summaryContent.style.display = this.currentTab === 'summary' ? 'block' : 'none';
@@ -2253,13 +1779,9 @@ window.TabManager = class TabManager {
         summaryContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(summaryContent);
         this.contentAreas['summary'] = summaryContent;
-
-        // Add loading screen to summary tab
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(summaryContent, 'summary-tab', 'Loading summary data...');
         }
-
-        // Boards tab content
         const boardsContent = document.createElement('div');
         boardsContent.id = 'boards-time-summary-content';
         boardsContent.style.display = this.currentTab === 'boards' ? 'block' : 'none';
@@ -2267,13 +1789,9 @@ window.TabManager = class TabManager {
         boardsContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(boardsContent);
         this.contentAreas['boards'] = boardsContent;
-
-        // Add loading screen to boards tab
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(boardsContent, 'boards-tab', 'Loading board data...');
         }
-
-        // History tab content
         const historyContent = document.createElement('div');
         historyContent.id = 'history-time-summary-content';
         historyContent.style.display = this.currentTab === 'history' ? 'block' : 'none';
@@ -2281,13 +1799,9 @@ window.TabManager = class TabManager {
         historyContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(historyContent);
         this.contentAreas['history'] = historyContent;
-
-        // Add loading screen to history tab
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(historyContent, 'history-tab', 'Loading history data...');
         }
-
-        // Bulk Comments tab content (renamed from API)
         const bulkCommentsContent = document.createElement('div');
         bulkCommentsContent.id = 'bulk-comments-content';
         bulkCommentsContent.style.display = this.currentTab === 'bulkcomments' ? 'block' : 'none';
@@ -2295,8 +1809,6 @@ window.TabManager = class TabManager {
         bulkCommentsContent.style.minHeight = '300px'; // Increased minimum height for the loader
         parentElement.appendChild(bulkCommentsContent);
         this.contentAreas['bulkcomments'] = bulkCommentsContent;
-
-        // Add loading screen to bulk comments tab
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(bulkCommentsContent, 'bulkcomments-tab', 'Loading comment tools...');
         }
@@ -2304,39 +1816,27 @@ window.TabManager = class TabManager {
 
     
     switchToTab(tabId) {
-        // Reset all tabs
         Object.keys(this.tabs).forEach(id => {
             this.tabs[id].style.borderBottom = 'none';
             this.tabs[id].style.fontWeight = 'normal';
             this.contentAreas[id].style.display = 'none';
         });
-
-        // Activate the selected tab
         this.tabs[tabId].style.borderBottom = '2px solid #1f75cb';
         this.tabs[tabId].style.fontWeight = 'bold';
         this.contentAreas[tabId].style.display = 'block';
-
-        // Store the current tab
         this.currentTab = tabId;
         try {
-            // Add error handling for saving the tab
             saveLastActiveTab(tabId);
         } catch(e) {
             console.warn('Error saving tab selection:', e);
         }
-
-        // Initialize tab content if needed
         if (tabId === 'history' && typeof window.renderHistory === 'function') {
             window.renderHistory(); // Call external renderHistory function
-
-            // Remove loading screen if exists
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('history-tab');
             }
         } else if (tabId === 'bulkcomments' && this.uiManager.bulkCommentsView) {
             this.uiManager.bulkCommentsView.render();
-
-            // Remove loading screen if exists
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('bulkcomments-tab');
             }
@@ -2352,17 +1852,11 @@ window.CommandManager = class CommandManager {
         this.gitlabApi = options.gitlabApi;
         this.labelManager = options.labelManager;
         this.onCommandInsert = options.onCommandInsert || null;
-
-        // Create notification instance for feedback
         this.notification = new Notification({
             position: 'bottom-right',
             duration: 3000
         });
-
-        // Load assignee whitelist from storage
         this.assigneeWhitelist = getAssigneeWhitelist();
-
-        // Initialize shortcuts container
         this.shortcutContainer = null;
         this.commandShortcut = null;
     }
@@ -2370,41 +1864,24 @@ window.CommandManager = class CommandManager {
     
     initialize(container) {
         this.shortcutContainer = container;
-
-        // Create command shortcut instance
         this.commandShortcut = new CommandShortcut({
             targetElement: this.targetElement,
             onShortcutInsert: (type, value) => {
-                // Handle shortcut insertion
-                
-                // Call callback if provided
                 if (typeof this.onCommandInsert === 'function') {
                     this.onCommandInsert(type, value);
                 }
             }
         });
-
-        // Initialize shortcuts
         this.commandShortcut.initialize(container);
-
-        // Add custom shortcuts beyond the default estimate shortcut
         this.addCustomShortcuts();
     }
 
     
     addCustomShortcuts() {
         if (!this.commandShortcut) return;
-
-        // Add milestone shortcut
         this.addMilestoneShortcut();
-
-        // Add assign shortcut
         this.addAssignShortcut();
-
-        // Add due date shortcut
         this.addDueDateShortcut();
-
-        // Add weight shortcut
         this.addWeightShortcut();
     }
 
@@ -2422,10 +1899,7 @@ window.CommandManager = class CommandManager {
                 { value: 'none', label: 'Remove Milestone' }
             ],
             onSelect: (value) => {
-                // Get the textarea
                 if (!this.targetElement) return;
-
-                // Format milestone text based on value
                 let milestoneText = '/milestone ';
                 if (value === 'none') {
                     milestoneText += '%""';
@@ -2434,8 +1908,6 @@ window.CommandManager = class CommandManager {
                 } else {
                     milestoneText += `%"${value}"`;
                 }
-
-                // Check if there's already a milestone command
                 const milestoneRegex = /\/milestone\s+%[^\n]+/g;
 
                 this.replaceOrInsertCommand(
@@ -2444,8 +1916,6 @@ window.CommandManager = class CommandManager {
                     milestoneRegex,
                     () => this.insertTextAtCursor(milestoneText)
                 );
-
-                // Show notification
                 this.notification.info(`Milestone command added: ${value}`);
             }
         });
@@ -2457,23 +1927,17 @@ window.CommandManager = class CommandManager {
         if (!this.commandShortcuts) return;
 
         try {
-            // Start with basic assign items
             let assignItems = [
                 { value: '', label: 'Assign to...' },
                 { value: '@me', label: 'Myself' },
                 { value: 'none', label: 'Unassign' }
             ];
-
-            // Try to add whitelisted assignees if available
             if (this.assigneeManager && typeof this.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     const whitelistedAssignees = this.assigneeManager.getAssigneeWhitelist();
                     
                     if (Array.isArray(whitelistedAssignees) && whitelistedAssignees.length > 0) {
-                        // Add a separator
                         assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
-
-                        // Add whitelisted assignees
                         const whitelistItems = whitelistedAssignees.map(assignee => ({
                             value: assignee.username,
                             label: assignee.name || assignee.username
@@ -2483,16 +1947,11 @@ window.CommandManager = class CommandManager {
                     }
                 } catch (e) {
                     console.error('Error getting assignee whitelist from manager:', e);
-
-                    // Fallback to direct storage access
                     try {
                         const assignees = getAssigneeWhitelist();
                         
                         if (Array.isArray(assignees) && assignees.length > 0) {
-                            // Add a separator
                             assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
-
-                            // Add whitelisted assignees
                             const whitelistItems = assignees.map(assignee => ({
                                 value: assignee.username,
                                 label: assignee.name || assignee.username
@@ -2505,9 +1964,7 @@ window.CommandManager = class CommandManager {
                     }
                 }
             } else {
-                // Direct access to storage if manager not available
                 try {
-                    // Import the storage function if not already available
                     let assignees = [];
                     if (typeof getAssigneeWhitelist === 'function') {
                         assignees = getAssigneeWhitelist();
@@ -2519,10 +1976,7 @@ window.CommandManager = class CommandManager {
 
                     
                     if (Array.isArray(assignees) && assignees.length > 0) {
-                        // Add a separator
                         assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
-
-                        // Add whitelisted assignees
                         const whitelistItems = assignees.map(assignee => ({
                             value: assignee.username,
                             label: assignee.name || assignee.username
@@ -2534,36 +1988,24 @@ window.CommandManager = class CommandManager {
                     console.error('Error directly accessing assignee whitelist:', directError);
                 }
             }
-
-            // Try to fetch group members in the background
             this.fetchGroupMembers()
                 .then(members => {
                     if (members && members.length > 0) {
-                        // Add a separator if we have members
                         assignItems.push({ value: 'separator2', label: '────── Group Members ──────' });
-
-                        // Add group members
                         const memberItems = members.map(member => ({
                             value: member.username,
                             label: member.name || member.username
                         }));
 
                         assignItems = assignItems.concat(memberItems);
-
-                        // Update the shortcut with all the items
                         this.updateAssignShortcut(assignItems);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching group members:', error);
                 });
-
-            // Add custom option at the end
             assignItems.push({ value: 'custom', label: 'Custom...' });
-            // Add option to manage assignees
             assignItems.push({ value: 'manage', label: '✏️ Manage Assignees...' });
-
-            // Update shortcut with these items
             this.updateAssignShortcut(assignItems);
         } catch (e) {
             console.error('Error adding assign shortcut:', e);
@@ -2572,7 +2014,6 @@ window.CommandManager = class CommandManager {
 
     
     addDueDateShortcut() {
-        // Calculate some common dates
         const today = new Date();
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
@@ -2582,8 +2023,6 @@ window.CommandManager = class CommandManager {
 
         const nextMonth = new Date(today);
         nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-        // Format the dates
         const formatDate = (date) => {
             return date.toISOString().substring(0, 10); // YYYY-MM-DD
         };
@@ -2602,14 +2041,10 @@ window.CommandManager = class CommandManager {
             ],
             onSelect: (value) => {
                 if (!this.targetElement) return;
-
-                // Handle custom date input
                 if (value === 'custom') {
                     const customDate = prompt('Enter due date (YYYY-MM-DD):', formatDate(today));
 
                     if (!customDate) return;
-
-                    // Validate date format
                     if (!/^\d{4}-\d{2}-\d{2}$/.test(customDate)) {
                         this.notification.error('Invalid date format. Please use YYYY-MM-DD');
                         return;
@@ -2617,8 +2052,6 @@ window.CommandManager = class CommandManager {
 
                     value = customDate;
                 }
-
-                // Create the due date command
                 let dueText = '/due ';
 
                 if (value === 'none') {
@@ -2626,8 +2059,6 @@ window.CommandManager = class CommandManager {
                 } else {
                     dueText += value;
                 }
-
-                // Check if there's already a due date command
                 const dueRegex = /\/due\s+[^\n]+/g;
 
                 this.replaceOrInsertCommand(
@@ -2636,8 +2067,6 @@ window.CommandManager = class CommandManager {
                     dueRegex,
                     () => this.insertTextAtCursor(dueText)
                 );
-
-                // Show notification
                 if (value === 'none') {
                     this.notification.info('Due date will be removed');
                 } else {
@@ -2664,14 +2093,10 @@ window.CommandManager = class CommandManager {
             ],
             onSelect: (value) => {
                 if (!this.targetElement) return;
-
-                // Handle custom weight input
                 if (value === 'custom') {
                     const customWeight = prompt('Enter weight (number):', '');
 
                     if (!customWeight) return;
-
-                    // Validate weight
                     const weight = parseInt(customWeight, 10);
                     if (isNaN(weight) || weight < 0) {
                         this.notification.error('Invalid weight. Please enter a positive number');
@@ -2680,8 +2105,6 @@ window.CommandManager = class CommandManager {
 
                     value = customWeight;
                 }
-
-                // Create the weight command
                 let weightText = '/weight ';
 
                 if (value === 'none') {
@@ -2689,8 +2112,6 @@ window.CommandManager = class CommandManager {
                 } else {
                     weightText += value;
                 }
-
-                // Check if there's already a weight command
                 const weightRegex = /\/weight\s+[^\n]+/g;
 
                 this.replaceOrInsertCommand(
@@ -2699,8 +2120,6 @@ window.CommandManager = class CommandManager {
                     weightRegex,
                     () => this.insertTextAtCursor(weightText)
                 );
-
-                // Show notification
                 if (value === 'none') {
                     this.notification.info('Weight will be removed');
                 } else {
@@ -2712,7 +2131,6 @@ window.CommandManager = class CommandManager {
 
     
     openAssigneeManager() {
-        // Create modal overlay
         const modalOverlay = document.createElement('div');
         modalOverlay.id = 'assignee-manager-overlay';
         modalOverlay.style.position = 'fixed';
@@ -2725,8 +2143,6 @@ window.CommandManager = class CommandManager {
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
-
-        // Create modal content
         const modalContent = document.createElement('div');
         modalContent.style.backgroundColor = 'white';
         modalContent.style.borderRadius = '6px';
@@ -2736,8 +2152,6 @@ window.CommandManager = class CommandManager {
         modalContent.style.maxHeight = '80vh';
         modalContent.style.overflow = 'auto';
         modalContent.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-
-        // Create modal header
         const modalHeader = document.createElement('div');
         modalHeader.style.display = 'flex';
         modalHeader.style.justifyContent = 'space-between';
@@ -2759,22 +2173,14 @@ window.CommandManager = class CommandManager {
 
         modalHeader.appendChild(modalTitle);
         modalHeader.appendChild(closeButton);
-
-        // Create assignee list section
         const assigneeSection = document.createElement('div');
-
-        // Create description
         const description = document.createElement('p');
         description.textContent = 'Add usernames to quickly assign issues. These will appear in your /assign dropdown.';
         description.style.marginBottom = '15px';
-
-        // Create current assignee list
         const assigneeList = document.createElement('div');
         assigneeList.style.marginBottom = '15px';
         assigneeList.style.maxHeight = '200px';
         assigneeList.style.overflowY = 'auto';
-
-        // Helper function to create empty message when list is empty
         const createEmptyMessage = () => {
             const emptyMessage = document.createElement('div');
             emptyMessage.textContent = 'No assignees added yet. Add some below.';
@@ -2783,8 +2189,6 @@ window.CommandManager = class CommandManager {
             emptyMessage.style.padding = '10px 0';
             return emptyMessage;
         };
-
-        // Create assignee items
         this.assigneeWhitelist.forEach((assignee, index) => {
             const assigneeItem = document.createElement('div');
             assigneeItem.style.display = 'flex';
@@ -2822,8 +2226,6 @@ window.CommandManager = class CommandManager {
                 this.assigneeWhitelist.splice(index, 1);
                 saveAssigneeWhitelist(this.assigneeWhitelist);
                 assigneeItem.remove();
-
-                // Show empty message if no assignees left
                 if (this.assigneeWhitelist.length === 0) {
                     assigneeList.appendChild(createEmptyMessage());
                 }
@@ -2834,13 +2236,9 @@ window.CommandManager = class CommandManager {
 
             assigneeList.appendChild(assigneeItem);
         });
-
-        // Show empty message if no assignees
         if (this.assigneeWhitelist.length === 0) {
             assigneeList.appendChild(createEmptyMessage());
         }
-
-        // Create add assignee form
         const addForm = document.createElement('div');
         addForm.style.marginTop = '20px';
         addForm.style.marginBottom = '20px';
@@ -2852,8 +2250,6 @@ window.CommandManager = class CommandManager {
         formTitle.textContent = 'Add New Assignee';
         formTitle.style.fontWeight = 'bold';
         formTitle.style.marginBottom = '10px';
-
-        // Create form fields
         const nameContainer = document.createElement('div');
         nameContainer.style.marginBottom = '10px';
 
@@ -2891,8 +2287,6 @@ window.CommandManager = class CommandManager {
 
         usernameContainer.appendChild(usernameLabel);
         usernameContainer.appendChild(usernameInput);
-
-        // Add button
         const addButton = document.createElement('button');
         addButton.textContent = 'Add Assignee';
         addButton.style.padding = '8px 16px';
@@ -2909,33 +2303,21 @@ window.CommandManager = class CommandManager {
                 alert('Username is required');
                 return;
             }
-
-            // Add to whitelist
             const newAssignee = {
                 name: name || username, // Use name if provided, otherwise use username
                 username: username
             };
-
-            // Check if already exists
             const existingIndex = this.assigneeWhitelist.findIndex(a => a.username === username);
             if (existingIndex >= 0) {
-                // Update existing
                 this.assigneeWhitelist[existingIndex] = newAssignee;
             } else {
-                // Add new
                 this.assigneeWhitelist.push(newAssignee);
             }
-
-            // Save whitelist
             saveAssigneeWhitelist(this.assigneeWhitelist);
-
-            // Remove empty message if it exists
             const emptyMessage = assigneeList.querySelector('div[style*="italic"]');
             if (emptyMessage) {
                 emptyMessage.remove();
             }
-
-            // Create new assignee item and add to list
             const assigneeItem = document.createElement('div');
             assigneeItem.style.display = 'flex';
             assigneeItem.style.justifyContent = 'space-between';
@@ -2974,8 +2356,6 @@ window.CommandManager = class CommandManager {
                     this.assigneeWhitelist.splice(index, 1);
                     saveAssigneeWhitelist(this.assigneeWhitelist);
                     assigneeItem.remove();
-
-                    // Show empty message if no assignees left
                     if (this.assigneeWhitelist.length === 0) {
                         assigneeList.appendChild(createEmptyMessage());
                     }
@@ -2986,12 +2366,8 @@ window.CommandManager = class CommandManager {
             assigneeItem.appendChild(removeButton);
 
             assigneeList.appendChild(assigneeItem);
-
-            // Clear inputs
             nameInput.value = '';
             usernameInput.value = '';
-
-            // Show notification
             this.notification.success(`Added assignee: ${newAssignee.name}`);
         };
 
@@ -2999,8 +2375,6 @@ window.CommandManager = class CommandManager {
         addForm.appendChild(nameContainer);
         addForm.appendChild(usernameContainer);
         addForm.appendChild(addButton);
-
-        // Add save and close button
         const saveButton = document.createElement('button');
         saveButton.textContent = 'Close';
         saveButton.style.padding = '8px 16px';
@@ -3011,14 +2385,9 @@ window.CommandManager = class CommandManager {
         saveButton.style.cursor = 'pointer';
         saveButton.style.marginTop = '10px';
         saveButton.onclick = () => {
-            // Close modal and refresh the UI to show new assignees
             modalOverlay.remove();
-
-            // Update the assign shortcut with new whitelist
             this.addAssignShortcut();
         };
-
-        // Add all components to the modal
         assigneeSection.appendChild(description);
         assigneeSection.appendChild(assigneeList);
         assigneeSection.appendChild(addForm);
@@ -3028,13 +2397,9 @@ window.CommandManager = class CommandManager {
         modalContent.appendChild(assigneeSection);
         modalOverlay.appendChild(modalContent);
         document.body.appendChild(modalOverlay);
-
-        // Close when clicking outside
         modalOverlay.addEventListener('click', (e) => {
             if (e.target === modalOverlay) {
                 modalOverlay.remove();
-
-                // Update the assign shortcut with new whitelist
                 this.addAssignShortcut();
             }
         });
@@ -3047,49 +2412,31 @@ window.CommandManager = class CommandManager {
         const startPos = this.targetElement.selectionStart;
         const endPos = this.targetElement.selectionEnd;
         const currentText = this.targetElement.value;
-
-        // Add newline if needed
         let insertText = text;
         if (startPos > 0 && currentText.charAt(startPos - 1) !== '\n' && currentText.length > 0) {
             insertText = '\n' + insertText;
         }
-
-        // Insert text at cursor position
         this.targetElement.value = currentText.substring(0, startPos) +
             insertText +
             currentText.substring(endPos);
-
-        // Set cursor position after inserted text
         const newCursorPos = startPos + insertText.length;
         this.targetElement.setSelectionRange(newCursorPos, newCursorPos);
-
-        // Focus the textarea
         this.targetElement.focus();
     }
 
     
     replaceOrInsertCommand(type, command, regex, insertFn) {
         if (!this.targetElement) return;
-
-        // Get current text
         const currentText = this.targetElement.value;
-
-        // Check if there's already a command of this type
         const hasCommand = regex.test(currentText);
 
         if (hasCommand) {
-            // Replace existing command with new one
             const newText = currentText.replace(regex, command);
             this.targetElement.value = newText;
-
-            // Set focus back to textarea
             this.targetElement.focus();
         } else {
-            // Execute the provided insertion function
             insertFn();
         }
-
-        // Call the callback if provided
         if (typeof this.onCommandInsert === 'function') {
             this.onCommandInsert(type, command);
         }
@@ -3100,17 +2447,11 @@ window.CommandManager = class CommandManager {
 window.LabelManager = class LabelManager {
     
     constructor(options = {}) {
-        // Try to get gitlabApi from options or from window global
         this.gitlabApi = options.gitlabApi || window.gitlabApi;
         this.onLabelsLoaded = options.onLabelsLoaded || null;
-
-        // Initialize with empty whitelist
         this.labelWhitelist = [];
-
-        // Try to load saved whitelist, with error handling
         try {
             this.labelWhitelist = getLabelWhitelist();
-            // Ensure it's an array
             if (!Array.isArray(this.labelWhitelist)) {
                 console.warn("Loaded whitelist is not an array, using default");
                 this.labelWhitelist = this.getDefaultWhitelist();
@@ -3119,8 +2460,6 @@ window.LabelManager = class LabelManager {
             console.warn("Error loading label whitelist, using default", e);
             this.labelWhitelist = this.getDefaultWhitelist();
         }
-
-        // Initialize storage for fetched labels
         this.availableLabels = [];
         this.filteredLabels = [];
         this.isLoading = false;
@@ -3139,7 +2478,6 @@ window.LabelManager = class LabelManager {
 
     
     saveWhitelist(whitelist) {
-        // Ensure whitelist is an array
         if (!Array.isArray(whitelist)) {
             whitelist = [];
         }
@@ -3150,8 +2488,6 @@ window.LabelManager = class LabelManager {
         } catch (e) {
             console.error("Error saving label whitelist", e);
         }
-
-        // Re-filter labels with new whitelist
         this.filterLabels();
     }
 
@@ -3163,8 +2499,6 @@ window.LabelManager = class LabelManager {
         } catch (e) {
             console.error("Error resetting label whitelist", e);
         }
-
-        // Re-filter labels with default whitelist
         this.filterLabels();
 
         return this.labelWhitelist;
@@ -3172,17 +2506,13 @@ window.LabelManager = class LabelManager {
 
     
     isLabelInWhitelist(labelName, whitelist = null) {
-        // Use provided whitelist or instance whitelist
         const whitelistToUse = whitelist || this.labelWhitelist;
-
-        // Ensure we have a valid whitelist and label name
         if (!Array.isArray(whitelistToUse) || typeof labelName !== 'string') {
             return false;
         }
 
         const lowerName = labelName.toLowerCase();
         return whitelistToUse.some(term => {
-            // Ensure term is a string
             if (typeof term !== 'string') return false;
             return lowerName.includes(term.toLowerCase());
         });
@@ -3195,18 +2525,11 @@ window.LabelManager = class LabelManager {
             this.filteredLabels = [];
             return;
         }
-
-        // Filter labels using whitelist
         this.filteredLabels = this.availableLabels.filter(label => {
-            // Ensure the label has a name property
             if (!label || typeof label.name !== 'string') return false;
             return this.isLabelInWhitelist(label.name);
         });
-
-        // Sort labels alphabetically
         this.filteredLabels.sort((a, b) => a.name.localeCompare(b.name));
-
-        // Notify callback if provided
         if (typeof this.onLabelsLoaded === 'function') {
             this.onLabelsLoaded(this.filteredLabels);
         }
@@ -3216,9 +2539,6 @@ window.LabelManager = class LabelManager {
     async fetchAllLabels() {
         try {
             this.isLoading = true;
-
-            // Check if GitLab API instance is available
-            // If not, try to get it from the window object as a last resort
             if (!this.gitlabApi) {
                 this.gitlabApi = window.gitlabApi;
             }
@@ -3228,8 +2548,6 @@ window.LabelManager = class LabelManager {
                 this.isLoading = false;
                 return this.addFallbackLabels();
             }
-
-            // Get path info (project or group)
             const pathInfo = getPathFromUrl();
 
             if (!pathInfo || !pathInfo.apiUrl) {
@@ -3237,14 +2555,10 @@ window.LabelManager = class LabelManager {
                 this.isLoading = false;
                 return this.addFallbackLabels();
             }
-
-            // Fetch labels from API using the correct endpoint
             try {
                 const labels = await this.gitlabApi.callGitLabApi(pathInfo.apiUrl, {
                     params: { per_page: 100 }
                 });
-
-                // Validate received labels
                 if (!Array.isArray(labels)) {
                     console.warn('API did not return an array of labels, using fallback');
                     this.isLoading = false;
@@ -3270,7 +2584,6 @@ window.LabelManager = class LabelManager {
 
     
     addFallbackLabels() {
-        // Create basic fallback labels
         const fallbackLabels = [
             { name: 'bug', color: '#ff0000' },
             { name: 'feature', color: '#1f75cb' },
@@ -3279,14 +2592,8 @@ window.LabelManager = class LabelManager {
             { name: 'priority', color: '#d73a4a' },
             { name: 'blocked', color: '#b60205' }
         ];
-
-        // Set as available labels
         this.availableLabels = fallbackLabels;
-
-        // Filter and sort (even with fallbacks, respect whitelist)
         this.filterLabels();
-
-        // Notify callback if provided
         if (typeof this.onLabelsLoaded === 'function') {
             this.onLabelsLoaded(this.filteredLabels);
         }
@@ -3296,9 +2603,7 @@ window.LabelManager = class LabelManager {
 
     
     getLabelOptions(includeEmpty = true) {
-        // Check if we have filteredLabels
         if (!this.filteredLabels || this.filteredLabels.length === 0) {
-            // Return basic options if no filtered labels
             const basicOptions = [];
             if (includeEmpty) {
                 basicOptions.push({ value: '', label: 'Add Label' });
@@ -3310,20 +2615,14 @@ window.LabelManager = class LabelManager {
                 { value: 'custom', label: 'Custom...' }
             ]);
         }
-
-        // Map to format needed for dropdown
         const labelOptions = this.filteredLabels.map(label => ({
             value: label.name,
             label: label.name,
             color: label.color
         }));
-
-        // Add empty option at the beginning if requested
         if (includeEmpty) {
             labelOptions.unshift({ value: '', label: 'Add Label' });
         }
-
-        // Add custom option at the end
         labelOptions.push({ value: 'custom', label: 'Custom...' });
 
         return labelOptions;
@@ -3333,15 +2632,9 @@ window.LabelManager = class LabelManager {
     createStyledLabel(label) {
         const labelElement = document.createElement('span');
         labelElement.textContent = label.label || label.name || '';
-
-        // Use provided color or generate one based on name
         const labelText = label.label || label.name || 'label';
         const bgColor = label.color || generateColorFromString(labelText);
-
-        // Calculate text color (black or white) based on background color brightness
         const textColor = getContrastColor(bgColor);
-
-        // Apply GitLab label styles
         labelElement.style.backgroundColor = bgColor;
         labelElement.style.color = textColor;
         labelElement.style.padding = '4px 8px';
@@ -3361,67 +2654,42 @@ window.LabelManager = class LabelManager {
     
     insertLabelCommand(textarea, labelName) {
         if (!textarea || typeof labelName !== 'string') return;
-
-        // Create the label command
         const labelText = `/label ~"${labelName}"`;
-
-        // Check if there's already a label command
         const labelRegex = /\/label\s+~[^\n]+/g;
-
-        // Get current text
         const currentText = textarea.value;
-
-        // Check if there's already a label command
         const hasCommand = labelRegex.test(currentText);
 
         if (hasCommand) {
-            // Replace existing command with new one
             textarea.value = currentText.replace(labelRegex, labelText);
         } else {
-            // Insert new command at cursor position
             const startPos = textarea.selectionStart;
             const endPos = textarea.selectionEnd;
-
-            // Check if we need to add a new line before the command
             let insertText = labelText;
             if (startPos > 0 && currentText.charAt(startPos - 1) !== '\n' && currentText.length > 0) {
                 insertText = '\n' + insertText;
             }
-
-            // Insert text at cursor position
             textarea.value = currentText.substring(0, startPos) +
                 insertText +
                 currentText.substring(endPos);
-
-            // Set cursor position after inserted text
             const newCursorPos = startPos + insertText.length;
             textarea.setSelectionRange(newCursorPos, newCursorPos);
         }
-
-        // Set focus back to textarea
         textarea.focus();
     }
 
     
     async initLabelDropdown(createDropdown, dropdownOptions = {}) {
-        // Start with empty dropdown
         const dropdown = createDropdown({
             items: [{ value: '', label: 'Loading labels...' }],
             disabled: true,
             ...dropdownOptions
         });
-
-        // Fetch and populate labels
         try {
             await this.fetchAllLabels();
-
-            // Update dropdown with actual labels
             dropdown.updateItems(this.getLabelOptions());
             dropdown.enable();
         } catch (error) {
             console.error('Error initializing label dropdown:', error);
-
-            // Update with error state
             dropdown.updateItems([
                 { value: '', label: 'Error loading labels' },
                 { value: 'bug', label: 'Bug' },
@@ -3441,17 +2709,11 @@ window.AssigneeManager = class AssigneeManager {
     constructor(options = {}) {
         this.gitlabApi = options.gitlabApi;
         this.onAssigneesChange = options.onAssigneesChange || null;
-
-        // Create notification instance for feedback
         this.notification = new Notification({
             position: 'bottom-right',
             duration: 3000
         });
-
-        // Load assignee whitelist from storage
         this.assigneeWhitelist = getAssigneeWhitelist();
-
-        // Initialize state
         this.currentUsers = [];
     }
 
@@ -3464,8 +2726,6 @@ window.AssigneeManager = class AssigneeManager {
     saveWhitelist(whitelist) {
         this.assigneeWhitelist = whitelist;
         saveAssigneeWhitelist(whitelist);
-
-        // Notify listeners
         if (typeof this.onAssigneesChange === 'function') {
             this.onAssigneesChange(this.assigneeWhitelist);
         }
@@ -3476,26 +2736,18 @@ window.AssigneeManager = class AssigneeManager {
         if (!assignee || !assignee.username) {
             return false;
         }
-
-        // Check if already exists
         const existingIndex = this.assigneeWhitelist.findIndex(a =>
             a.username.toLowerCase() === assignee.username.toLowerCase());
 
         if (existingIndex >= 0) {
-            // Update existing
             this.assigneeWhitelist[existingIndex] = {
                 ...this.assigneeWhitelist[existingIndex],
                 ...assignee
             };
         } else {
-            // Add new
             this.assigneeWhitelist.push(assignee);
         }
-
-        // Save changes
         saveAssigneeWhitelist(this.assigneeWhitelist);
-
-        // Notify listeners
         if (typeof this.onAssigneesChange === 'function') {
             this.onAssigneesChange(this.assigneeWhitelist);
         }
@@ -3510,20 +2762,12 @@ window.AssigneeManager = class AssigneeManager {
         }
 
         const initialLength = this.assigneeWhitelist.length;
-
-        // Remove assignee with matching username
         this.assigneeWhitelist = this.assigneeWhitelist.filter(a =>
             a.username.toLowerCase() !== username.toLowerCase());
-
-        // Check if anything was removed
         if (this.assigneeWhitelist.length === initialLength) {
             return false;
         }
-
-        // Save changes
         saveAssigneeWhitelist(this.assigneeWhitelist);
-
-        // Notify listeners
         if (typeof this.onAssigneesChange === 'function') {
             this.onAssigneesChange(this.assigneeWhitelist);
         }
@@ -3539,8 +2783,6 @@ window.AssigneeManager = class AssigneeManager {
 
         try {
             const user = await this.gitlabApi.getCurrentUser();
-
-            // Add to whitelist if not already present
             this.addAssignee({
                 name: user.name,
                 username: user.username
@@ -3563,22 +2805,16 @@ window.AssigneeManager = class AssigneeManager {
         }
 
         try {
-            // Get group members
             const members = await this.gitlabApi.callGitLabApi(
                 `groups/${encodeURIComponent(groupId)}/members`,
                 {params: {per_page: 100}}
             );
-
-            // Process members
             this.currentUsers = members.map(member => ({
                 id: member.id,
                 name: member.name,
                 username: member.username,
                 avatar_url: member.avatar_url
             }));
-
-
-            // Return the members
             return this.currentUsers;
         } catch (error) {
             console.error(`Error fetching members for group ${groupId}:`, error);
@@ -3587,7 +2823,6 @@ window.AssigneeManager = class AssigneeManager {
     }
     
     openAssigneeManager() {
-        // Create modal overlay
         const modalOverlay = document.createElement('div');
         modalOverlay.style.position = 'fixed';
         modalOverlay.style.top = '0';
@@ -3599,8 +2834,6 @@ window.AssigneeManager = class AssigneeManager {
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
-
-        // Create modal content
         const modalContent = document.createElement('div');
         modalContent.style.backgroundColor = 'white';
         modalContent.style.borderRadius = '6px';
@@ -3610,8 +2843,6 @@ window.AssigneeManager = class AssigneeManager {
         modalContent.style.maxHeight = '80vh';
         modalContent.style.overflow = 'auto';
         modalContent.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-
-        // Create modal header
         const modalHeader = document.createElement('div');
         modalHeader.style.display = 'flex';
         modalHeader.style.justifyContent = 'space-between';
@@ -3635,16 +2866,10 @@ window.AssigneeManager = class AssigneeManager {
 
         modalHeader.appendChild(modalTitle);
         modalHeader.appendChild(closeButton);
-
-        // Create content area
         const contentArea = document.createElement('div');
-
-        // Create description
         const description = document.createElement('p');
         description.textContent = 'Manage assignees that appear in the assignee dropdown. These users will be available for quick assignment to issues.';
         description.style.marginBottom = '20px';
-
-        // Create assignee list section
         const listSection = document.createElement('div');
         listSection.style.marginBottom = '20px';
 
@@ -3654,15 +2879,11 @@ window.AssigneeManager = class AssigneeManager {
         listTitle.style.fontSize = '16px';
 
         listSection.appendChild(listTitle);
-
-        // Create assignee list
         const assigneeList = document.createElement('div');
         assigneeList.style.height = '300px'; // Fixed height
         assigneeList.style.overflowY = 'auto';
         assigneeList.style.border = '1px solid #eee';
         assigneeList.style.borderRadius = '4px';
-
-        // Populate assignee list
         if (this.assigneeWhitelist.length > 0) {
             this.assigneeWhitelist.forEach((assignee, index) => {
                 const assigneeItem = document.createElement('div');
@@ -3675,8 +2896,6 @@ window.AssigneeManager = class AssigneeManager {
                 const assigneeInfo = document.createElement('div');
                 assigneeInfo.style.display = 'flex';
                 assigneeInfo.style.alignItems = 'center';
-
-                // Add avatar placeholder
                 const avatarPlaceholder = document.createElement('div');
                 avatarPlaceholder.style.width = '32px';
                 avatarPlaceholder.style.height = '32px';
@@ -3689,8 +2908,6 @@ window.AssigneeManager = class AssigneeManager {
                 avatarPlaceholder.style.fontSize = '14px';
                 avatarPlaceholder.style.fontWeight = 'bold';
                 avatarPlaceholder.style.color = '#666';
-
-                // Get initials
                 const name = assignee.name || assignee.username || '';
                 avatarPlaceholder.textContent = name.split(' ')
                     .map(part => part.charAt(0))
@@ -3698,8 +2915,6 @@ window.AssigneeManager = class AssigneeManager {
                     .join('')
                     .toUpperCase();
                 assigneeInfo.appendChild(avatarPlaceholder);
-
-                // Add name and username
                 const nameContainer = document.createElement('div');
 
                 const displayName = document.createElement('div');
@@ -3714,8 +2929,6 @@ window.AssigneeManager = class AssigneeManager {
                 nameContainer.appendChild(displayName);
                 nameContainer.appendChild(username);
                 assigneeInfo.appendChild(nameContainer);
-
-                // Create remove button
                 const removeButton = document.createElement('button');
                 removeButton.textContent = 'Remove';
                 removeButton.style.padding = '4px 8px';
@@ -3728,11 +2941,7 @@ window.AssigneeManager = class AssigneeManager {
                 removeButton.onclick = () => {
                     this.removeAssignee(assignee.username);
                     assigneeItem.remove();
-
-                    // Show success message
                     this.notification.info(`Removed assignee: ${assignee.name || assignee.username}`);
-
-                    // Show empty message if list is now empty
                     if (this.assigneeWhitelist.length === 0) {
                         const emptyMessage = document.createElement('div');
                         emptyMessage.textContent = 'No assignees added yet. Add some below.';
@@ -3749,7 +2958,6 @@ window.AssigneeManager = class AssigneeManager {
                 assigneeList.appendChild(assigneeItem);
             });
         } else {
-            // Show empty message
             const emptyMessage = document.createElement('div');
             emptyMessage.textContent = 'No assignees added yet. Add some below.';
             emptyMessage.style.padding = '10px';
@@ -3759,8 +2967,6 @@ window.AssigneeManager = class AssigneeManager {
         }
 
         listSection.appendChild(assigneeList);
-
-        // Create add assignee form
         const addForm = document.createElement('div');
         addForm.style.marginTop = '20px';
         addForm.style.padding = '15px';
@@ -3831,24 +3037,16 @@ window.AssigneeManager = class AssigneeManager {
                 this.notification.error('Username is required');
                 return;
             }
-
-            // Add to whitelist
             const newAssignee = {
                 name: name || username,
                 username: username
             };
 
             this.addAssignee(newAssignee);
-
-            // Show success message
             this.notification.success(`Added assignee: ${newAssignee.name}`);
-
-            // Close and reopen to refresh the list
             modalOverlay.remove();
             this.openAssigneeManager();
         };
-
-        // Add fetch current user button
         const fetchUserButton = document.createElement('button');
         fetchUserButton.textContent = 'Add Current User';
         fetchUserButton.style.padding = '8px 16px';
@@ -3860,24 +3058,16 @@ window.AssigneeManager = class AssigneeManager {
         fetchUserButton.style.marginRight = '10px';
 
         fetchUserButton.onclick = async () => {
-            // Disable button while loading
             fetchUserButton.disabled = true;
             fetchUserButton.textContent = 'Loading...';
 
             try {
-                // Fetch current user
                 const user = await this.fetchCurrentUser();
-
-                // Show success message
                 this.notification.success(`Added current user: ${user.name}`);
-
-                // Close and reopen to refresh the list
                 modalOverlay.remove();
                 this.openAssigneeManager();
             } catch (error) {
                 this.notification.error('Failed to fetch current user');
-
-                // Re-enable button
                 fetchUserButton.disabled = false;
                 fetchUserButton.textContent = 'Add Current User';
             }
@@ -3890,8 +3080,6 @@ window.AssigneeManager = class AssigneeManager {
         addForm.appendChild(nameContainer);
         addForm.appendChild(usernameContainer);
         addForm.appendChild(buttonContainer);
-
-        // Add footer with close button
         const footer = document.createElement('div');
         footer.style.marginTop = '20px';
         footer.style.display = 'flex';
@@ -3911,8 +3099,6 @@ window.AssigneeManager = class AssigneeManager {
         };
 
         footer.appendChild(closeModalButton);
-
-        // Assemble the modal
         contentArea.appendChild(description);
         contentArea.appendChild(listSection);
         contentArea.appendChild(addForm);
@@ -3923,8 +3109,6 @@ window.AssigneeManager = class AssigneeManager {
 
         modalOverlay.appendChild(modalContent);
         document.body.appendChild(modalOverlay);
-
-        // Close when clicking outside
         modalOverlay.addEventListener('click', (e) => {
             if (e.target === modalOverlay) {
                 modalOverlay.remove();
@@ -3939,14 +3123,10 @@ window.MilestoneManager = class MilestoneManager {
     constructor(options = {}) {
         this.gitlabApi = options.gitlabApi;
         this.onMilestonesLoaded = options.onMilestonesLoaded || null;
-
-        // Create notification instance for feedback
         this.notification = new Notification({
             position: 'bottom-right',
             duration: 3000
         });
-
-        // Initialize state
         this.milestones = [];
         this.currentMilestone = null;
         this.isLoading = false;
@@ -3961,21 +3141,16 @@ window.SettingsManager = class SettingsManager {
         this.assigneeManager = options.assigneeManager;
         this.gitlabApi = options.gitlabApi || window.gitlabApi;
         this.onSettingsChanged = options.onSettingsChanged || null;
-
-        // Create notification instance for feedback
         this.notification = new Notification({
             position: 'bottom-right',
             duration: 3000
         });
-
-        // Store fetched assignees
         this.availableAssignees = [];
         this.isLoadingAssignees = false;
     }
 
     
     openSettingsModal() {
-        // Create modal overlay (background)
         const modalOverlay = document.createElement('div');
         modalOverlay.id = 'git-helper-settings-overlay';
         modalOverlay.style.position = 'fixed';
@@ -3988,8 +3163,6 @@ window.SettingsManager = class SettingsManager {
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
-
-        // Create modal content container - make it wider
         const modalContent = document.createElement('div');
         modalContent.style.backgroundColor = 'white';
         modalContent.style.borderRadius = '6px';
@@ -3999,8 +3172,6 @@ window.SettingsManager = class SettingsManager {
         modalContent.style.maxHeight = '80vh';
         modalContent.style.overflow = 'auto';
         modalContent.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-
-        // Create modal header
         const modalHeader = document.createElement('div');
         modalHeader.style.display = 'flex';
         modalHeader.style.justifyContent = 'space-between';
@@ -4024,11 +3195,7 @@ window.SettingsManager = class SettingsManager {
 
         modalHeader.appendChild(modalTitle);
         modalHeader.appendChild(closeButton);
-
-        // Create content container
         const contentContainer = document.createElement('div');
-
-        // Create collapsible sections
         this.createCollapsibleSection(
             contentContainer,
             'Assignees',
@@ -4052,8 +3219,6 @@ window.SettingsManager = class SettingsManager {
             (container) => this.createAppearanceSettings(container),
             false // Start collapsed
         );
-
-        // Add button container at bottom
         const buttonContainer = document.createElement('div');
         buttonContainer.style.marginTop = '20px';
         buttonContainer.style.display = 'flex';
@@ -4061,8 +3226,6 @@ window.SettingsManager = class SettingsManager {
         buttonContainer.style.alignItems = 'center';
         buttonContainer.style.borderTop = '1px solid #eee';
         buttonContainer.style.paddingTop = '15px';
-
-        // Reset to defaults button
         const resetButton = document.createElement('button');
         resetButton.textContent = 'Reset to Defaults';
         resetButton.style.padding = '8px 16px';
@@ -4078,8 +3241,6 @@ window.SettingsManager = class SettingsManager {
                 this.notification.success('Settings reset to defaults');
             }
         };
-
-        // Close button
         const closeModalButton = document.createElement('button');
         closeModalButton.textContent = 'Close';
         closeModalButton.style.padding = '8px 16px';
@@ -4094,15 +3255,11 @@ window.SettingsManager = class SettingsManager {
 
         buttonContainer.appendChild(resetButton);
         buttonContainer.appendChild(closeModalButton);
-
-        // Assemble the modal
         modalContent.appendChild(modalHeader);
         modalContent.appendChild(contentContainer);
         modalContent.appendChild(buttonContainer);
         modalOverlay.appendChild(modalContent);
         document.body.appendChild(modalOverlay);
-
-        // Close modal when clicking outside
         modalOverlay.addEventListener('click', (e) => {
             if (e.target === modalOverlay) {
                 modalOverlay.remove();
@@ -4112,18 +3269,13 @@ window.SettingsManager = class SettingsManager {
 
     
     createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
-        // Always start collapsed regardless of passed parameter
         startExpanded = false;
-
-        // Create section container
         const section = document.createElement('div');
         section.className = 'settings-section';
         section.style.marginBottom = '15px';
         section.style.border = '1px solid #ddd';
         section.style.borderRadius = '6px';
         section.style.overflow = 'hidden';
-
-        // Create header/toggle
         const header = document.createElement('div');
         header.className = 'settings-section-header';
         header.style.padding = '12px 15px';
@@ -4134,16 +3286,12 @@ window.SettingsManager = class SettingsManager {
         header.style.alignItems = 'center';
         header.style.cursor = 'pointer';
         header.style.transition = 'background-color 0.2s ease';
-
-        // Add hover effect
         header.addEventListener('mouseenter', () => {
             header.style.backgroundColor = '#e9ecef';
         });
         header.addEventListener('mouseleave', () => {
             header.style.backgroundColor = '#f8f9fa';
         });
-
-        // Title container
         const titleContainer = document.createElement('div');
 
         const titleEl = document.createElement('h4');
@@ -4159,8 +3307,6 @@ window.SettingsManager = class SettingsManager {
 
         titleContainer.appendChild(titleEl);
         titleContainer.appendChild(descEl);
-
-        // Toggle indicator
         const toggle = document.createElement('span');
         toggle.textContent = startExpanded ? '▼' : '▶';
         toggle.style.fontSize = '14px';
@@ -4168,32 +3314,22 @@ window.SettingsManager = class SettingsManager {
 
         header.appendChild(titleContainer);
         header.appendChild(toggle);
-
-        // Create content container
         const content = document.createElement('div');
         content.className = 'settings-section-content';
         content.style.padding = '15px';
         content.style.display = startExpanded ? 'block' : 'none';
         content.style.backgroundColor = 'white';
-
-        // Build content using the provided function (lazily load content only when opened)
         let contentBuilt = false;
-
-        // Add toggle behavior
         header.addEventListener('click', () => {
             const isExpanded = content.style.display === 'block';
             content.style.display = isExpanded ? 'none' : 'block';
             toggle.textContent = isExpanded ? '▶' : '▼';
             header.style.borderBottom = isExpanded ? 'none' : '1px solid #ddd';
-
-            // Build content if this is the first time opening
             if (!contentBuilt && !isExpanded) {
                 contentBuilder(content);
                 contentBuilt = true;
             }
         });
-
-        // Assemble section
         section.appendChild(header);
         section.appendChild(content);
         container.appendChild(section);
@@ -4204,15 +3340,11 @@ window.SettingsManager = class SettingsManager {
     
     createAssigneeSettings(container) {
         const assigneeSection = document.createElement('div');
-
-        // Create top actions row
         const actionsRow = document.createElement('div');
         actionsRow.style.display = 'flex';
         actionsRow.style.justifyContent = 'space-between';
         actionsRow.style.marginBottom = '15px';
         actionsRow.style.gap = '10px';
-
-        // Create search input
         const searchContainer = document.createElement('div');
         searchContainer.style.flex = '1';
 
@@ -4225,8 +3357,6 @@ window.SettingsManager = class SettingsManager {
         searchInput.style.border = '1px solid #ccc';
 
         searchContainer.appendChild(searchInput);
-
-        // Create fetch button
         const fetchButton = document.createElement('button');
         fetchButton.textContent = 'Fetch GitLab Users';
         fetchButton.style.padding = '8px 12px';
@@ -4241,8 +3371,6 @@ window.SettingsManager = class SettingsManager {
         actionsRow.appendChild(fetchButton);
 
         assigneeSection.appendChild(actionsRow);
-
-        // Create tabs for Whitelisted vs. Available
         const tabsContainer = document.createElement('div');
         tabsContainer.style.display = 'flex';
         tabsContainer.style.borderBottom = '1px solid #dee2e6';
@@ -4255,8 +3383,6 @@ window.SettingsManager = class SettingsManager {
 
         const tabElements = {};
         const tabContents = {};
-
-        // Create tab buttons
         tabs.forEach(tab => {
             const tabElement = document.createElement('div');
             tabElement.textContent = tab.label;
@@ -4268,8 +3394,6 @@ window.SettingsManager = class SettingsManager {
                 tabElement.style.borderBottom = '2px solid #1f75cb';
                 tabElement.style.fontWeight = 'bold';
             }
-
-            // Add hover effect
             tabElement.addEventListener('mouseenter', () => {
                 if (!tab.active) {
                     tabElement.style.backgroundColor = '#f5f5f5';
@@ -4281,11 +3405,7 @@ window.SettingsManager = class SettingsManager {
                     tabElement.style.backgroundColor = '';
                 }
             });
-
-            // Handle tab clicks
-            // Handle tab clicks
             tabElement.addEventListener('click', () => {
-                // Deactivate all tabs
                 tabs.forEach(t => {
                     t.active = false;
                     tabElements[t.id].style.borderBottom = 'none';
@@ -4293,19 +3413,13 @@ window.SettingsManager = class SettingsManager {
                     tabElements[t.id].style.backgroundColor = '';
                     tabContents[t.id].style.display = 'none';
                 });
-
-                // Activate clicked tab
                 tab.active = true;
                 tabElement.style.borderBottom = '2px solid #1f75cb';
                 tabElement.style.fontWeight = 'bold';
                 tabContents[tab.id].style.display = 'block';
-
-                // Refresh the content when tab is clicked
                 if (tab.id === 'whitelisted') {
-                    // Refresh the whitelist tab
                     this.refreshAssigneeList(assigneeListContainer);
                 } else if (tab.id === 'available') {
-                    // Always re-fetch available users when tab is clicked
                     this.fetchGitLabUsers(availableListContainer);
                 }
             });
@@ -4315,22 +3429,16 @@ window.SettingsManager = class SettingsManager {
         });
 
         assigneeSection.appendChild(tabsContainer);
-
-        // Create content containers for each tab
         const whitelistedContent = document.createElement('div');
         whitelistedContent.style.display = 'block';
 
         const availableContent = document.createElement('div');
         availableContent.style.display = 'none';
-
-        // Populate whitelisted assignees
         const assigneeListContainer = document.createElement('div');
         assigneeListContainer.style.height = '300px'; // Fixed height instead of min/max
         assigneeListContainer.style.overflowY = 'auto';
         assigneeListContainer.style.border = '1px solid #eee';
         assigneeListContainer.style.borderRadius = '4px';
-
-        // Create empty message function
         const createEmptyMessage = () => {
             const emptyMessage = document.createElement('div');
             emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
@@ -4340,16 +3448,12 @@ window.SettingsManager = class SettingsManager {
             emptyMessage.style.textAlign = 'center';
             return emptyMessage;
         };
-
-        // Get whitelist from the assignee manager if available
         let assignees = [];
         if (this.assigneeManager) {
             assignees = this.assigneeManager.getAssigneeWhitelist();
         } else {
             assignees = getAssigneeWhitelist();
         }
-
-        // Populate whitelist
         if (assignees.length > 0) {
             assignees.forEach((assignee, index) => {
                 assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
@@ -4359,19 +3463,13 @@ window.SettingsManager = class SettingsManager {
         }
 
         whitelistedContent.appendChild(assigneeListContainer);
-
-        // Add manual assignee form to whitelisted tab
         whitelistedContent.appendChild(this.createAddAssigneeForm(assigneeListContainer, createEmptyMessage));
-
-        // Create available users container
         const availableListContainer = document.createElement('div');
         availableListContainer.className = 'available-assignees-list';
         availableListContainer.style.height = '300px'; // Fixed height instead of min/max
         availableListContainer.style.overflowY = 'auto';
         availableListContainer.style.border = '1px solid #eee';
         availableListContainer.style.borderRadius = '4px';
-
-        // Add loading or empty message initially
         const availableEmptyMessage = document.createElement('div');
         availableEmptyMessage.textContent = 'Click "Fetch GitLab Users" to load available assignees.';
         availableEmptyMessage.style.padding = '15px';
@@ -4381,25 +3479,15 @@ window.SettingsManager = class SettingsManager {
 
         availableListContainer.appendChild(availableEmptyMessage);
         availableContent.appendChild(availableListContainer);
-
-        // Store references to content containers
         tabContents['whitelisted'] = whitelistedContent;
         tabContents['available'] = availableContent;
-
-        // Add content containers to section
         assigneeSection.appendChild(whitelistedContent);
         assigneeSection.appendChild(availableContent);
-
-        // Add search functionality
         searchInput.addEventListener('input', () => {
             const searchText = searchInput.value.toLowerCase();
             const activeTab = tabs.find(t => t.active).id;
-
-            // Determine which list to search based on active tab
             const list = activeTab === 'whitelisted' ? assigneeListContainer : availableListContainer;
             const items = list.querySelectorAll('.assignee-item');
-
-            // Filter items
             items.forEach(item => {
                 const nameEl = item.querySelector('.assignee-name');
                 const usernameEl = item.querySelector('.assignee-username');
@@ -4432,8 +3520,6 @@ window.SettingsManager = class SettingsManager {
         formTitle.textContent = 'Add New Assignee';
         formTitle.style.marginTop = '0';
         formTitle.style.marginBottom = '10px';
-
-        // Create name field
         const nameContainer = document.createElement('div');
         nameContainer.style.marginBottom = '10px';
 
@@ -4452,8 +3538,6 @@ window.SettingsManager = class SettingsManager {
 
         nameContainer.appendChild(nameLabel);
         nameContainer.appendChild(nameInput);
-
-        // Create username field
         const usernameContainer = document.createElement('div');
         usernameContainer.style.marginBottom = '15px';
 
@@ -4472,8 +3556,6 @@ window.SettingsManager = class SettingsManager {
 
         usernameContainer.appendChild(usernameLabel);
         usernameContainer.appendChild(usernameInput);
-
-        // Create button container
         const buttonContainer = document.createElement('div');
         buttonContainer.style.display = 'flex';
         buttonContainer.style.justifyContent = 'flex-end';
@@ -4495,40 +3577,27 @@ window.SettingsManager = class SettingsManager {
                 this.notification.error('Username is required');
                 return;
             }
-
-            // Add to whitelist
             const newAssignee = {
                 name: name || username,
                 username: username
             };
-
-            // Check if we should use the assigneeManager
             if (this.assigneeManager) {
                 this.assigneeManager.addAssignee(newAssignee);
             } else {
-                // Direct add to whitelist
                 const assignees = getAssigneeWhitelist();
                 const existingIndex = assignees.findIndex(a => a.username === username);
 
                 if (existingIndex >= 0) {
-                    // Update existing
                     assignees[existingIndex] = newAssignee;
                 } else {
-                    // Add new
                     assignees.push(newAssignee);
                 }
-
-                // Save whitelist
                 saveAssigneeWhitelist(assignees);
             }
-
-            // Refresh the list
             const emptyMessage = listContainer.querySelector('div[style*="italic"]');
             if (emptyMessage) {
                 emptyMessage.remove();
             }
-
-            // Add the new assignee to the list
             const assignees = getAssigneeWhitelist();
             listContainer.appendChild(this.createAssigneeListItem(
                 newAssignee,
@@ -4536,23 +3605,15 @@ window.SettingsManager = class SettingsManager {
                 listContainer,
                 createEmptyMessage
             ));
-
-            // Clear inputs
             nameInput.value = '';
             usernameInput.value = '';
-
-            // Show success message
             this.notification.success(`Added assignee: ${newAssignee.name}`);
-
-            // Notify of change
             if (this.onSettingsChanged) {
                 this.onSettingsChanged('assignees');
             }
         };
 
         buttonContainer.appendChild(addButton);
-
-        // Assemble the form
         addForm.appendChild(formTitle);
         addForm.appendChild(nameContainer);
         addForm.appendChild(usernameContainer);
@@ -4568,8 +3629,6 @@ window.SettingsManager = class SettingsManager {
             this.notification.error('GitLab API not available');
             return;
         }
-
-        // Show loading state
         this.isLoadingAssignees = true;
         container.innerHTML = '';
 
@@ -4580,14 +3639,11 @@ window.SettingsManager = class SettingsManager {
         container.appendChild(loadingMessage);
 
         try {
-            // Get path info for current project/group
             const pathInfo = getPathFromUrl();
 
             if (!pathInfo) {
                 throw new Error('Could not determine project/group path');
             }
-
-            // Fetch users based on path info
             let users = [];
             if (pathInfo.type === 'project') {
                 users = await this.gitlabApi.callGitLabApi(
@@ -4600,16 +3656,12 @@ window.SettingsManager = class SettingsManager {
                     {params: {per_page: 100}}
                 );
             }
-
-            // Process and store users
             this.availableAssignees = users.map(user => ({
                 id: user.id,
                 name: user.name,
                 username: user.username,
                 avatar_url: user.avatar_url
             }));
-
-            // Display users
             this.renderAvailableUsers(container);
 
         } catch (error) {
@@ -4631,10 +3683,7 @@ window.SettingsManager = class SettingsManager {
 
     
     renderAvailableUsers(container) {
-        // Clear container
         container.innerHTML = '';
-
-        // Get current whitelist for comparison
         const whitelist = getAssigneeWhitelist();
         const whitelistUsernames = whitelist.map(a => a.username.toLowerCase());
 
@@ -4648,11 +3697,7 @@ window.SettingsManager = class SettingsManager {
             container.appendChild(emptyMessage);
             return;
         }
-
-        // Sort users alphabetically
         this.availableAssignees.sort((a, b) => a.name.localeCompare(b.name));
-
-        // Create user items
         this.availableAssignees.forEach(user => {
             const isWhitelisted = whitelistUsernames.includes(user.username.toLowerCase());
 
@@ -4664,13 +3709,9 @@ window.SettingsManager = class SettingsManager {
             userItem.style.padding = '10px 15px';
             userItem.style.borderBottom = '1px solid #eee';
             userItem.style.backgroundColor = isWhitelisted ? 'rgba(40, 167, 69, 0.05)' : '';
-
-            // User info section
             const userInfo = document.createElement('div');
             userInfo.style.display = 'flex';
             userInfo.style.alignItems = 'center';
-
-            // Avatar
             if (user.avatar_url) {
                 const avatar = document.createElement('img');
                 avatar.src = user.avatar_url;
@@ -4680,7 +3721,6 @@ window.SettingsManager = class SettingsManager {
                 avatar.style.marginRight = '10px';
                 userInfo.appendChild(avatar);
             } else {
-                // Placeholder avatar
                 const avatarPlaceholder = document.createElement('div');
                 avatarPlaceholder.style.width = '30px';
                 avatarPlaceholder.style.height = '30px';
@@ -4692,8 +3732,6 @@ window.SettingsManager = class SettingsManager {
                 avatarPlaceholder.style.marginRight = '10px';
                 avatarPlaceholder.style.fontWeight = 'bold';
                 avatarPlaceholder.style.color = '#666';
-
-                // Get initials
                 const name = user.name || user.username;
                 const initials = name.split(' ')
                     .map(part => part.charAt(0))
@@ -4704,8 +3742,6 @@ window.SettingsManager = class SettingsManager {
                 avatarPlaceholder.textContent = initials;
                 userInfo.appendChild(avatarPlaceholder);
             }
-
-            // User details
             const userDetails = document.createElement('div');
 
             const userName = document.createElement('div');
@@ -4722,8 +3758,6 @@ window.SettingsManager = class SettingsManager {
             userDetails.appendChild(userName);
             userDetails.appendChild(userUsername);
             userInfo.appendChild(userDetails);
-
-            // Action button
             const actionButton = document.createElement('button');
 
             if (isWhitelisted) {
@@ -4736,10 +3770,7 @@ window.SettingsManager = class SettingsManager {
                 actionButton.style.backgroundColor = '#28a745';
                 actionButton.style.color = 'white';
                 actionButton.style.cursor = 'pointer';
-
-                // Add event listener
                 actionButton.addEventListener('click', () => {
-                    // Add to whitelist
                     const assignee = {
                         name: user.name,
                         username: user.username
@@ -4752,23 +3783,15 @@ window.SettingsManager = class SettingsManager {
                         whitelist.push(assignee);
                         saveAssigneeWhitelist(whitelist);
                     }
-
-                    // Update UI
                     actionButton.textContent = 'Added ✓';
                     actionButton.style.backgroundColor = '#e9ecef';
                     actionButton.style.color = '#28a745';
                     actionButton.style.cursor = 'default';
                     userItem.style.backgroundColor = 'rgba(40, 167, 69, 0.05)';
-
-                    // Show notification
                     this.notification.success(`Added ${user.name} to assignees`);
-
-                    // Notify of change
                     if (typeof this.onSettingsChanged === 'function') {
                         this.onSettingsChanged('assignees');
                     }
-
-                    // Refresh the whitelisted assignees tab
                     this.refreshWhitelistedTab();
                 });
             }
@@ -4786,15 +3809,10 @@ window.SettingsManager = class SettingsManager {
 
     
     refreshWhitelistedTab() {
-        // Find the whitelisted assignees container
         const whitelistedContent = document.querySelector('div[style*="display: block"]'); // Currently visible content
         if (!whitelistedContent) return;
-
-        // Find the assignee list container
         const assigneeListContainer = whitelistedContent.querySelector('div[style*="overflowY: auto"]');
         if (!assigneeListContainer) return;
-
-        // Create empty message function
         const createEmptyMessage = () => {
             const emptyMessage = document.createElement('div');
             emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
@@ -4804,11 +3822,7 @@ window.SettingsManager = class SettingsManager {
             emptyMessage.style.textAlign = 'center';
             return emptyMessage;
         };
-
-        // Clear current list
         assigneeListContainer.innerHTML = '';
-
-        // Show loading indicator
         const loadingIndicator = document.createElement('div');
         loadingIndicator.textContent = 'Refreshing assignees...';
         loadingIndicator.style.padding = '15px';
@@ -4816,21 +3830,14 @@ window.SettingsManager = class SettingsManager {
         loadingIndicator.style.color = '#666';
 
         assigneeListContainer.appendChild(loadingIndicator);
-
-        // Get current whitelist - with a slight delay to show loading
         setTimeout(() => {
-            // Get freshly loaded whitelist
             let assignees = [];
             if (this.assigneeManager) {
                 assignees = this.assigneeManager.getAssigneeWhitelist();
             } else {
                 assignees = getAssigneeWhitelist();
             }
-
-            // Clear loading indicator
             assigneeListContainer.innerHTML = '';
-
-            // Populate whitelist
             if (assignees.length > 0) {
                 assignees.forEach((assignee, index) => {
                     assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
@@ -4850,13 +3857,9 @@ window.SettingsManager = class SettingsManager {
         item.style.alignItems = 'center';
         item.style.padding = '10px 15px';
         item.style.borderBottom = '1px solid #eee';
-
-        // Create assignee info
         const info = document.createElement('div');
         info.style.display = 'flex';
         info.style.alignItems = 'center';
-
-        // Create avatar placeholder
         const avatar = document.createElement('div');
         avatar.style.width = '30px';
         avatar.style.height = '30px';
@@ -4868,8 +3871,6 @@ window.SettingsManager = class SettingsManager {
         avatar.style.marginRight = '10px';
         avatar.style.fontWeight = 'bold';
         avatar.style.color = '#666';
-
-        // Get initials
         const name = assignee.name || assignee.username;
         const initials = name.split(' ')
             .map(part => part.charAt(0))
@@ -4879,8 +3880,6 @@ window.SettingsManager = class SettingsManager {
 
         avatar.textContent = initials;
         info.appendChild(avatar);
-
-        // Create name container
         const nameContainer = document.createElement('div');
 
         const displayName = document.createElement('div');
@@ -4897,8 +3896,6 @@ window.SettingsManager = class SettingsManager {
         nameContainer.appendChild(displayName);
         nameContainer.appendChild(username);
         info.appendChild(nameContainer);
-
-        // Create buttons container
         const buttons = document.createElement('div');
 
         const removeButton = document.createElement('button');
@@ -4912,7 +3909,6 @@ window.SettingsManager = class SettingsManager {
         removeButton.style.fontSize = '12px';
 
         removeButton.onclick = () => {
-            // Get current assignees
             let assignees = [];
 
             if (this.assigneeManager) {
@@ -4920,35 +3916,23 @@ window.SettingsManager = class SettingsManager {
                 assignees = this.assigneeManager.getAssigneeWhitelist();
             } else {
                 assignees = getAssigneeWhitelist();
-                // Remove assignee
                 const filteredAssignees = assignees.filter(a =>
                     a.username.toLowerCase() !== assignee.username.toLowerCase()
                 );
-                // Save whitelist
                 saveAssigneeWhitelist(filteredAssignees);
                 assignees = filteredAssignees;
             }
-
-            // Remove from list
             item.remove();
-
-            // Show empty message if no assignees left
             if (assignees.length === 0) {
                 listContainer.appendChild(createEmptyMessage());
             }
-
-            // Show success message
             this.notification.info(`Removed assignee: ${assignee.name || assignee.username}`);
-
-            // Notify of change
             if (this.onSettingsChanged) {
                 this.onSettingsChanged('assignees');
             }
         };
 
         buttons.appendChild(removeButton);
-
-        // Assemble item
         item.appendChild(info);
         item.appendChild(buttons);
 
@@ -4973,16 +3957,12 @@ window.SettingsManager = class SettingsManager {
 
         whitelistSection.appendChild(whitelistTitle);
         whitelistSection.appendChild(whitelistDescription);
-
-        // Add loading message
         const loadingMessage = document.createElement('div');
         loadingMessage.id = 'whitelist-loading-message';
         loadingMessage.textContent = 'Loading all labels from GitLab...';  // Updated text
         loadingMessage.style.fontStyle = 'italic';
         loadingMessage.style.color = '#666';
         whitelistSection.appendChild(loadingMessage);
-
-        // Create whitelist container with fixed height
         const whitelistContainer = document.createElement('div');
         whitelistContainer.id = 'whitelist-container';
         whitelistContainer.style.display = 'flex';
@@ -4995,33 +3975,21 @@ window.SettingsManager = class SettingsManager {
         whitelistContainer.style.borderRadius = '4px';
         whitelistContainer.style.padding = '10px';
         whitelistSection.appendChild(whitelistContainer);
-
-        // Load current whitelist
         const currentWhitelist = getLabelWhitelist();
-
-        // Fix: Ensure currentWhitelist is an array
         const safeWhitelist = Array.isArray(currentWhitelist) ? currentWhitelist : [];
-
-        // Direct API call to get ALL project labels, bypassing any filtering
         const fetchAndDisplayAllLabels = async () => {
             try {
                 if (!this.gitlabApi) {
                     throw new Error('GitLab API not available');
                 }
-
-                // Get path info for current project/group
                 const pathInfo = getPathFromUrl();
 
                 if (!pathInfo || !pathInfo.apiUrl) {
                     throw new Error('Could not determine project/group path');
                 }
-
-                // Make a direct API call to get ALL labels
                 const allLabels = await this.gitlabApi.callGitLabApi(pathInfo.apiUrl, {
                     params: { per_page: 100 }
                 });
-
-                // Display all labels with appropriate ones checked
                 displayLabels(allLabels);
             } catch (error) {
                 console.error('Error fetching ALL labels:', error);
@@ -5029,10 +3997,7 @@ window.SettingsManager = class SettingsManager {
                 loadingMessage.style.color = '#dc3545';
             }
         };
-
-        // Function to display labels in the container
         const displayLabels = (labels) => {
-            // Remove loading message
             loadingMessage.remove();
 
             if (!labels || labels.length === 0) {
@@ -5045,19 +4010,12 @@ window.SettingsManager = class SettingsManager {
                 whitelistContainer.appendChild(noLabelsMessage);
                 return;
             }
-
-            // Sort labels alphabetically
             labels.sort((a, b) => a.name.localeCompare(b.name));
-
-            // Create a checkbox for each unique label
             const seenLabels = new Set();
 
             labels.forEach(label => {
-                // Skip duplicate labels
                 if (seenLabels.has(label.name.toLowerCase())) return;
                 seenLabels.add(label.name.toLowerCase());
-
-                // Create checkbox container
                 const checkboxContainer = document.createElement('div');
                 checkboxContainer.style.display = 'flex';
                 checkboxContainer.style.alignItems = 'center';
@@ -5069,37 +4027,25 @@ window.SettingsManager = class SettingsManager {
                 checkbox.id = `label-${label.name}`;
                 checkbox.dataset.label = label.name.toLowerCase();
                 checkbox.style.marginRight = '8px';
-
-                // Check if this label or term is in the whitelist
                 const isWhitelisted = safeWhitelist.some(term =>
                     label.name.toLowerCase().includes(term.toLowerCase())
                 );
                 checkbox.checked = isWhitelisted;
-
-                // Create GitLab-styled label
                 const labelElement = this.createGitLabStyleLabel(label);
-
-                // Make the label clickable to toggle the checkbox
                 labelElement.style.cursor = 'pointer';
                 labelElement.onclick = () => {
                     checkbox.checked = !checkbox.checked;
                     this.autoSaveWhitelist(whitelistContainer); // Auto-save when toggled
                 };
-
-                // Auto-save when checkbox changes
                 checkbox.addEventListener('change', () => {
                     this.autoSaveWhitelist(whitelistContainer);
                 });
-
-                // Add label and checkbox to container
                 checkboxContainer.appendChild(checkbox);
                 checkboxContainer.appendChild(labelElement);
                 whitelistContainer.appendChild(checkboxContainer);
             });
 
                     };
-
-        // Start fetching labels from API directly
         fetchAndDisplayAllLabels();
 
         container.appendChild(whitelistSection);
@@ -5108,19 +4054,13 @@ window.SettingsManager = class SettingsManager {
     
     refreshAssigneeList(container) {
         if (!container) return;
-
-        // Show loading state
         const loadingIndicator = document.createElement('div');
         loadingIndicator.textContent = 'Refreshing assignees...';
         loadingIndicator.style.padding = '15px';
         loadingIndicator.style.textAlign = 'center';
         loadingIndicator.style.color = '#666';
-
-        // Clear the container and show loading
         container.innerHTML = '';
         container.appendChild(loadingIndicator);
-
-        // Create empty message function
         const createEmptyMessage = () => {
             const emptyMessage = document.createElement('div');
             emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
@@ -5130,21 +4070,14 @@ window.SettingsManager = class SettingsManager {
             emptyMessage.style.textAlign = 'center';
             return emptyMessage;
         };
-
-        // Short delay to show loading state
         setTimeout(() => {
-            // Get fresh whitelist data
             let assignees = [];
             if (this.assigneeManager) {
                 assignees = this.assigneeManager.getAssigneeWhitelist();
             } else {
                 assignees = getAssigneeWhitelist();
             }
-
-            // Clear the container
             container.innerHTML = '';
-
-            // Populate with assignees or show empty message
             if (assignees.length > 0) {
                 assignees.forEach((assignee, index) => {
                     container.appendChild(this.createAssigneeListItem(assignee, index, container, createEmptyMessage));
@@ -5170,8 +4103,6 @@ window.SettingsManager = class SettingsManager {
 
         appearanceSection.appendChild(title);
         appearanceSection.appendChild(description);
-
-        // Add settings coming soon message
         const comingSoon = document.createElement('div');
         comingSoon.style.padding = '20px';
         comingSoon.style.textAlign = 'center';
@@ -5189,14 +4120,8 @@ window.SettingsManager = class SettingsManager {
     createGitLabStyleLabel(label) {
         const labelElement = document.createElement('span');
         labelElement.textContent = label.name;
-
-        // Use provided color or generate one
         const bgColor = label.color || generateColorFromString(label.name);
-
-        // Calculate text color (black or white) based on background color brightness
         const textColor = getContrastColor(bgColor);
-
-        // Apply GitLab label styles
         labelElement.style.backgroundColor = bgColor;
         labelElement.style.color = textColor;
         labelElement.style.padding = '4px 8px';
@@ -5217,13 +4142,9 @@ window.SettingsManager = class SettingsManager {
     
     resetLabelWhitelist() {
         resetLabelWhitelist();
-
-        // Update label manager if available
         if (this.labelManager) {
             this.labelManager.resetToDefaultWhitelist();
         }
-
-        // Notify of change
         if (this.onSettingsChanged) {
             this.onSettingsChanged('labels');
         }
@@ -5231,13 +4152,8 @@ window.SettingsManager = class SettingsManager {
 
     
     resetAllSettings() {
-        // Reset label whitelist
         this.resetLabelWhitelist();
-
-        // No default assignees, so just clear them
         saveAssigneeWhitelist([]);
-
-        // Notify of change
         if (this.onSettingsChanged) {
             this.onSettingsChanged('all');
         }
@@ -5248,8 +4164,6 @@ window.SettingsManager = class SettingsManager {
     autoSaveWhitelist(container) {
         const newWhitelist = [];
         const addedTerms = new Set(); // Track already added terms to prevent duplicates
-
-        // Get all checked labels
         const checkboxes = container.querySelectorAll('input[type="checkbox"]');
         checkboxes.forEach(checkbox => {
             if (checkbox.checked) {
@@ -5260,21 +4174,13 @@ window.SettingsManager = class SettingsManager {
                 }
             }
         });
-
-        // Save to storage
         saveLabelWhitelist(newWhitelist);
-
-        // Update label manager if available
         if (this.labelManager) {
             this.labelManager.saveWhitelist(newWhitelist);
         }
-
-        // Show success notification
         if (this.notification) {
             this.notification.success(`Label whitelist updated`);
         }
-
-        // Notify of change
         if (this.onSettingsChanged) {
             this.onSettingsChanged('labels');
         }
@@ -5295,32 +4201,20 @@ window.SummaryView = class SummaryView {
         const summaryContent = document.getElementById('assignee-time-summary-content');
 
         if (!summaryContent) return;
-
-        // Clear existing content
         summaryContent.innerHTML = '';
-
-        // Update board stats in the UI Manager
         this.uiManager.updateBoardStats({
             totalCards: cardsProcessed,
             withTimeCards: cardsWithTime,
             closedCards: this.getClosedBoardCount()
         });
-
-        // Handle case with no data
         if (cardsWithTime === 0) {
             this.renderNoDataMessage(summaryContent);
-
-            // Remove loading screen
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('summary-tab');
             }
             return;
         }
-
-        // Convert seconds to hours for display
         const totalHours = formatHours(totalEstimate);
-
-        // Calculate hours in done boards
         let doneHours = 0;
         for (const boardName in boardData) {
             const lowerBoardName = boardName.toLowerCase();
@@ -5333,21 +4227,13 @@ window.SummaryView = class SummaryView {
             }
         }
         const doneHoursFormatted = formatHours(doneHours);
-
-        // Update the header to include total hours and done hours
         this.uiManager.updateHeader(
             `Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`
         );
-
-        // Show milestone info if available
         if (currentMilestone) {
             this.renderMilestoneInfo(summaryContent, currentMilestone);
         }
-
-        // Create and populate the data table with hour distribution
         this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData);
-
-        // Remove loading screen
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
             this.uiManager.removeLoadingScreen('summary-tab');
         }
@@ -5362,7 +4248,6 @@ window.SummaryView = class SummaryView {
             let boardTitle = '';
 
             try {
-                // First attempt to get the title from the Vue component
                 if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
                     const boardComponent = boardList.__vue__.$children.find(child =>
                         child.$props && child.$props.list && child.$props.list.title);
@@ -5371,8 +4256,6 @@ window.SummaryView = class SummaryView {
                         boardTitle = boardComponent.$props.list.title.toLowerCase();
                     }
                 }
-
-                // Fallback to DOM if Vue component approach failed
                 if (!boardTitle) {
                     const boardHeader = boardList.querySelector('.board-title-text');
                     if (boardHeader) {
@@ -5381,14 +4264,11 @@ window.SummaryView = class SummaryView {
                 }
             } catch (e) {
                 console.error('Error getting board title:', e);
-                // Fallback to DOM
                 const boardHeader = boardList.querySelector('.board-title-text');
                 if (boardHeader) {
                     boardTitle = boardHeader.textContent.trim().toLowerCase();
                 }
             }
-
-            // Count cards in "closed" or "done" boards
             if (boardTitle.includes('done') || boardTitle.includes('closed') ||
                 boardTitle.includes('complete') || boardTitle.includes('finished')) {
                 const cards = boardList.querySelectorAll('.board-card');
@@ -5411,8 +4291,6 @@ window.SummaryView = class SummaryView {
         tipMsg.style.fontStyle = 'italic';
         tipMsg.innerHTML = 'Tip: Try scrolling through all cards to ensure they are loaded before clicking Recalculate.';
         container.appendChild(tipMsg);
-
-        // Update header to show 0h when no data found
         this.uiManager.updateHeader('Summary 0.0h');
     }
 
@@ -5428,17 +4306,10 @@ window.SummaryView = class SummaryView {
 
     
     renderDataTableWithDistribution(container, assigneeTimeMap, totalHours, boardData, boardAssigneeData) {
-        // Create table
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
-
-        // Get board names in order
         const boardNames = Object.keys(boardData || {});
-
-        // Debug logging to help identify data issues
-                        
-        // Add total row at top
         const totalRow = document.createElement('tr');
         totalRow.style.borderBottom = '2px solid #ddd';
         totalRow.style.fontWeight = 'bold';
@@ -5451,32 +4322,22 @@ window.SummaryView = class SummaryView {
         totalValueCell.textContent = `${totalHours}h`;
         totalValueCell.style.textAlign = 'right';
         totalValueCell.style.padding = '5px 0';
-
-        // Add distribution cell for total
         const totalDistributionCell = document.createElement('td');
         totalDistributionCell.style.textAlign = 'right';
         totalDistributionCell.style.padding = '5px 0 5px 15px';
         totalDistributionCell.style.color = '#666';
         totalDistributionCell.style.fontSize = '12px';
-
-        // Create distribution for total across all boards
         if (boardNames.length > 0 && boardData) {
             const distributionValues = boardNames.map(boardName => {
                 const boardDataObj = boardData[boardName] || { timeEstimate: 0 };
                 const hoursFloat = parseFloat(formatHours(boardDataObj.timeEstimate || 0));
                 return Math.round(hoursFloat); // Round to integer
             });
-
-            // Always include all boards in the distribution
             const distributionText = distributionValues.map((hours, index) => {
                 let spanHTML = `<span style="`;
-
-                // Style based on value
                 if (hours === 0) {
                     spanHTML += `color:#aaa;`; // Grey for zero values
                 }
-
-                // Make the last board green if greater than 0
                 if (index === distributionValues.length - 1 && hours > 0) {
                     spanHTML += `color:#28a745;`; // Green for last board with hours
                 }
@@ -5492,13 +4353,9 @@ window.SummaryView = class SummaryView {
         totalRow.appendChild(totalValueCell);
         totalRow.appendChild(totalDistributionCell);
         table.appendChild(totalRow);
-
-        // Sort assignees by time (descending)
         const sortedAssignees = Object.keys(assigneeTimeMap).sort((a, b) => {
             return assigneeTimeMap[b] - assigneeTimeMap[a];
         });
-
-        // Add a row for each assignee
         sortedAssignees.forEach(name => {
             const hours = formatHours(assigneeTimeMap[name]);
 
@@ -5513,34 +4370,23 @@ window.SummaryView = class SummaryView {
             timeCell.textContent = `${hours}h`;
             timeCell.style.textAlign = 'right';
             timeCell.style.padding = '5px 0';
-
-            // Add distribution cell for this assignee
             const distributionCell = document.createElement('td');
             distributionCell.style.textAlign = 'right';
             distributionCell.style.padding = '5px 0 5px 15px';
             distributionCell.style.color = '#666';
             distributionCell.style.fontSize = '12px';
-
-            // Create distribution for this assignee across all boards
             if (boardNames.length > 0 && boardAssigneeData) {
                 const distributionValues = boardNames.map(boardName => {
-                    // Get this assignee's data for this board, defaulting to zero
                     const boardAssignees = boardAssigneeData[boardName] || {};
                     const assigneeInBoard = boardAssignees[name] || { timeEstimate: 0 };
                     const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
                     return Math.round(hoursFloat); // Round to integer
                 });
-
-                // Always include all boards in the distribution
                 const distributionText = distributionValues.map((hours, index) => {
                     let spanHTML = `<span style="`;
-
-                    // Style based on value
                     if (hours === 0) {
                         spanHTML += `color:#aaa;`; // Grey for zero values
                     }
-
-                    // Make the last board green if greater than 0
                     if (index === distributionValues.length - 1 && hours > 0) {
                         spanHTML += `color:#28a745;`; // Green for last board with hours
                     }
@@ -5572,20 +4418,12 @@ window.BoardsView = class BoardsView {
     render(boardData, boardAssigneeData) {
         const boardsContent = document.getElementById('boards-time-summary-content');
         if (!boardsContent) return;
-
-        // Clear existing content
         boardsContent.innerHTML = '';
-
-        // Create accordion-style list of boards
         const boardsList = document.createElement('div');
         boardsList.className = 'boards-list-summary';
-
-        // Sort boards by time estimate (descending)
         const sortedBoards = Object.keys(boardData).sort((a, b) => {
             return boardData[b].timeEstimate - boardData[a].timeEstimate;
         });
-
-        // Create a section for each board
         sortedBoards.forEach(boardName => {
             const boardSection = this.createBoardSection(
                 boardName,
@@ -5596,8 +4434,6 @@ window.BoardsView = class BoardsView {
         });
 
         boardsContent.appendChild(boardsList);
-
-        // Remove loading screen
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
             this.uiManager.removeLoadingScreen('boards-tab');
         }
@@ -5606,13 +4442,9 @@ window.BoardsView = class BoardsView {
     
     createBoardSection(boardName, boardData, assigneeData) {
         const boardHours = formatHours(boardData.timeEstimate);
-
-        // Create board section container
         const boardSection = document.createElement('div');
         boardSection.className = 'board-section';
         boardSection.style.marginBottom = '15px';
-
-        // Board header with expand/collapse functionality
         const boardHeader = document.createElement('div');
         boardHeader.className = 'board-header';
         boardHeader.style.display = 'flex';
@@ -5622,15 +4454,11 @@ window.BoardsView = class BoardsView {
         boardHeader.style.borderRadius = '3px';
         boardHeader.style.cursor = 'pointer';
         boardHeader.style.fontWeight = 'bold';
-
-        // Board details area (initially hidden)
         const boardDetails = document.createElement('div');
         boardDetails.className = 'board-details';
         boardDetails.style.display = 'none';
         boardDetails.style.marginTop = '5px';
         boardDetails.style.marginLeft = '10px';
-
-        // Toggle details when header is clicked
         boardHeader.addEventListener('click', () => {
             if (boardDetails.style.display === 'none') {
                 boardDetails.style.display = 'block';
@@ -5640,20 +4468,14 @@ window.BoardsView = class BoardsView {
                 boardToggle.textContent = '▶';
             }
         });
-
-        // Board info text
         const boardInfo = document.createElement('div');
         boardInfo.textContent = `${boardName} (${boardData.tickets} tickets, ${boardHours}h)`;
-
-        // Toggle indicator
         const boardToggle = document.createElement('span');
         boardToggle.textContent = '▶';
         boardToggle.style.marginLeft = '5px';
 
         boardHeader.appendChild(boardInfo);
         boardHeader.appendChild(boardToggle);
-
-        // Add assignee table if we have data
         if (assigneeData) {
             boardDetails.appendChild(
                 this.createAssigneeTable(assigneeData)
@@ -5672,8 +4494,6 @@ window.BoardsView = class BoardsView {
         assigneeTable.style.width = '100%';
         assigneeTable.style.borderCollapse = 'collapse';
         assigneeTable.style.marginTop = '5px';
-
-        // Table headers
         const headerRow = document.createElement('tr');
         headerRow.style.borderBottom = '1px solid #ddd';
 
@@ -5696,13 +4516,9 @@ window.BoardsView = class BoardsView {
         headerRow.appendChild(ticketsHeader);
         headerRow.appendChild(timeHeader);
         assigneeTable.appendChild(headerRow);
-
-        // Sort assignees by time for this board
         const boardAssignees = Object.keys(assigneeData).sort((a, b) => {
             return assigneeData[b].timeEstimate - assigneeData[a].timeEstimate;
         });
-
-        // Add a row for each assignee
         boardAssignees.forEach(assigneeName => {
             const assigneeInfo = assigneeData[assigneeName];
             const assigneeHours = formatHours(assigneeInfo.timeEstimate);
@@ -5744,17 +4560,9 @@ window.HistoryView = class HistoryView {
     render() {
         const historyContent = document.getElementById('history-time-summary-content');
         if (!historyContent) return;
-
-        // Clear existing content
         historyContent.innerHTML = '';
-
-        // Get current URL key
         const urlKey = getHistoryKey();
-
-        // Get history data specific to this URL
         const history = GM_getValue(urlKey, []);
-
-        // Show current URL being displayed
         const urlInfo = document.createElement('div');
         urlInfo.style.fontSize = '12px';
         urlInfo.style.color = '#666';
@@ -5762,25 +4570,15 @@ window.HistoryView = class HistoryView {
         urlInfo.style.wordBreak = 'break-all';
 
         historyContent.appendChild(urlInfo);
-
-        // If no history, show message
         if (history.length === 0) {
             this.renderNoHistoryMessage(historyContent);
-
-            // Remove loading screen
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('history-tab');
             }
             return;
         }
-
-        // Add clear history button
         this.addClearHistoryButton(historyContent, urlKey);
-
-        // Create and populate history table
         this.renderHistoryTable(historyContent, history);
-
-        // Remove loading screen
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
             this.uiManager.removeLoadingScreen('history-tab');
         }
@@ -5817,12 +4615,9 @@ window.HistoryView = class HistoryView {
 
     
     renderHistoryTable(container, history) {
-        // Create history table
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
-
-        // Table header
         const headerRow = document.createElement('tr');
         headerRow.style.borderBottom = '2px solid #ddd';
         headerRow.style.fontWeight = 'bold';
@@ -5846,8 +4641,6 @@ window.HistoryView = class HistoryView {
         headerRow.appendChild(hoursHeader);
         headerRow.appendChild(milestoneHeader);
         table.appendChild(headerRow);
-
-        // Add data rows in reverse order (newest first)
         history.slice().reverse().forEach(entry => {
             const row = document.createElement('tr');
             row.style.borderBottom = '1px solid #eee';
@@ -5886,21 +4679,14 @@ window.BulkCommentsView = class BulkCommentsView {
         this.isLoading = false;
         this.initializedShortcuts = new Set(); // Track which shortcuts have been initialized
         this.commentInput = null; // Store reference to textarea element
-
-        // Get the GitLab API instance from the window object or uiManager
         this.gitlabApi = window.gitlabApi || (uiManager && uiManager.gitlabApi);
-
-        // Create a notification instance
         this.notification = new Notification({
             position: 'bottom-right',
             duration: 3000
         });
-
-        // Important: Initialize labelManager manually if it's not in uiManager
         if (uiManager && uiManager.labelManager) {
             this.labelManager = uiManager.labelManager;
         } else if (typeof LabelManager === 'function') {
-            // Make sure LabelManager is imported and available
             this.labelManager = new LabelManager({
                 gitlabApi: this.gitlabApi,
                 onLabelsLoaded: (labels) => {
@@ -5910,14 +4696,11 @@ window.BulkCommentsView = class BulkCommentsView {
                 }
             });
         } else {
-            // Create a simple placeholder that won't cause errors
             this.labelManager = {
                 filteredLabels: [],
                 fetchAllLabels: () => Promise.resolve([])
             };
         }
-
-        // Initialize the selection display
         this.selectionDisplay = new SelectionDisplay({
             selectedIssues: this.selectedIssues,
             onRemoveIssue: (index) => this.onRemoveIssue(index)
@@ -5930,28 +4713,21 @@ window.BulkCommentsView = class BulkCommentsView {
             console.error("Cannot update assign shortcut: commandShortcuts not available");
             return;
         }
-
-        // Skip if we have no items or just the default ones
         if (!items || items.length <= 3) {
             console.warn("Not updating assign shortcut: no meaningful items to add");
             return;
         }
 
         try {
-            // Store current selected value if there is one
             let currentValue = null;
             if (this.commandShortcuts.shortcuts &&
                 this.commandShortcuts.shortcuts['assign'] &&
                 this.commandShortcuts.shortcuts['assign'].dropdown) {
                 currentValue = this.commandShortcuts.shortcuts['assign'].dropdown.value;
             }
-
-            // First remove existing shortcut if it exists
             if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['assign']) {
                 this.commandShortcuts.removeShortcut('assign');
             }
-
-            // Then add the new shortcut
             this.commandShortcuts.addCustomShortcut({
                 type: 'assign',
                 label: '/assign',
@@ -5960,7 +4736,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     if (!value || value === 'separator' || value === 'separator2') return;
 
                     if (value === 'manage') {
-                        // Try different ways to open the assignee manager
                         if (this.assigneeManager && typeof this.assigneeManager.openAssigneeManager === 'function') {
                             this.assigneeManager.openAssigneeManager();
                         } else if (window.assigneeManager && typeof window.assigneeManager.openAssigneeManager === 'function') {
@@ -5972,8 +4747,6 @@ window.BulkCommentsView = class BulkCommentsView {
                             this.notification.error('Assignee manager not available');
                             return;
                         }
-
-                        // After the manager is closed, refresh the shortcut
                         setTimeout(() => {
                             this.addAssignShortcut();
                         }, 500);
@@ -5999,7 +4772,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     } else if (value === '@me') {
                         assignText += '@me';
                     } else {
-                        // Handle usernames - prefix with @ if not already there
                         assignText += value.startsWith('@') ? value : `@${value}`;
                     }
 
@@ -6014,8 +4786,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     }
                 }
             });
-
-            // Restore selected value if it existed and is in the new items
             if (currentValue && this.commandShortcuts.shortcuts['assign'] &&
                 this.commandShortcuts.shortcuts['assign'].dropdown) {
                 this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
@@ -6030,33 +4800,22 @@ window.BulkCommentsView = class BulkCommentsView {
         if (!this.commandShortcuts) return;
 
         try {
-            // Define a consistent order for the shortcuts
             const shortcutOrder = ['estimate', 'label', 'milestone', 'assign'];
-
-            // Track already added shortcuts
             const addedShortcuts = new Set(Object.keys(this.commandShortcuts.shortcuts || {}));
-
-            // Create estimate shortcut (always first) if not already added
             if (!addedShortcuts.has('estimate')) {
                 this.commandShortcuts.initializeEstimateShortcut();
                 addedShortcuts.add('estimate');
             }
-
-            // Add label shortcut with placeholder labels if not already added
             if (!addedShortcuts.has('label')) {
                 this.addLabelShortcut([
                     { value: '', label: 'Loading labels...' }
                 ]);
                 addedShortcuts.add('label');
             }
-
-            // Add milestone shortcut if not already added
             if (!addedShortcuts.has('milestone')) {
                 this.addMilestoneShortcut();
                 addedShortcuts.add('milestone');
             }
-
-            // Add assign shortcut if not already added
             if (!addedShortcuts.has('assign')) {
                 this.addAssignShortcut();
                 addedShortcuts.add('assign');
@@ -6091,14 +4850,10 @@ window.BulkCommentsView = class BulkCommentsView {
                         if (!customMilestone) return;
                         value = customMilestone;
                     }
-
-                    // Use the stored textarea reference instead of finding it by ID
                     if (!this.commentInput) {
                         console.warn('Comment input not available');
                         return;
                     }
-
-                    // Format milestone text based on value
                     let milestoneText = '/milestone ';
                     if (value === 'none') {
                         milestoneText += '%""';
@@ -6121,18 +4876,11 @@ window.BulkCommentsView = class BulkCommentsView {
     
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
-
-        
-        // Log global objects to check availability
-                        
-        // Start with basic assign items
         let assignItems = [
             { value: '', label: 'Assign to...' },
             { value: '@me', label: 'Myself' },
             { value: 'none', label: 'Unassign' }
         ];
-
-        // DIRECT ACCESS APPROACH: Attempt to directly access the storage via GM_getValue
         let directWhitelist = null;
         try {
             if (typeof GM_getValue === 'function') {
@@ -6141,14 +4889,8 @@ window.BulkCommentsView = class BulkCommentsView {
         } catch (e) {
             console.error("Error accessing GM_getValue:", e);
         }
-
-        // If we got assignees directly, use them
         if (Array.isArray(directWhitelist) && directWhitelist.length > 0) {
-            
-            // Add a separator
             assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
-
-            // Add whitelisted assignees
             const whitelistItems = directWhitelist.map(assignee => ({
                 value: assignee.username,
                 label: assignee.name || assignee.username
@@ -6156,13 +4898,8 @@ window.BulkCommentsView = class BulkCommentsView {
 
             assignItems = assignItems.concat(whitelistItems);
         }
-        // If direct access failed, try other methods
         else {
-            
-            // Try to find assignees from various sources
             let assignees = [];
-
-            // Try the assigneeManager
             if (this.assigneeManager && typeof this.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = this.assigneeManager.getAssigneeWhitelist();
@@ -6170,8 +4907,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     console.error("Error getting assignees from this.assigneeManager:", e);
                 }
             }
-
-            // Try global assigneeManager if local one failed
             if ((!assignees || !assignees.length) && window.assigneeManager &&
                 typeof window.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
@@ -6180,8 +4915,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     console.error("Error getting assignees from window.assigneeManager:", e);
                 }
             }
-
-            // Try imported getAssigneeWhitelist if available
             if ((!assignees || !assignees.length) && typeof getAssigneeWhitelist === 'function') {
                 try {
                     assignees = getAssigneeWhitelist();
@@ -6189,8 +4922,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     console.error("Error getting assignees from imported getAssigneeWhitelist:", e);
                 }
             }
-
-            // Try global getAssigneeWhitelist if available
             if ((!assignees || !assignees.length) && typeof window.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = window.getAssigneeWhitelist();
@@ -6198,8 +4929,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     console.error("Error getting assignees from window.getAssigneeWhitelist:", e);
                 }
             }
-
-            // Try localStorage directly
             if (!assignees || !assignees.length) {
                 try {
                     const storedValue = localStorage.getItem('gitLabHelperAssigneeWhitelist');
@@ -6210,13 +4939,8 @@ window.BulkCommentsView = class BulkCommentsView {
                     console.error("Error getting assignees from localStorage:", e);
                 }
             }
-
-            // If we found any assignees by any method, add them to the dropdown
             if (Array.isArray(assignees) && assignees.length > 0) {
-                // Add a separator
                 assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
-
-                // Add whitelisted assignees
                 const whitelistItems = assignees.map(assignee => ({
                     value: assignee.username,
                     label: assignee.name || assignee.username
@@ -6227,28 +4951,14 @@ window.BulkCommentsView = class BulkCommentsView {
                 console.warn("Could not find any assignees through any method");
             }
         }
-
-        // Add custom option and manage option at the end
         assignItems.push({ value: 'custom', label: 'Custom...' });
-
-        // Add this log to see what will be passed to the dropdown
-        
-        // Update the assign shortcut with our items
         this.updateAssignShortcut(assignItems);
-
-        // Async attempt to fetch more group members
         setTimeout(() => {
             this.fetchGroupMembers()
                 .then(members => {
                     if (members && members.length > 0) {
-                        
-                        // Create a new array that includes existing items plus members
                         const updatedItems = [...assignItems];
-
-                        // Add a separator if we have members
                         updatedItems.push({ value: 'separator2', label: '────── Group Members ──────' });
-
-                        // Add group members, making sure to avoid duplicates with existing assignees
                         const existingUsernames = assignItems
                             .filter(item => item.value && !['separator', 'separator2', 'custom', 'manage', '@me', 'none', ''].includes(item.value))
                             .map(item => item.value.toLowerCase());
@@ -6262,8 +4972,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
                         if (newMembers.length > 0) {
                             updatedItems.push(...newMembers);
-
-                            // Update the shortcut with all the items
                             this.updateAssignShortcut(updatedItems);
                         }
                     }
@@ -6279,7 +4987,6 @@ window.BulkCommentsView = class BulkCommentsView {
     
     async fetchGroupMembers() {
         try {
-            // First, ensure we have an API instance
             if (!this.gitlabApi) {
                 this.gitlabApi = window.gitlabApi;
             }
@@ -6287,15 +4994,11 @@ window.BulkCommentsView = class BulkCommentsView {
             if (!this.gitlabApi) {
                 throw new Error('GitLab API not available');
             }
-
-            // Get path info to determine project or group
             const pathInfo = getPathFromUrl();
 
             if (!pathInfo) {
                 throw new Error('Could not determine project/group path');
             }
-
-            // Fetch members based on path type
             let members;
             if (pathInfo.type === 'project') {
                 members = await this.gitlabApi.callGitLabApi(
@@ -6315,8 +5018,6 @@ window.BulkCommentsView = class BulkCommentsView {
                 console.warn('API did not return an array of members');
                 return [];
             }
-
-            // Process members
             return members.map(member => ({
                 id: member.id,
                 name: member.name,
@@ -6331,15 +5032,10 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     setSelectedIssues(issues) {
-        // Make a defensive copy to prevent reference issues
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
-
-        // Update the SelectionDisplay with the new issues
         if (this.selectionDisplay) {
             this.selectionDisplay.setSelectedIssues(this.selectedIssues);
         }
-
-        // Update status message if it exists
         const statusEl = document.getElementById('comment-status');
         if (statusEl) {
             const count = this.selectedIssues.length;
@@ -6351,29 +5047,19 @@ window.BulkCommentsView = class BulkCommentsView {
                 statusEl.style.color = '#666';
             }
         }
-
-        // Log for debugging
             }
 
     
     onRemoveIssue(index) {
         if (this.selectedIssues.length > index) {
-            // Store the removed issue for debugging
             const removedIssue = this.selectedIssues[index];
-
-            // Remove the issue
             this.selectedIssues.splice(index, 1);
-
-            // Update UI manager's issue selector if available
             if (this.uiManager && this.uiManager.issueSelector) {
                 this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
             } else if (window.uiManager && window.uiManager.issueSelector) {
-                // Try global uiManager as fallback
                 window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
             }
         }
-
-        // Update status message if it exists
         const statusEl = document.getElementById('comment-status');
         if (statusEl) {
             const count = this.selectedIssues.length;
@@ -6385,19 +5071,14 @@ window.BulkCommentsView = class BulkCommentsView {
                 statusEl.style.color = '#666';
             }
         }
-
-        // Log for debugging
             }
 
     
     createActionButtons(container) {
-        // Buttons container
         const buttonContainer = document.createElement('div');
         buttonContainer.style.display = 'flex';
         buttonContainer.style.gap = '8px';
         buttonContainer.style.marginBottom = '8px';
-
-        // Add select issues button with toggle functionality
         const selectBtn = document.createElement('button');
         selectBtn.id = 'select-issues-button';
         selectBtn.textContent = 'Select'; // Simplified text
@@ -6413,8 +5094,6 @@ window.BulkCommentsView = class BulkCommentsView {
         selectBtn.style.alignItems = 'center';
         selectBtn.style.justifyContent = 'center';
         selectBtn.style.minWidth = '80px'; // Ensure consistent widths
-
-        // Add hover effect
         selectBtn.addEventListener('mouseenter', () => {
             selectBtn.style.backgroundColor = selectBtn.dataset.active === 'true' ? '#218838' : '#5a6268';
         });
@@ -6424,22 +5103,14 @@ window.BulkCommentsView = class BulkCommentsView {
 
         selectBtn.onclick = () => {
             if (this.uiManager && this.uiManager.issueSelector) {
-                // Toggle selection mode
                 if (this.uiManager.issueSelector.isSelectingIssue) {
-                    // Currently active, so exit selection mode
                     this.uiManager.issueSelector.exitSelectionMode();
-
-                    // Update button styling
                     selectBtn.dataset.active = 'false';
                     selectBtn.style.backgroundColor = '#6c757d'; // Gray when inactive
                     selectBtn.textContent = 'Select';
                 } else {
-                    // Not active, so start selection mode
-                    // Pass the current selection to maintain it
                     this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
                     this.uiManager.issueSelector.startSelection();
-
-                    // Update button styling
                     selectBtn.dataset.active = 'true';
                     selectBtn.style.backgroundColor = '#28a745'; // Green when active
                     selectBtn.textContent = 'Done'; // Changed to "Done" when active
@@ -6454,8 +5125,6 @@ window.BulkCommentsView = class BulkCommentsView {
             }
         };
         buttonContainer.appendChild(selectBtn);
-
-        // Add Save button (renamed from "Add Comment")
         const submitBtn = document.createElement('button');
         submitBtn.textContent = 'Send';  // Changed to clearer "Save" label
         submitBtn.style.padding = '8px 12px';
@@ -6471,8 +5140,6 @@ window.BulkCommentsView = class BulkCommentsView {
         submitBtn.style.justifyContent = 'center';
         submitBtn.style.flex = '1';
         submitBtn.style.minWidth = '80px'; // Ensure consistent widths
-
-        // Add hover effect
         submitBtn.addEventListener('mouseenter', () => {
             submitBtn.style.backgroundColor = '#1a63ac';
         });
@@ -6488,59 +5155,34 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     clearSelectedIssues() {
-        // Clear local selection
         this.selectedIssues = [];
-
-        // Update the selection display
         if (this.selectionDisplay) {
             this.selectionDisplay.setSelectedIssues([]);
         }
-
-        // Update status message
         const statusEl = document.getElementById('comment-status');
         if (statusEl) {
             statusEl.textContent = 'Selection cleared.';
             statusEl.style.color = '#666';
         }
-
-        // Show notification
         if (this.notification) {
             this.notification.info('Selection cleared');
         }
-
-        // Log for debugging
             }
     
     render() {
         const bulkCommentsContent = document.getElementById('bulk-comments-content');
         if (!bulkCommentsContent) return;
-
-        // Clear previous content
         bulkCommentsContent.innerHTML = '';
-
-        // Add comment section
         this.addCommentSection(bulkCommentsContent);
-
-        // Initialize shortcuts in the correct order
         if (this.commandShortcuts) {
-            // Add all shortcut structure first before fetching data
-            // This ensures consistent order from the beginning
             this.initializeAllShortcuts();
-
-            // Show loading state
             this.isLoading = true;
-
-            // Now fetch data for the shortcuts asynchronously
             if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
-                // Fetch labels in the background without affecting order
                 this.labelManager.fetchAllLabels()
                     .then(labels => {
-                        // Update label shortcut with actual data
                         this.addLabelShortcut();
                         this.isLoading = false;
                         this.hideLoadingState();
-
-                        // Remove loading screen
                         if (this.uiManager && this.uiManager.removeLoadingScreen) {
                             this.uiManager.removeLoadingScreen('bulkcomments-tab');
                         }
@@ -6550,20 +5192,15 @@ window.BulkCommentsView = class BulkCommentsView {
                         this.addLabelShortcut(this.getFallbackLabels());
                         this.isLoading = false;
                         this.hideLoadingState();
-
-                        // Remove loading screen
                         if (this.uiManager && this.uiManager.removeLoadingScreen) {
                             this.uiManager.removeLoadingScreen('bulkcomments-tab');
                         }
                     });
             } else {
-                // No label manager, just use fallbacks
                 console.warn('Label manager not available, using fallback labels');
                 this.addLabelShortcut(this.getFallbackLabels());
                 this.isLoading = false;
                 this.hideLoadingState();
-
-                // Remove loading screen
                 if (this.uiManager && this.uiManager.removeLoadingScreen) {
                     this.uiManager.removeLoadingScreen('bulkcomments-tab');
                 }
@@ -6572,8 +5209,6 @@ window.BulkCommentsView = class BulkCommentsView {
             console.error('Command shortcuts not initialized');
             this.isLoading = false;
             this.hideLoadingState();
-
-            // Remove loading screen
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('bulkcomments-tab');
             }
@@ -6582,7 +5217,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     addCommentSection(container) {
-        // Create comment tool section
         const commentSection = document.createElement('div');
         commentSection.classList.add('api-section');
         commentSection.style.marginBottom = '15px';
@@ -6590,53 +5224,32 @@ window.BulkCommentsView = class BulkCommentsView {
         commentSection.style.backgroundColor = '#f5f5f5';
         commentSection.style.borderRadius = '8px';
         commentSection.style.border = '1px solid #e0e0e0';
-
-        // Add selected issues container
         this.selectionDisplay.createSelectionContainer(commentSection);
-
-        // Add comment input with shortcuts - initially with loading state
         this.createCommentInput(commentSection);
-
-        // Add action buttons
         this.createActionButtons(commentSection);
-
-        // Add status and progress elements
         this.createStatusElements(commentSection);
-
-        // Show loading state
         this.isLoading = true;
         this.showLoadingState();
-
-        // Initialize the shortcuts with placeholder labels
         try {
-            // Make sure commentInput and commandShortcuts are initialized
             if (this.commentInput && this.commandShortcuts) {
                 this.initializeAllShortcuts();
-
-                // Show initial label shortcut with "Loading..." state
                 this.addLabelShortcut([
                     { value: '', label: 'Loading labels...' }
                 ]);
-
-                // Now try to fetch labels asynchronously
                 if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
-                    // Try to fetch labels in the background
                     this.labelManager.fetchAllLabels()
                         .then(labels => {
-                            // Update the label shortcut with fetched labels
                             this.addLabelShortcut();
                             this.isLoading = false;
                             this.hideLoadingState();
                         })
                         .catch(error => {
                             console.error('Error loading labels:', error);
-                            // If fetching fails, update with fallback labels
                             this.addLabelShortcut(this.getFallbackLabels());
                             this.isLoading = false;
                             this.hideLoadingState();
                         });
                 } else {
-                    // No label manager, just use fallbacks
                     console.warn('Label manager not available, using fallback labels');
                     this.addLabelShortcut(this.getFallbackLabels());
                     this.isLoading = false;
@@ -6671,20 +5284,15 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     createCommentInput(container) {
-        // Create a wrapper for shortcuts with fixed dimensions
         const shortcutsWrapper = document.createElement('div');
         shortcutsWrapper.id = 'shortcuts-wrapper';
         shortcutsWrapper.style.width = '100%';
         shortcutsWrapper.style.marginBottom = '15px';
         shortcutsWrapper.style.minHeight = '120px'; // Set a fixed minimum height that accommodates all shortcuts
         shortcutsWrapper.style.position = 'relative'; // Important for stable layout
-
-        // Add a placeholder layout while loading to prevent jumping
         const placeholderShortcuts = document.createElement('div');
         placeholderShortcuts.style.opacity = '0.4';
         placeholderShortcuts.style.pointerEvents = 'none';
-
-        // Create placeholder items that mimic the shortcut layout
         ['Estimate', 'Label', 'Milestone', 'Assign'].forEach(type => {
             const placeholder = document.createElement('div');
             placeholder.style.display = 'flex';
@@ -6714,8 +5322,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
         shortcutsWrapper.appendChild(placeholderShortcuts);
         container.appendChild(shortcutsWrapper);
-
-        // Comment textarea with improved styling
         const commentInput = document.createElement('textarea');
         commentInput.id = 'issue-comment-input';
         commentInput.placeholder = 'Enter your comment here...';
@@ -6729,8 +5335,6 @@ window.BulkCommentsView = class BulkCommentsView {
         commentInput.style.transition = 'border-color 0.2s ease';
         commentInput.style.resize = 'vertical';
         commentInput.style.boxSizing = 'border-box';
-
-        // Add focus effect
         commentInput.addEventListener('focus', () => {
             commentInput.style.borderColor = '#1f75cb';
             commentInput.style.outline = 'none';
@@ -6741,14 +5345,8 @@ window.BulkCommentsView = class BulkCommentsView {
             commentInput.style.borderColor = '#ccc';
             commentInput.style.boxShadow = 'none';
         });
-
-        // Add the textarea after the shortcuts wrapper
         container.appendChild(commentInput);
-
-        // Store reference to the textarea
         this.commentInput = commentInput;
-
-        // Initialize CommandShortcut with the newly created textarea
         try {
             if (typeof CommandShortcut === 'function') {
                 this.commandShortcuts = new CommandShortcut({
@@ -6756,11 +5354,7 @@ window.BulkCommentsView = class BulkCommentsView {
                     onShortcutInsert: (type, value) => {
                                             }
                 });
-
-                // Initialize shortcuts container, replacing the placeholder
                 this.commandShortcuts.initialize(shortcutsWrapper);
-
-                // Remove placeholder after initialization
                 if (placeholderShortcuts.parentNode === shortcutsWrapper) {
                     shortcutsWrapper.removeChild(placeholderShortcuts);
                 }
@@ -6776,36 +5370,23 @@ window.BulkCommentsView = class BulkCommentsView {
     
     insertTextAtCursor(textarea, text) {
         if (!textarea) return;
-
-        // Get current text
         const currentText = textarea.value;
-
-        // Get cursor position
         const startPos = textarea.selectionStart;
         const endPos = textarea.selectionEnd;
-
-        // Check if we need to add a new line before the text
         let insertText = text;
         if (startPos > 0 && currentText.charAt(startPos - 1) !== '\n' && currentText.length > 0) {
             insertText = '\n' + insertText;
         }
-
-        // Insert text at cursor position
         textarea.value = currentText.substring(0, startPos) +
             insertText +
             currentText.substring(endPos);
-
-        // Set cursor position after inserted text
         const newCursorPos = startPos + insertText.length;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
-
-        // Focus textarea
         textarea.focus();
     }
 
     
     createStatusElements(container) {
-        // Status message with improved styling
         const statusMsg = document.createElement('div');
         statusMsg.id = 'comment-status';
         statusMsg.style.fontSize = '13px';
@@ -6818,8 +5399,6 @@ window.BulkCommentsView = class BulkCommentsView {
         statusMsg.style.color = '#666';
         statusMsg.textContent = 'Loading shortcuts...';
         container.appendChild(statusMsg);
-
-        // Progress bar container
         const progressContainer = document.createElement('div');
         progressContainer.id = 'comment-progress-container';
         progressContainer.style.display = 'none';
@@ -6866,9 +5445,6 @@ window.BulkCommentsView = class BulkCommentsView {
             statusEl.style.backgroundColor = '#f8f9fa';
             statusEl.style.border = '1px solid #e9ecef';
         }
-
-        // Instead of showing a spinner or changing opacity,
-        // pre-populate with placeholders that maintain the layout
         if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.label) {
             this.addLabelShortcut([
                 { value: '', label: 'Loading labels...' }
@@ -6882,8 +5458,6 @@ window.BulkCommentsView = class BulkCommentsView {
         if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.assign) {
             this.addAssignShortcut();
         }
-
-        // Disable without changing appearance dramatically
         if (this.commentInput) {
             this.commentInput.disabled = true;
             this.commentInput.style.backgroundColor = '#f9f9f9';
@@ -6907,16 +5481,12 @@ window.BulkCommentsView = class BulkCommentsView {
                 statusEl.style.border = '1px solid #e9ecef';
             }
         }
-
-        // Enable comment input
         const commentInput = document.getElementById('issue-comment-input');
         if (commentInput) {
             commentInput.disabled = false;
             commentInput.style.opacity = '1';
             commentInput.style.cursor = 'text';
         }
-
-        // Enable buttons
         const buttons = document.querySelectorAll('.api-section button');
         buttons.forEach(button => {
             button.disabled = false;
@@ -6954,22 +5524,15 @@ window.BulkCommentsView = class BulkCommentsView {
             }
             return;
         }
-
-        // Create a full-UI loading overlay
         let fullUILoadingScreen;
         if (this.uiManager && this.uiManager.addLoadingScreen) {
-            // Get the main container for the entire UI
             const mainContainer = document.getElementById('assignee-time-summary');
             if (mainContainer) {
-                // Make sure the main container has positioning context
                 const containerPosition = window.getComputedStyle(mainContainer).position;
                 if (containerPosition === 'static') {
                     mainContainer.style.position = 'relative';
-                    // Store the original position to restore later
                     mainContainer.dataset.originalPosition = containerPosition;
                 }
-
-                // Add a full-UI loading screen with backdrop
                 fullUILoadingScreen = this.uiManager.addLoadingScreen(
                     mainContainer,
                     'comment-submit',
@@ -6977,8 +5540,6 @@ window.BulkCommentsView = class BulkCommentsView {
                 );
             }
         }
-
-        // Update status and show progress bar
         if (statusEl) {
             statusEl.textContent = `Submitting comments to ${this.selectedIssues.length} issues...`;
             statusEl.style.color = '#1f75cb';
@@ -6991,8 +5552,6 @@ window.BulkCommentsView = class BulkCommentsView {
         if (progressBar) {
             progressBar.style.width = '0%';
         }
-
-        // Disable submit button during operation
         const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
             b.textContent && b.textContent.includes('Send'));
 
@@ -7004,12 +5563,9 @@ window.BulkCommentsView = class BulkCommentsView {
 
         let successCount = 0;
         let failCount = 0;
-
-        // Check if gitlabApi is available
         const gitlabApi = this.gitlabApi || window.gitlabApi || (this.uiManager && this.uiManager.gitlabApi);
 
         if (!gitlabApi) {
-            // Handle API not available error
             this.notification.error('GitLab API not available');
             if (statusEl) {
                 statusEl.textContent = 'Error: GitLab API not available.';
@@ -7025,24 +5581,18 @@ window.BulkCommentsView = class BulkCommentsView {
             if (progressContainer) {
                 progressContainer.style.display = 'none';
             }
-
-            // Remove loading screen if it exists
             if (this.uiManager && this.uiManager.removeLoadingScreen && fullUILoadingScreen) {
                 this.uiManager.removeLoadingScreen('comment-submit');
             }
 
             return;
         }
-
-        // Process issues one by one
         for (let i = 0; i < this.selectedIssues.length; i++) {
             const issue = this.selectedIssues[i];
             if (!issue) {
                 failCount++;
                 continue;
             }
-
-            // Update progress
             const progress = Math.round((i / this.selectedIssues.length) * 100);
             if (progressBar) {
                 progressBar.style.width = `${progress}%`;
@@ -7051,8 +5601,6 @@ window.BulkCommentsView = class BulkCommentsView {
             if (progressLabel) {
                 progressLabel.textContent = `Processing ${i+1} of ${this.selectedIssues.length} issues...`;
             }
-
-            // Update loading screen message
             if (this.uiManager && this.uiManager.updateLoadingMessage) {
                 this.uiManager.updateLoadingMessage(
                     'comment-submit',
@@ -7061,7 +5609,6 @@ window.BulkCommentsView = class BulkCommentsView {
             }
 
             try {
-                // Submit comment to this issue
                 await gitlabApi.addComment(issue, comment);
                 successCount++;
             } catch (error) {
@@ -7069,20 +5616,14 @@ window.BulkCommentsView = class BulkCommentsView {
                 failCount++;
             }
         }
-
-        // Final progress update
         if (progressBar) {
             progressBar.style.width = '100%';
         }
-
-        // Enable submit button again
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.style.opacity = '1';
             submitBtn.style.cursor = 'pointer';
         }
-
-        // Update status based on results
         if (successCount === this.selectedIssues.length) {
             if (statusEl) {
                 statusEl.textContent = `Successfully added comment to all ${successCount} issues!`;
@@ -7090,35 +5631,24 @@ window.BulkCommentsView = class BulkCommentsView {
             }
 
             this.notification.success(`Added comment to ${successCount} issues`);
-
-            // Clear the input after success
             if (this.commentInput) {
                 this.commentInput.value = '';
             }
-
-            // Hide progress bar after a delay
             setTimeout(() => {
                 if (progressContainer) {
                     progressContainer.style.display = 'none';
                 }
             }, 2000);
-            // Exit selection mode if active
             if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
                 this.uiManager.issueSelector.exitSelectionMode();
             }
-
-            // End selection overlay and clear selected issues after a delay
             setTimeout(() => {
-
-                // Clear selected issues
                 this.clearSelectedIssues();
 
                 if (statusEl) {
                     statusEl.textContent = '';
                 }
             }, 3000);
-
-            // Refresh the board by clicking the search button
             setTimeout(() => {
                 this.refreshBoard();
             }, 1000);
@@ -7127,20 +5657,14 @@ window.BulkCommentsView = class BulkCommentsView {
                 statusEl.textContent = `Added comment to ${successCount} issues, failed for ${failCount} issues.`;
                 statusEl.style.color = successCount > 0 ? '#ff9900' : '#dc3545';
             }
-
-            // Show appropriate notification
             if (successCount > 0) {
                 this.notification.warning(`Added comment to ${successCount} issues, failed for ${failCount}`);
-
-                // Refresh the board even on partial success
                 setTimeout(() => {
                     this.refreshBoard();
                 }, 1000);
             } else {
                 this.notification.error(`Failed to add comments to all ${failCount} issues`);
             }
-
-            // Keep progress bar visible for failed operations
             if (progressBar) {
                 progressBar.style.backgroundColor = successCount > 0 ? '#ff9900' : '#dc3545';
             }
@@ -7152,42 +5676,30 @@ window.BulkCommentsView = class BulkCommentsView {
         if (!this.commandShortcuts) return;
 
         try {
-            // Store current selected value if there is one
             let currentValue = null;
             if (this.commandShortcuts.shortcuts &&
                 this.commandShortcuts.shortcuts['label'] &&
                 this.commandShortcuts.shortcuts['label'].dropdown) {
                 currentValue = this.commandShortcuts.shortcuts['label'].dropdown.value;
             }
-
-            // Use provided labels, or try to get them from labelManager, or use fallbacks
             let labelItems;
 
             if (customLabels) {
-                // Use provided custom labels
                 labelItems = customLabels;
             } else if (this.labelManager && this.labelManager.filteredLabels && this.labelManager.filteredLabels.length) {
-                // Get labels from label manager if available
                 labelItems = [{ value: '', label: 'Add Label' }];
-
-                // Add actual labels from label manager
                 const labels = this.labelManager.filteredLabels.map(label => ({
                     value: label.name,
                     label: label.name
                 }));
 
                 labelItems = labelItems.concat(labels);
-
-                // Add custom option
                 labelItems.push({ value: 'custom', label: 'Custom...' });
             } else {
-                // Try to get whitelist directly from settings storage
                 try {
                     const whitelist = getLabelWhitelist();
                     if (whitelist && whitelist.length > 0) {
                         labelItems = [{ value: '', label: 'Add Label' }];
-
-                        // Convert whitelist terms to dropdown items
                         const whitelistItems = whitelist.map(term => ({
                             value: term,
                             label: term
@@ -7196,22 +5708,16 @@ window.BulkCommentsView = class BulkCommentsView {
                         labelItems = labelItems.concat(whitelistItems);
                         labelItems.push({ value: 'custom', label: 'Custom...' });
                     } else {
-                        // Fallback if no whitelist available
                         labelItems = this.getFallbackLabels();
                     }
                 } catch (e) {
                     console.error('Error getting label whitelist:', e);
-                    // Fallback if error
                     labelItems = this.getFallbackLabels();
                 }
             }
-
-            // First remove existing shortcut if it exists
             if (this.commandShortcuts.shortcuts && this.commandShortcuts.shortcuts['label']) {
                 this.commandShortcuts.removeShortcut('label');
             }
-
-            // Then add the new shortcut
             this.commandShortcuts.addCustomShortcut({
                 type: 'label',
                 label: '/label',
@@ -7227,16 +5733,12 @@ window.BulkCommentsView = class BulkCommentsView {
 
                     const textarea = document.getElementById('issue-comment-input');
                     if (!textarea) return;
-
-                    // Create the label command
                     const labelText = `/label ~"${value}"`;
 
                     this.insertTextAtCursor(textarea, labelText);
                     this.notification.info(`Label added: ${value}`);
                 }
             });
-
-            // Restore selected value if it existed
             if (currentValue && this.commandShortcuts.shortcuts['label'] &&
                 this.commandShortcuts.shortcuts['label'].dropdown) {
                 this.commandShortcuts.shortcuts['label'].dropdown.value = currentValue;
@@ -7255,10 +5757,7 @@ window.BulkCommentsView = class BulkCommentsView {
 // File: lib/ui/UIManager.js
 window.UIManager = class UIManager {
     constructor() {
-        // Initialize GitLab API reference
         this.gitlabApi = window.gitlabApi;
-
-        // Initialize container elements
         this.container = null;
         this.contentWrapper = null;
         this.headerDiv = null;
@@ -7266,11 +5765,7 @@ window.UIManager = class UIManager {
         this.recalculateBtn = null;
         this.collapseBtn = null;
         this.boardStats = null;
-
-        // Initialize managers first (they're dependencies for views)
         this.initializeManagers();
-
-        // Initialize tab manager and views
         this.tabManager = new TabManager(this);
         this.summaryView = new SummaryView(this);
         this.boardsView = new BoardsView(this);
@@ -7289,20 +5784,13 @@ window.UIManager = class UIManager {
     
     
     initialize(attachmentElement = document.body) {
-        // Create main container if it doesn't exist
         if (document.getElementById('assignee-time-summary')) {
             this.container = document.getElementById('assignee-time-summary');
-
-            // Also get reference to the content wrapper if it exists
             this.contentWrapper = document.getElementById('assignee-time-summary-wrapper');
-
-            // Ensure container has position relative for loading screens
             this.container.style.position = 'relative';
 
             return;
         }
-
-        // Create container with fixed position
         this.container = document.createElement('div');
         this.container.id = 'assignee-time-summary';
         this.container.style.position = 'fixed'; // Using fixed position
@@ -7319,8 +5807,6 @@ window.UIManager = class UIManager {
         this.container.style.fontSize = '14px';
         this.container.style.width = '400px'; // Increased width from 350px to 400px
         this.container.style.transition = 'height 0.3s ease-in-out';
-
-        // Create content wrapper (for collapsing)
         this.contentWrapper = document.createElement('div');
         this.contentWrapper.id = 'assignee-time-summary-wrapper';
         this.contentWrapper.style.display = 'block';
@@ -7328,39 +5814,17 @@ window.UIManager = class UIManager {
         this.contentWrapper.style.minHeight = '350px'; // Add minimum height of 350px
         this.contentWrapper.style.overflowY = 'auto';
         this.contentWrapper.style.position = 'relative'; // Ensure content wrapper has position relative
-
-        // Create header
         this.createHeader();
-
-        // Create board stats display
         this.createBoardStats();
-
-        // Initialize tabs
         this.tabManager.initialize(this.contentWrapper);
-
-        // Ensure tab contents have proper height
         this.ensureTabContentHeight();
-
-        // Add content wrapper to container
         this.container.appendChild(this.contentWrapper);
-
-        // Log the attachment element we're using
-        
-        // Attach to the specified element
         attachmentElement.appendChild(this.container);
-
-        // Store a reference to the attachment element
         this.attachmentElement = attachmentElement;
-
-        // Modified click event handler to exclude select issues function
-        // and to exclude the selection overlays and badges
         this.container.addEventListener('click', (e) => {
-            // If issue selection is active and the click is inside our container
-            // (but not on the selection overlays themselves or buttons from the bulk comments tab)
             if (this.issueSelector && this.issueSelector.isSelectingIssue &&
                 !e.target.classList.contains('card-selection-overlay') &&
                 !e.target.classList.contains('selection-badge') &&
-                // Don't abort when clicking these elements
                 !e.target.closest('#bulk-comments-content button') &&
                 !e.target.closest('#issue-comment-input') &&
                 !e.target.closest('#shortcuts-wrapper') &&
@@ -7369,8 +5833,6 @@ window.UIManager = class UIManager {
                 this.issueSelector.exitSelectionMode();
             }
         });
-
-        // Check if it should be collapsed initially (from localStorage)
         try {
             const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
             if (isCollapsed) {
@@ -7387,12 +5849,10 @@ window.UIManager = class UIManager {
 
     
     initializeManagers() {
-        // Initialize Label Manager
         try {
             this.labelManager = new LabelManager({
                 gitlabApi: this.gitlabApi,
                 onLabelsLoaded: (labels) => {
-                                        // Refresh UI elements that depend on labels
                     if (this.bulkCommentsView && this.bulkCommentsView.addLabelShortcut) {
                         this.bulkCommentsView.addLabelShortcut();
                     }
@@ -7400,20 +5860,16 @@ window.UIManager = class UIManager {
             });
         } catch (e) {
             console.error('Error initializing LabelManager:', e);
-            // Create a placeholder if initialization fails
             this.labelManager = {
                 filteredLabels: [],
                 fetchAllLabels: () => Promise.resolve([]),
                 isLabelInWhitelist: () => false
             };
         }
-
-        // Initialize Assignee Manager
         try {
             this.assigneeManager = new AssigneeManager({
                 gitlabApi: this.gitlabApi,
                 onAssigneesChange: (assignees) => {
-                                        // Refresh UI elements that depend on assignees
                     if (this.bulkCommentsView && this.bulkCommentsView.addAssignShortcut) {
                         this.bulkCommentsView.addAssignShortcut();
                     }
@@ -7421,13 +5877,10 @@ window.UIManager = class UIManager {
             });
         } catch (e) {
             console.error('Error initializing AssigneeManager:', e);
-            // Create a placeholder if initialization fails
             this.assigneeManager = {
                 getAssigneeWhitelist: () => []
             };
         }
-
-        // Initialize Milestone Manager
         try {
             this.milestoneManager = new MilestoneManager({
                 gitlabApi: this.gitlabApi,
@@ -7436,7 +5889,6 @@ window.UIManager = class UIManager {
             });
         } catch (e) {
             console.error('Error initializing MilestoneManager:', e);
-            // Create a placeholder if initialization fails
             this.milestoneManager = {
                 milestones: [],
                 fetchMilestones: () => Promise.resolve([])
@@ -7452,10 +5904,7 @@ window.UIManager = class UIManager {
         this.headerDiv.style.alignItems = 'center';
         this.headerDiv.style.marginBottom = '5px';
         this.headerDiv.style.cursor = 'pointer';
-
-        // Add click event to header for collapsing
         this.headerDiv.addEventListener('click', (e) => {
-            // Don't collapse if clicking on buttons
             if (e.target === this.recalculateBtn ||
                 e.target === this.collapseBtn ||
                 e.target === this.settingsBtn) {
@@ -7469,13 +5918,9 @@ window.UIManager = class UIManager {
         this.header.textContent = 'Summary';
         this.header.style.margin = '0';
         this.header.style.fontSize = '16px';
-
-        // Button container
         const buttonContainer = document.createElement('div');
         buttonContainer.style.display = 'flex';
         buttonContainer.style.gap = '5px';
-
-        // Create recalculate button
         this.recalculateBtn = document.createElement('button');
         this.recalculateBtn.textContent = '🔄';
         this.recalculateBtn.title = 'Recalculate';
@@ -7488,19 +5933,14 @@ window.UIManager = class UIManager {
         this.recalculateBtn.style.cursor = 'pointer';
         this.recalculateBtn.onclick = (e) => {
             e.stopPropagation();
-            // Call external updateSummary function with force update
             if (typeof window.updateSummary === 'function') {
                 window.updateSummary(true);
             }
-
-            // Visual feedback
             this.recalculateBtn.textContent = '✓';
             setTimeout(() => {
                 this.recalculateBtn.textContent = '🔄';
             }, 1000);
         };
-
-        // Create settings button
         this.settingsBtn = document.createElement('button');
         this.settingsBtn.textContent = '⚙️';
         this.settingsBtn.title = 'Settings';
@@ -7515,8 +5955,6 @@ window.UIManager = class UIManager {
             e.stopPropagation();
             this.openSettings();
         };
-
-        // Create collapse button
         this.collapseBtn = document.createElement('button');
         this.collapseBtn.textContent = '▼';
         this.collapseBtn.title = 'Collapse/Expand';
@@ -7543,15 +5981,11 @@ window.UIManager = class UIManager {
 
     
     createBoardStats() {
-        // Check if the boardStats element already exists
         const existingStats = document.getElementById('board-stats-summary');
         if (existingStats) {
-            // If it exists, just store the reference and return
             this.boardStats = existingStats;
             return;
         }
-
-        // Otherwise create a new one
         this.boardStats = document.createElement('div');
         this.boardStats.id = 'board-stats-summary';
         this.boardStats.style.fontSize = '13px';
@@ -7566,15 +6000,11 @@ window.UIManager = class UIManager {
     
     updateBoardStats(stats) {
         if (!this.boardStats) return;
-
-        // Use default values if not provided
         const totalCards = stats?.totalCards || 0;
         const withTimeCards = stats?.withTimeCards || 0;
         const closedCards = stats?.closedCards || 0;
 
         this.boardStats.innerHTML = ''; // Clear previous content
-
-        // Create left side stats (total cards)
         const totalStats = document.createElement('div');
         totalStats.style.display = 'flex';
         totalStats.style.gap = '8px';
@@ -7587,13 +6017,9 @@ window.UIManager = class UIManager {
         withTimeText.textContent = `(${withTimeCards} with time)`;
         withTimeText.style.color = '#777';
         totalStats.appendChild(withTimeText);
-
-        // Create right side stats (closed cards)
         const closedStats = document.createElement('div');
         closedStats.textContent = `Closed: ${closedCards} cards`;
         closedStats.style.color = '#28a745';
-
-        // Add to board stats container
         this.boardStats.appendChild(totalStats);
         this.boardStats.appendChild(closedStats);
     }
@@ -7604,13 +6030,11 @@ window.UIManager = class UIManager {
 
         try {
             if (this.contentWrapper.style.display === 'none') {
-                // Expand
                 this.contentWrapper.style.display = 'block';
                 this.collapseBtn.textContent = '▼';
                 this.container.style.height = '';
                 saveToStorage('gitlabTimeSummaryCollapsed', 'false');
             } else {
-                // Collapse
                 this.contentWrapper.style.display = 'none';
                 this.collapseBtn.textContent = '▲';
                 this.container.style.height = 'auto';
@@ -7624,14 +6048,12 @@ window.UIManager = class UIManager {
     
     openSettings() {
         try {
-            // Check if we have a SettingsManager
             if (typeof window.SettingsManager === 'function') {
                 const settingsManager = new window.SettingsManager({
                     labelManager: this.labelManager,
                     assigneeManager: this.assigneeManager,
                     gitlabApi: this.gitlabApi,
                     onSettingsChanged: (type) => {
-                                                // Refresh relevant UI components
                         if (type === 'all' || type === 'labels') {
                             if (this.bulkCommentsView) {
                                 this.bulkCommentsView.addLabelShortcut();
@@ -7657,7 +6079,6 @@ window.UIManager = class UIManager {
     
     updateHeader(text) {
         if (this.header) {
-            // Use innerHTML instead of textContent to allow HTML styling
             this.header.innerHTML = text;
         }
     }
@@ -7665,42 +6086,30 @@ window.UIManager = class UIManager {
     
     
     addLoadingScreen(container, name, message = 'Loading...') {
-        // Get container element if string ID was provided
         if (typeof container === 'string') {
             container = document.getElementById(container);
         }
-
-        // Return if container not found
         if (!container) {
             console.warn(`Container not found for loading screen: ${name}`);
             return null;
         }
-
-        // Check if this loading screen already exists
         const existingLoader = document.getElementById(`loading-screen-${name}`);
         if (existingLoader) {
-            // Just update the message if it exists
             const messageEl = existingLoader.querySelector('.loading-message');
             if (messageEl) {
                 messageEl.textContent = message;
             }
             return existingLoader;
         }
-
-        // Create loading screen overlay
         const loadingScreen = document.createElement('div');
         loadingScreen.id = `loading-screen-${name}`;
         loadingScreen.className = 'gitlab-helper-loading-screen';
-
-        // Position absolutely over the container
         loadingScreen.style.position = 'absolute';
         loadingScreen.style.top = '0';
         loadingScreen.style.left = '0';
         loadingScreen.style.width = '100%';
         loadingScreen.style.height = '100%';
         loadingScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';  // Semi-transparent backdrop
-
-        // Use flex for perfect centering
         loadingScreen.style.display = 'flex';
         loadingScreen.style.flexDirection = 'column';
         loadingScreen.style.justifyContent = 'center';
@@ -7708,8 +6117,6 @@ window.UIManager = class UIManager {
 
         loadingScreen.style.zIndex = '101';  // Higher z-index to be above other elements
         loadingScreen.style.transition = 'opacity 0.3s ease';
-
-        // Create spinner animation
         const spinner = document.createElement('div');
         spinner.className = 'loading-spinner';
         spinner.style.width = '40px';
@@ -7718,8 +6125,6 @@ window.UIManager = class UIManager {
         spinner.style.border = '3px solid rgba(255, 255, 255, 0.2)';  // White border for dark backdrop
         spinner.style.borderTopColor = '#ffffff';  // White spinner for dark backdrop
         spinner.style.animation = 'gitlab-helper-spin 1s linear infinite';
-
-        // Create loading message
         const messageEl = document.createElement('div');
         messageEl.className = 'loading-message';
         messageEl.textContent = message;
@@ -7730,8 +6135,6 @@ window.UIManager = class UIManager {
         messageEl.style.textAlign = 'center'; // Ensure text is centered
         messageEl.style.padding = '0 20px'; // Add some padding for longer messages
         messageEl.style.maxWidth = '90%'; // Prevent text from overflowing on smaller screens
-
-        // Add animation keyframes if they don't exist yet
         if (!document.getElementById('gitlab-helper-loading-styles')) {
             const styleEl = document.createElement('style');
             styleEl.id = 'gitlab-helper-loading-styles';
@@ -7748,27 +6151,14 @@ window.UIManager = class UIManager {
     `;
             document.head.appendChild(styleEl);
         }
-
-        // Assemble the loading screen
         loadingScreen.appendChild(spinner);
         loadingScreen.appendChild(messageEl);
-
-        // Make sure container has position set for absolute positioning to work
         const containerPosition = window.getComputedStyle(container).position;
         if (containerPosition === 'static' || !containerPosition) {
-            // Log a message to help debug positioning issues
-            
-            // Set container to relative positioning
             container.style.position = 'relative';
-
-            // Store original position to restore later
             container.dataset.originalPosition = containerPosition;
         }
-
-        // Append to container
         container.appendChild(loadingScreen);
-
-        // Add a subtle animation to the message
         messageEl.style.animation = 'gitlab-helper-pulse 2s ease infinite';
 
         return loadingScreen;
@@ -7778,29 +6168,21 @@ window.UIManager = class UIManager {
     removeLoadingScreen(name, fadeOut = true) {
         const loadingScreen = document.getElementById(`loading-screen-${name}`);
         if (!loadingScreen) return;
-
-        // Get parent container to restore position if needed
         const container = loadingScreen.parentNode;
 
         if (fadeOut) {
-            // Fade out animation
             loadingScreen.style.opacity = '0';
             setTimeout(() => {
                 if (loadingScreen.parentNode) {
                     loadingScreen.parentNode.removeChild(loadingScreen);
                 }
-
-                // Restore original position if we changed it
                 if (container && container.dataset.originalPosition) {
                     container.style.position = container.dataset.originalPosition;
                     delete container.dataset.originalPosition;
                 }
             }, 300); // Match the transition duration
         } else {
-            // Remove immediately
             loadingScreen.parentNode.removeChild(loadingScreen);
-
-            // Restore original position if we changed it
             if (container && container.dataset.originalPosition) {
                 container.style.position = container.dataset.originalPosition;
                 delete container.dataset.originalPosition;
@@ -7821,21 +6203,17 @@ window.UIManager = class UIManager {
 
     
     ensureTabContentHeight() {
-        // Find all tab content containers
         const tabContents = [
             document.getElementById('assignee-time-summary-content'),
             document.getElementById('boards-time-summary-content'),
             document.getElementById('history-time-summary-content'),
             document.getElementById('bulk-comments-content')
         ];
-
-        // Get wrapper and header heights
         const wrapper = document.getElementById('assignee-time-summary-wrapper');
         const headerDiv = this.headerDiv || document.querySelector('#assignee-time-summary > div:first-child');
 
         if (!wrapper || !headerDiv) {
             console.warn('Could not find wrapper or header elements for height calculation');
-            // Fallback to fixed height
             tabContents.forEach(content => {
                 if (content) {
                     content.style.minHeight = '300px';
@@ -7844,21 +6222,12 @@ window.UIManager = class UIManager {
             });
             return;
         }
-
-        // Calculate available height
-        // outerHeight = height + padding + border + margin
         const headerHeight = headerDiv.offsetHeight;
         const tabNavHeight = 36; // Approximate height of tab navigation
         const statsHeight = this.boardStats ? this.boardStats.offsetHeight : 0;
-
-        // Calculate the height we need to subtract from wrapper
         const subtractHeight = headerHeight + tabNavHeight + statsHeight + 20; // +20px for padding/margins
-
-        
-        // Set minimum height for each tab content
         tabContents.forEach(content => {
             if (content) {
-                // Set the height with calc() to make it dynamic
                 content.style.minHeight = `calc(100% - ${subtractHeight}px)`;
                 content.style.height = `calc(100% - ${subtractHeight}px)`;
                 content.style.position = 'relative';
@@ -7880,25 +6249,19 @@ window.createSummaryContainer = function createSummaryContainer() {
 
 function createUIManager() {
     window.uiManager = window.uiManager || new UIManager();
-
-    // Ensure the settings button works
     if (uiManager.settingsBtn) {
         uiManager.settingsBtn.onclick = (e) => {
             e.stopPropagation();
-
-            // Check if we have a SettingsManager
             if (uiManager.bulkCommentsView && uiManager.bulkCommentsView.settingsManager) {
                 uiManager.bulkCommentsView.settingsManager.openSettingsModal();
             } else if (window.settingsManager) {
                 window.settingsManager.openSettingsModal();
             } else {
-                // Create a new SettingsManager if not available
                 const settingsManager = new SettingsManager({
                     labelManager: uiManager.labelManager,
                     assigneeManager: uiManager.assigneeManager,
                     gitlabApi: window.gitlabApi || uiManager.gitlabApi,
                     onSettingsChanged: (type) => {
-                                                // Refresh relevant UI components
                         if (type === 'all' || type === 'labels') {
                             if (uiManager.bulkCommentsView) {
                                 uiManager.bulkCommentsView.addLabelShortcut();
@@ -7911,14 +6274,10 @@ function createUIManager() {
                         }
                     }
                 });
-
-                // Store it for future access
                 if (uiManager.bulkCommentsView) {
                     uiManager.bulkCommentsView.settingsManager = settingsManager;
                 }
                 window.settingsManager = settingsManager;
-
-                // Open the settings modal
                 settingsManager.openSettingsModal();
             }
         };
@@ -7929,19 +6288,14 @@ function createUIManager() {
 
 
 window.updateSummaryTab = function updateSummaryTab(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
-    // Update board stats in UI Manager (if available from dataProcessor)
     if (typeof processBoards === 'function') {
         const { closedBoardCards } = processBoards();
-
-        // Update the board stats display
         uiManager.updateBoardStats({
             totalCards: cardsProcessed,
             withTimeCards: cardsWithTime,
             closedCards: closedBoardCards || 0
         });
     }
-
-    // Render the summary view with board data for distribution
     uiManager.summaryView.render(
         assigneeTimeMap,
         totalEstimate,
@@ -7995,22 +6349,18 @@ window.createSummaryContainer = createSummaryContainer;
 window.SettingsManager = SettingsManager;
 
 setTimeout(() => {
-    // Find the settings button
     const settingsBtn = document.querySelector('#assignee-time-summary button[title="Settings"]');
 
     if (settingsBtn) {
         
         settingsBtn.onclick = (e) => {
             e.stopPropagation();
-            
-            // Create and open new settings manager
             try {
                 const settingsManager = new SettingsManager({
                     labelManager: window.uiManager?.labelManager,
                     assigneeManager: window.uiManager?.assigneeManager,
                     gitlabApi: window.gitlabApi,
                     onSettingsChanged: (type) => {
-                                                // Refresh UI components when settings change
                         if (window.uiManager?.bulkCommentsView) {
                             if (type === 'all' || type === 'labels') {
                                 window.uiManager.bulkCommentsView.addLabelShortcut();
@@ -8036,7 +6386,6 @@ setTimeout(() => {
 // File: lib/index.js
 
 function createUIManager(attachmentElement = document.body) {
-    // Create a GitLabAPI instance if it doesn't exist
     if (!window.gitlabApi) {
         try {
             window.gitlabApi = new GitLabAPI();
@@ -8044,18 +6393,10 @@ function createUIManager(attachmentElement = document.body) {
             console.error('Error creating GitLabAPI instance:', e);
         }
     }
-
-    // Create a new UI Manager
     try {
         window.uiManager = window.uiManager || new UIManager();
-
-        // Initialize UI with the attachment element
         uiManager.initialize(attachmentElement);
-
-        // Make UI Manager available globally
         window.uiManager = uiManager;
-
-        // Setup settings manager
         if (!window.settingsManager && typeof SettingsManager === 'function') {
             try {
                 window.settingsManager = new SettingsManager({
@@ -8063,7 +6404,6 @@ function createUIManager(attachmentElement = document.body) {
                     assigneeManager: uiManager?.assigneeManager,
                     gitlabApi: window.gitlabApi,
                     onSettingsChanged: (type) => {
-                                                // Refresh UI components when settings change
                         if (uiManager?.bulkCommentsView) {
                             if (type === 'all' || type === 'labels') {
                                 uiManager.bulkCommentsView.addLabelShortcut();
@@ -8091,29 +6431,19 @@ let isInitialized = false;
 
 
 function checkAndInit() {
-    // Prevent duplicate initialization
     if (isInitialized) {
                 return;
     }
 
     if (window.location.href.includes('/boards')) {
-        
-        // Wait for boards element before initializing
         waitForBoardsElement()
             .then(boardsElement => {
-                
-                // Create UI Manager, passing the attachment element
                 const uiManager = createUIManager(boardsElement);
-
-                // Mark as initialized to prevent duplicate calls
                 isInitialized = true;
-
-                // Start waiting for boards
                 waitForBoards();
             })
             .catch(error => {
                 console.error('Error initializing UI:', error);
-                // Fallback initialization with body attachment
                 const uiManager = createUIManager(document.body);
                 isInitialized = true;
                 waitForBoards();
@@ -8128,16 +6458,12 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
 
         const checkForElement = () => {
             attempts++;
-            
-            // Try to find the element
             const boardsElement = document.querySelector('[data-testid="boards-list"]');
 
             if (boardsElement) {
                                 resolve(boardsElement);
                 return;
             }
-
-            // Fallback to other possible selectors if the first one doesn't exist
             const fallbackSelectors = [
                 '.boards-list',
                 '.board-list-component',
@@ -8151,19 +6477,13 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
                     return;
                 }
             }
-
-            // If we've hit the maximum attempts, attach to body anyway
             if (attempts >= maxAttempts) {
                 console.warn('Maximum attempts reached, attaching to body as fallback');
                 resolve(document.body);
                 return;
             }
-
-            // Try again after interval
             setTimeout(checkForElement, interval);
         };
-
-        // Start checking
         checkForElement();
     });
 }
@@ -8174,18 +6494,13 @@ function updateSummary(forceHistoryUpdate = false) {
         console.warn('UI Manager not initialized, cannot update summary');
         return;
     }
-
-    // Reset loading state
     let boardFullyLoaded = false;
     let loadingTimeout;
 
     clearTimeout(loadingTimeout);
 
     try {
-        // Process the board data
         const result = processBoards();
-
-        // Debug logging
         
         const {
             assigneeTimeMap,
@@ -8197,12 +6512,9 @@ function updateSummary(forceHistoryUpdate = false) {
             currentMilestone,
             closedBoardCards
         } = result;
-
-        // Wait to make sure the board is fully loaded before saving to history
         clearTimeout(loadingTimeout);
         loadingTimeout = setTimeout(() => {
             boardFullyLoaded = true;
-            // Only save history when fully loaded
             if (boardFullyLoaded) {
                 try {
                     saveHistoryEntry(totalEstimate, currentMilestone, forceHistoryUpdate);
@@ -8211,23 +6523,15 @@ function updateSummary(forceHistoryUpdate = false) {
                 }
             }
         }, 3000); // 3 second delay
-
-        // Update the UI stats
         window.uiManager.updateBoardStats({
             totalCards: cardsProcessed,
             withTimeCards: cardsWithTime,
             closedCards: closedBoardCards || 0
         });
-
-        // Update the UI header text
         const totalHours = (totalEstimate / 3600).toFixed(1);
         window.uiManager.updateHeader(`Summary ${totalHours}h`);
-
-        // Ensure we have valid board data and assignee data objects
         const validBoardData = boardData || {};
         const validBoardAssigneeData = boardAssigneeData || {};
-
-        // Update the summary view with board data for distribution
         if (window.uiManager.summaryView) {
             window.uiManager.summaryView.render(
                 assigneeTimeMap,
@@ -8239,13 +6543,9 @@ function updateSummary(forceHistoryUpdate = false) {
                 validBoardAssigneeData // Ensure we pass valid object
             );
         }
-
-        // Update the boards view
         if (window.uiManager.boardsView) {
             window.uiManager.boardsView.render(validBoardData, validBoardAssigneeData);
         }
-
-        // Update Bulk Comments Tab if it exists and is visible
         const bulkCommentsContent = document.getElementById('bulk-comments-content');
         if (bulkCommentsContent &&
             bulkCommentsContent.style.display === 'block' &&
@@ -8261,13 +6561,9 @@ function addBoardChangeListeners() {
     try {
         const boardLists = document.querySelectorAll('.board-list');
         boardLists.forEach(boardList => {
-            // Create a MutationObserver for each board list
             const boardObserver = new MutationObserver(() => {
-                // Recalculate on board changes
                 updateSummary();
             });
-
-            // Observe changes to the board's contents
             boardObserver.observe(boardList, {
                 childList: true,
                 subtree: true
@@ -8286,7 +6582,6 @@ function setupSettingsManager(uiManager) {
                 assigneeManager: uiManager?.assigneeManager,
                 gitlabApi: window.gitlabApi,
                 onSettingsChanged: (type) => {
-                                        // Refresh UI components when settings change
                     if (uiManager?.bulkCommentsView) {
                         if (type === 'all' || type === 'labels') {
                             uiManager.bulkCommentsView.addLabelShortcut();
@@ -8304,15 +6599,10 @@ function setupSettingsManager(uiManager) {
 }
 
 function waitForBoards() {
-    // Check if we've already completed initialization
     if (window.boardsInitialized) {
                 return;
     }
-
-    // Use the existing board stats element if it exists
     let statusDiv = document.getElementById('board-stats-summary');
-
-    // If board stats div doesn't exist yet, create a temporary one
     if (!statusDiv) {
         statusDiv = document.createElement('div');
         statusDiv.id = 'board-stats-summary';
@@ -8323,15 +6613,12 @@ function waitForBoards() {
         if (window.uiManager?.container) {
             window.uiManager.container.appendChild(statusDiv);
         } else {
-            // If UI manager container doesn't exist, add to a temporary location
             const tempContainer = document.createElement('div');
             tempContainer.id = 'temp-stats-container';
             tempContainer.appendChild(statusDiv);
             document.body.appendChild(tempContainer);
         }
     }
-
-    // Update the text
     statusDiv.textContent = 'Waiting for boards to load...';
 
     let attempts = 0;
@@ -8342,7 +6629,6 @@ function waitForBoards() {
         const boardLists = document.querySelectorAll('.board-list');
 
         if (boardLists.length >= 3) {
-            // Found at least 3 boards, proceed with initialization
             clearInterval(boardCheckInterval);
             if (statusDiv) {
                 statusDiv.textContent = `Found ${boardLists.length} boards, initializing...`;
@@ -8350,13 +6636,9 @@ function waitForBoards() {
             setTimeout(() => {
                 updateSummary();
                 addBoardChangeListeners();
-                // Mark boards as initialized to prevent duplicate setup
                 window.boardsInitialized = true;
-
-                // The status div will be naturally updated by updateSummary
             }, 1000);
         } else if (attempts >= maxAttempts) {
-            // Timeout reached, proceed with whatever boards we have
             clearInterval(boardCheckInterval);
             if (statusDiv) {
                 statusDiv.textContent = `Found ${boardLists.length} boards, continuing anyway...`;
@@ -8364,13 +6646,9 @@ function waitForBoards() {
             setTimeout(() => {
                 updateSummary();
                 addBoardChangeListeners();
-                // Mark boards as initialized to prevent duplicate setup
                 window.boardsInitialized = true;
-
-                // The status div will be naturally updated by updateSummary
             }, 1000);
         } else if (boardLists.length > 0 && statusDiv) {
-            // Update status with current count
             statusDiv.textContent = `Found ${boardLists.length} boards, waiting for more...`;
         }
     }, 500);
