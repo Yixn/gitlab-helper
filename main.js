@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         GitLab Assignee Time Summary
+// @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
 // @version      0.6
 // @description  Display a summary of assignees' time estimates on GitLab boards
@@ -8,15 +8,17 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-idle
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/ui.js
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/dataProcessor.js
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/history.js
-// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/utils.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/ui.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/dataProcessor.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/history.js
+// @require      https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/lib/utils.js
+// @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
+// @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/main.js
 // ==/UserScript==
 
 (function() {
     'use strict';
-
+    alert("asd")
     // Track if board is fully loaded
     let boardFullyLoaded = false;
     let loadingTimeout;
