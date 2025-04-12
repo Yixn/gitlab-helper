@@ -2,9 +2,7 @@
  * Build script for GitLab Sprint Helper
  *
  * This Node.js script combines and minifies all JavaScript files into a single output file.
- * It handles variable redeclarations and preserves the UserScript header.
- *
- * Usage: node build.js
+ * Updated to work with the new directory structure.
  */
 
 const fs = require('fs');
@@ -38,31 +36,47 @@ const CONFIG = {
     outputFile: './dist/gitlab-sprint-helper.js',
     // Use dev path from .env if available, otherwise use null
     devOutputFile: envConfig.DEV_OUTPUT_PATH || null,
+
+    // Update file order to reflect new directory structure
     fileOrder: [
         // Core utilities first
-        'utils.js',
-        'api.js',
-        'dataProcessor.js',
-        'history.js',
+        'core/Utils.js',
+        'api/APIUtils.js',
+        'api/GitLabAPI.js',
+        'core/DataProcessor.js',
+        'core/History.js',
+
+        // Storage modules
+        'storage/LocalStorage.js',
+        'storage/SettingsStorage.js',
 
         // UI components in dependency order
-        'ui/TabManager.js',
-        'ui/CommentShortcuts.js',  // CommentShortcuts needs to be earlier
+        'ui/components/Dropdown.js',
+        'ui/components/Notification.js',
+        'ui/components/CommandShortcut.js',
+        'ui/components/SelectionDisplay.js',
+        'ui/components/IssueSelector.js',
 
-        // New refactored components in correct dependency order
-        'ui/ShortcutManager.js',   // ShortcutManager first
-        'ui/LabelManager.js',      // LabelManager depends on ShortcutManager
-        'ui/IssueSelectionDisplay.js',
-        'ui/SettingsManager.js',   // SettingsManager depends on LabelManager
-        'ui/ApiTabView.js',        // ApiTabView depends on all the above
+        // UI managers
+        'ui/managers/TabManager.js',
+        'ui/managers/CommandManager.js',
+        'ui/managers/LabelManager.js',
+        'ui/managers/AssigneeManager.js',
+        'ui/managers/MilestoneManager.js',
+        'ui/managers/SettingsManager.js',
 
-        // Remaining UI components
-        'ui/SummaryTabView.js',
-        'ui/BoardsTabView.js',
-        'ui/HistoryTabView.js',
-        'ui/IssueSelector.js',
+        // UI views
+        'ui/views/SummaryView.js',
+        'ui/views/BoardsView.js',
+        'ui/views/HistoryView.js',
+        'ui/views/BulkCommentsView.js',
+
+        // Main UI
         'ui/UIManager.js',
-        'ui.js',
+        'ui/index.js',
+
+        // Main index
+        'index.js'
     ],
 
     // Variables to fix redeclarations for
@@ -78,13 +92,14 @@ const CONFIG = {
     // Keywords to preserve during minification
     keywordsToPreserve: [
         'gitlabApi', 'uiManager', 'GitLabAPI', 'UIManager', 'TabManager',
-        'SummaryTabView', 'BoardsTabView', 'HistoryTabView', 'ShortcutManager', 'ApiTabView',
-        'IssueSelector', 'CommentShortcuts', 'updateSummary', 'renderHistory',
-        'LabelManager', 'SettingsManager', 'IssueSelectionDisplay'
+        'SummaryView', 'BoardsView', 'HistoryView', 'CommandManager', 'BulkCommentsView',
+        'IssueSelector', 'CommandShortcut', 'updateSummary', 'renderHistory',
+        'LabelManager', 'SettingsManager', 'SelectionDisplay', 'getPathFromUrl',
+        'getLabelWhitelist', 'saveHistoryEntry', 'processBoards', 'formatHours'
     ],
 
     // Ignore patterns for file scanning
-    ignorePatterns: ['dist/**'] // Explicitly ignore the dist folder
+    ignorePatterns: ['dist/**', 'node_modules/**'] // Explicitly ignore these folders
 };
 
 // Ensure output directory exists
@@ -111,19 +126,13 @@ function extractUserScriptHeader(filePath) {
         process.exit(1);
     }
 
-    // Update the header to remove @require directives since we're bundling the files
-    let header = headerMatch[0];
-    const lines = header.split('\n');
-    const filteredLines = lines.filter(line => !line.includes('@require'));
-
-    // Re-add the first and last lines (UserScript markers)
-    return filteredLines.join('\n');
+    return headerMatch[0];
 }
 
-// Find all JS files in the source directory
+// Find all JS files in the source directory including subdirectories
 function findAllJsFiles() {
     return glob.sync(`${CONFIG.sourceDir}/**/*.js`, {
-        ignore: CONFIG.ignorePatterns // Add ignore patterns
+        ignore: CONFIG.ignorePatterns
     });
 }
 
@@ -139,11 +148,37 @@ function processFileContent(filePath, alreadyIncluded) {
         let content = fs.readFileSync(filePath, 'utf8');
         const fileName = path.basename(filePath);
 
-        // Fix class declarations to prevent redeclaration errors
-        const classPattern = /class\s+([A-Za-z0-9_]+)\s*{/g;
-        content = content.replace(classPattern, (match, className) => {
-            return `window.${className} = window.${className} || class ${className} {`;
-        });
+        // Handle export default class
+        content = content.replace(/export\s+default\s+class\s+([A-Za-z0-9_]+)/g,
+            'class $1');
+
+        // Handle export class
+        content = content.replace(/export\s+class\s+([A-Za-z0-9_]+)/g,
+            'class $1');
+
+        // Handle standard class declarations
+        content = content.replace(/class\s+([A-Za-z0-9_]+)\s*{/g,
+            'window.$1 = class $1 {');
+
+        // Handle export function
+        content = content.replace(/export\s+function\s+([A-Za-z0-9_]+)/g,
+            'window.$1 = function $1');
+
+        // Handle export const/let/var
+        content = content.replace(/export\s+(const|let|var)\s+([A-Za-z0-9_]+)\s*=/g,
+            'window.$2 =');
+
+        // Handle default export that isn't a class
+        content = content.replace(/export\s+default\s+([A-Za-z0-9_]+);?/g,
+            'window.$1 = $1;');
+
+        // Remove all other exports
+        content = content.replace(/export\s+{[^}]+};?\s*/g, '');
+
+        // Handle imports - remove them completely
+        content = content.replace(/import\s+.*?from\s+['"][^'"]+['"];?\s*/g, '');
+        content = content.replace(/import\s+{[^}]+}\s+from\s+['"][^'"]+['"];?\s*/g, '');
+        content = content.replace(/import\s+\*\s+as\s+[A-Za-z0-9_]+\s+from\s+['"][^'"]+['"];?\s*/g, '');
 
         // Apply variable fixes
         CONFIG.variablesToFix.forEach(variable => {
@@ -187,14 +222,15 @@ async function buildBundle() {
     const allFiles = findAllJsFiles();
     const fileMap = new Map(); // Map filename to full path
 
-    // Build a map of file names to full paths for easier lookup
+    // Build a map of file paths for easier lookup
     allFiles.forEach(filePath => {
-        const fileName = path.basename(filePath);
-        fileMap.set(fileName, filePath);
-
-        // Also map by the relative path from sourceDir
+        // Store by full relative path from sourceDir
         const relativePath = path.relative(CONFIG.sourceDir, filePath);
         fileMap.set(relativePath, filePath);
+
+        // Also store by the filename only
+        const fileName = path.basename(filePath);
+        fileMap.set(fileName, filePath);
     });
 
     // Process files in the specified order
@@ -205,11 +241,8 @@ async function buildBundle() {
         // If file doesn't exist directly, try to find it in our map
         if (!fs.existsSync(filePath)) {
             // Try to match by filename or relative path
-            const fileName = path.basename(fileEntry);
             if (fileMap.has(fileEntry)) {
                 filePath = fileMap.get(fileEntry);
-            } else if (fileMap.has(fileName)) {
-                filePath = fileMap.get(fileName);
             } else {
                 console.warn(`Warning: File not found: ${fileEntry}`);
                 continue;

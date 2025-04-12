@@ -87,7 +87,7 @@ Simply select an option from the dropdown menu, and the command will be inserted
 ```
 ├── dist/                  # Build output
 ├── lib/                   # Source code modules
-│   ├── api.js             # GitLab API integration
+│   ├── GitLabAPI.js             # GitLab API integration
 │   ├── dataProcessor.js   # Data processing logic
 │   ├── history.js         # History tracking functions
 │   ├── utils.js           # Utility functions

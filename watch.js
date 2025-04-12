@@ -2,29 +2,22 @@
  * Watch script for GitLab Sprint Helper
  *
  * This script watches for changes in your JavaScript files and automatically
- * rebuilds the combined script when files are modified.
+ * rebuilds the combined script when files are modified. Updated for new directory structure.
  *
  * Usage: node watch.js
- *
- * Requirements:
- * - Node.js
- * - npm packages: chokidar
- *
- * Install dependencies:
- * npm install chokidar
  */
 
 const chokidar = require('chokidar');
 const { spawn } = require('child_process');
 const path = require('path');
 
-// Configuration
+// Updated configuration for new directory structure
 const CONFIG = {
     sourceDir: './lib',
     mainFile: './main.js',
     buildScript: './build.js',
     watchPaths: ['./lib/**/*.js', './main.js'],
-    ignorePaths: ['./dist/**'] // Ignore the dist folder
+    ignorePaths: ['./dist/**', 'node_modules/**'] // Ignore these directories
 };
 
 // Log function with timestamp
@@ -56,7 +49,7 @@ function initWatcher() {
     log('Starting file watcher...');
 
     const watcher = chokidar.watch(CONFIG.watchPaths, {
-        ignored: [/(^|[\/\\])\../, ...CONFIG.ignorePaths], // ignore dotfiles and dist folder
+        ignored: [/(^|[\/\\])\../, ...CONFIG.ignorePaths], // ignore dotfiles and specified paths
         persistent: true
     });
 
