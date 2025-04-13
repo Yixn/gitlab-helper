@@ -68,7 +68,6 @@ const CONFIG = {
         // UI views
         'ui/views/SummaryView.js',
         'ui/views/BoardsView.js',
-        // Removed 'ui/views/HistoryView.js',
         'ui/views/BulkCommentsView.js',
 
         // Main UI
