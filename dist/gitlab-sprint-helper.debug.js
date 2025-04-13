@@ -3256,10 +3256,12 @@ window.SettingsManager = class SettingsManager {
         modalOverlay.style.width = '100%';
         modalOverlay.style.height = '100%';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '110';
+        modalOverlay.style.zIndex = '1000';
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
+        modalOverlay.style.cursor = 'pointer';
+
         const modalContent = document.createElement('div');
         modalContent.style.backgroundColor = 'white';
         modalContent.style.borderRadius = '6px';
@@ -3269,6 +3271,7 @@ window.SettingsManager = class SettingsManager {
         modalContent.style.maxHeight = '80vh';
         modalContent.style.overflow = 'auto';
         modalContent.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+
         const modalHeader = document.createElement('div');
         modalHeader.style.display = 'flex';
         modalHeader.style.justifyContent = 'space-between';
@@ -3357,6 +3360,8 @@ window.SettingsManager = class SettingsManager {
         modalContent.appendChild(buttonContainer);
         modalOverlay.appendChild(modalContent);
         document.body.appendChild(modalOverlay);
+
+        // Add this event listener to close when clicking outside
         modalOverlay.addEventListener('click', (e) => {
             if (e.target === modalOverlay) {
                 modalOverlay.remove();
@@ -4748,6 +4753,7 @@ window.SprintManagementView = class SprintManagementView {
         // Create milestone display
         const milestoneInfo = document.createElement('div');
         milestoneInfo.style.padding = '10px';
+        milestoneInfo.style.margin = '0 10px';
         milestoneInfo.style.backgroundColor = '#f8f9fa';
         milestoneInfo.style.borderRadius = '6px';
         milestoneInfo.style.fontWeight = 'bold';
@@ -4766,12 +4772,12 @@ window.SprintManagementView = class SprintManagementView {
         stepsContainer.style.display = 'flex';
         stepsContainer.style.flexDirection = 'column';
         stepsContainer.style.gap = '5px';
-        stepsContainer.style.marginTop = '10px';
+        stepsContainer.style.marginTop = '';
         stepsContainer.style.padding = '15px';
         stepsContainer.style.backgroundColor = '#f8f9fa';
         stepsContainer.style.borderRadius = '6px';
         stepsContainer.style.border = '1px solid #dee2e6';
-
+        stepsContainer.style.margin = '10px 10px 0';
         // Step 1: End Sprint Button
         this.createStepButton(
             stepsContainer,
@@ -4933,6 +4939,7 @@ window.SprintManagementView = class SprintManagementView {
             this.uiManager.removeLoadingScreen('sprintmanagement-tab');
         }
     }
+
     
     copyClosedTickets() {
         try {
@@ -5066,11 +5073,12 @@ window.SprintManagementView = class SprintManagementView {
 
         return closedTickets;
     }
+
     
     copySprintData() {
         try {
             // Get data from sprint state
-            const { totalTickets, closedTickets, totalHours, closedHours, extraHoursClosed = 0 } = this.sprintState;
+            const {totalTickets, closedTickets, totalHours, closedHours, extraHoursClosed = 0} = this.sprintState;
 
             // Calculate the total closed hours including extras
             const totalClosedHours = closedHours + extraHoursClosed;
@@ -5203,6 +5211,7 @@ window.SprintManagementView = class SprintManagementView {
             prediction
         };
     }
+
     // Method to create step buttons
     createStepButton(container, title, color, onClick, enabled = true) {
         const buttonWrapper = document.createElement('div');
@@ -5226,16 +5235,16 @@ window.SprintManagementView = class SprintManagementView {
         if (enabled) {
             const hoverColor = this.darkenColor(color, 10);
 
-            button.addEventListener('mouseenter', function() {
+            button.addEventListener('mouseenter', function () {
                 this.style.backgroundColor = hoverColor;
             });
 
-            button.addEventListener('mouseleave', function() {
+            button.addEventListener('mouseleave', function () {
                 this.style.backgroundColor = color;
             });
 
             // Use a regular function instead of an arrow function
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 onClick();
             });
         }
@@ -5481,6 +5490,7 @@ window.SprintManagementView = class SprintManagementView {
         modalOverlay.style.display = 'flex';
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
+        modalOverlay.style.cursor = 'pointer';
 
         const modalContent = document.createElement('div');
         modalContent.style.backgroundColor = 'white';
@@ -5570,6 +5580,12 @@ window.SprintManagementView = class SprintManagementView {
         modalContent.appendChild(modalFooter);
 
         modalOverlay.appendChild(modalContent);
+        modalOverlay.addEventListener('click', (e) => {
+            // Only close if the click was directly on the overlay (not its children)
+            if (e.target === modalOverlay) {
+                document.body.removeChild(modalOverlay);
+            }
+        });
         document.body.appendChild(modalOverlay);
     }
 
@@ -5660,6 +5676,7 @@ window.SprintManagementView = class SprintManagementView {
             this.notification.error('Failed to load sprint state');
         }
     }
+
     calculateUserPerformance() {
         const userPerformance = {};
 
@@ -5772,6 +5789,7 @@ window.SprintManagementView = class SprintManagementView {
 
         return userPerformance;
     }
+
     archiveCompletedSprint() {
         try {
             // Only archive if we have data to archive
@@ -5807,6 +5825,7 @@ window.SprintManagementView = class SprintManagementView {
             console.error('Error archiving sprint:', error);
         }
     }
+
     saveSprintHistory() {
         try {
             localStorage.setItem('gitLabHelperSprintHistory', JSON.stringify(this.sprintHistory));
@@ -5828,6 +5847,7 @@ window.SprintManagementView = class SprintManagementView {
             this.sprintHistory = [];
         }
     }
+
     renderSprintHistory(container) {
         // Skip if no history
         if (!this.sprintHistory || this.sprintHistory.length === 0) {
