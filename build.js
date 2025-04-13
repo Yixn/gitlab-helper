@@ -44,7 +44,7 @@ const CONFIG = {
         'api/APIUtils.js',
         'api/GitLabAPI.js',
         'core/DataProcessor.js',
-        'core/History.js',
+        // Removed 'core/History.js'
 
         // Storage modules
         'storage/LocalStorage.js',
@@ -68,7 +68,7 @@ const CONFIG = {
         // UI views
         'ui/views/SummaryView.js',
         'ui/views/BoardsView.js',
-        'ui/views/HistoryView.js',
+        // Removed 'ui/views/HistoryView.js',
         'ui/views/BulkCommentsView.js',
 
         // Main UI
@@ -92,10 +92,11 @@ const CONFIG = {
     // Keywords to preserve during minification
     keywordsToPreserve: [
         'gitlabApi', 'uiManager', 'GitLabAPI', 'UIManager', 'TabManager',
-        'SummaryView', 'BoardsView', 'HistoryView', 'CommandManager', 'BulkCommentsView',
-        'IssueSelector', 'CommandShortcut', 'updateSummary', 'renderHistory',
+        'SummaryView', 'BoardsView', 'CommandManager', 'BulkCommentsView',
+        'IssueSelector', 'CommandShortcut', 'updateSummary',
         'LabelManager', 'SettingsManager', 'SelectionDisplay', 'getPathFromUrl',
-        'getLabelWhitelist', 'saveHistoryEntry', 'processBoards', 'formatHours'
+        'getLabelWhitelist', 'processBoards', 'formatHours'
+        // Removed 'renderHistory', 'saveHistoryEntry'
     ],
 
     // Ignore patterns for file scanning

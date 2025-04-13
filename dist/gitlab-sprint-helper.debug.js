@@ -355,53 +355,6 @@ window.processBoards = function processBoards() {
     };
 }
 
-// File: lib/core/History.js
-window.saveHistoryEntry = function saveHistoryEntry(totalEstimate, milestoneInfo, forceUpdate = false) {
-    try {
-        const now = new Date();
-        const dateString = now.toISOString();
-        const totalHours = (totalEstimate / 3600).toFixed(1);
-        const urlKey = getHistoryKey();
-        let currentMilestone = "None";
-        if (milestoneInfo) {
-            currentMilestone = milestoneInfo.replace(/\n/g, ' ').trim();
-        }
-        let history = GM_getValue(urlKey, []);
-        const newEntry = {
-            date: dateString,
-            timestamp: now.getTime(),
-            totalHours: totalHours,
-            milestone: currentMilestone,
-            url: window.location.href
-        };
-        let shouldSave = false;
-
-        if (history.length === 0) {
-            shouldSave = true;
-        } else {
-            const lastEntry = history[history.length - 1];
-            if (lastEntry.totalHours !== newEntry.totalHours || lastEntry.milestone !== newEntry.milestone) {
-                shouldSave = true;
-            } else if (forceUpdate) {
-            }
-        }
-        if (shouldSave) {
-            history.push(newEntry);
-            if (history.length > 100) {
-                history = history.slice(-100);
-            }
-            GM_setValue(urlKey, history);
-            if (document.getElementById('history-time-summary-content').style.display === 'block') {
-                if (typeof window.renderHistory === 'function') {
-                    window.renderHistory();
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error saving history:', error);
-    }
-}
-
 // File: lib/storage/LocalStorage.js
 
 
@@ -560,13 +513,17 @@ window.getLastActiveTab = function getLastActiveTab() {
         }
         if (typeof tabId !== 'string') {
             const stringTabId = String(tabId);
-            if (stringTabId && ['summary', 'boards', 'history', 'bulkcomments'].includes(stringTabId)) {
+            if (stringTabId && ['summary', 'boards', 'bulkcomments'].includes(stringTabId)) {
                 return stringTabId;
             }
             console.warn('Invalid tab ID format, using default');
             return DEFAULT_SETTINGS.lastActiveTab;
         }
-        if (!['summary', 'boards', 'history', 'bulkcomments'].includes(tabId)) {
+        // If history tab was saved, return summary instead
+        if (tabId === 'history') {
+            return 'summary';
+        }
+        if (!['summary', 'boards', 'bulkcomments'].includes(tabId)) {
             console.warn(`Unknown tab ID: ${tabId}, using default`);
             return DEFAULT_SETTINGS.lastActiveTab;
         }
@@ -582,7 +539,7 @@ window.getLastActiveTab = function getLastActiveTab() {
 window.saveLastActiveTab = function saveLastActiveTab(tabId) {
     try {
         const tabIdStr = String(tabId);
-        if (!['summary', 'boards', 'history', 'bulkcomments'].includes(tabIdStr)) {
+        if (!['summary', 'boards', 'bulkcomments'].includes(tabIdStr)) {
             console.warn(`Attempting to save invalid tab ID: ${tabIdStr}, using default`);
             return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, DEFAULT_SETTINGS.lastActiveTab);
         }
@@ -592,7 +549,6 @@ window.saveLastActiveTab = function saveLastActiveTab(tabId) {
         return false;
     }
 }
-
 
 // File: lib/ui/components/Notification.js
 
@@ -1728,13 +1684,17 @@ window.TabManager = class TabManager {
         this.tabs = {};
         this.contentAreas = {};
         try {
-            this.currentTab = getLastActiveTab() || 'summary';
+            let lastTab = getLastActiveTab() || 'summary';
+            // If last tab was history, default to summary
+            if (lastTab === 'history') {
+                lastTab = 'summary';
+            }
+            this.currentTab = lastTab;
         } catch (e) {
             console.warn('Error loading last active tab:', e);
             this.currentTab = 'summary';
         }
-
-            }
+    }
 
     
     initialize(parentElement) {
@@ -1744,8 +1704,7 @@ window.TabManager = class TabManager {
         this.tabContainer.style.borderBottom = '1px solid #ddd';
         this.createTab('summary', 'Summary', this.currentTab === 'summary');
         this.createTab('boards', 'Boards', this.currentTab === 'boards');
-        this.createTab('history', 'History', this.currentTab === 'history');
-        this.createTab('bulkcomments', 'Bulk Comments', this.currentTab === 'bulkcomments'); // Renamed from "API" to "Bulk Comments"
+        this.createTab('bulkcomments', 'Bulk Comments', this.currentTab === 'bulkcomments');
         parentElement.appendChild(this.tabContainer);
         this.createContentAreas(parentElement);
     }
@@ -1771,6 +1730,7 @@ window.TabManager = class TabManager {
         this.tabs[id] = tab;
         this.tabContainer.appendChild(tab);
     }
+
     createContentAreas(parentElement) {
         const summaryContent = document.createElement('div');
         summaryContent.id = 'assignee-time-summary-content';
@@ -1782,6 +1742,7 @@ window.TabManager = class TabManager {
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(summaryContent, 'summary-tab', 'Loading summary data...');
         }
+
         const boardsContent = document.createElement('div');
         boardsContent.id = 'boards-time-summary-content';
         boardsContent.style.display = this.currentTab === 'boards' ? 'block' : 'none';
@@ -1792,16 +1753,7 @@ window.TabManager = class TabManager {
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(boardsContent, 'boards-tab', 'Loading board data...');
         }
-        const historyContent = document.createElement('div');
-        historyContent.id = 'history-time-summary-content';
-        historyContent.style.display = this.currentTab === 'history' ? 'block' : 'none';
-        historyContent.style.position = 'relative'; // Explicitly set position relative
-        historyContent.style.minHeight = '300px'; // Increased minimum height for the loader
-        parentElement.appendChild(historyContent);
-        this.contentAreas['history'] = historyContent;
-        if (this.uiManager && this.uiManager.addLoadingScreen) {
-            this.uiManager.addLoadingScreen(historyContent, 'history-tab', 'Loading history data...');
-        }
+
         const bulkCommentsContent = document.createElement('div');
         bulkCommentsContent.id = 'bulk-comments-content';
         bulkCommentsContent.style.display = this.currentTab === 'bulkcomments' ? 'block' : 'none';
@@ -1830,12 +1782,7 @@ window.TabManager = class TabManager {
         } catch(e) {
             console.warn('Error saving tab selection:', e);
         }
-        if (tabId === 'history' && typeof window.renderHistory === 'function') {
-            window.renderHistory(); // Call external renderHistory function
-            if (this.uiManager && this.uiManager.removeLoadingScreen) {
-                this.uiManager.removeLoadingScreen('history-tab');
-            }
-        } else if (tabId === 'bulkcomments' && this.uiManager.bulkCommentsView) {
+        if (tabId === 'bulkcomments' && this.uiManager.bulkCommentsView) {
             this.uiManager.bulkCommentsView.render();
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('bulkcomments-tab');
@@ -4342,7 +4289,7 @@ window.SummaryView = class SummaryView {
                     spanHTML += `color:#28a745;`; // Green for last board with hours
                 }
 
-                spanHTML += `">${hours}</span>`;
+                spanHTML += `">${hours}h</span>`;
                 return spanHTML;
             }).join('/');
 
@@ -4391,7 +4338,7 @@ window.SummaryView = class SummaryView {
                         spanHTML += `color:#28a745;`; // Green for last board with hours
                     }
 
-                    spanHTML += `">${hours}</span>`;
+                    spanHTML += `">${hours}h</span>`;
                     return spanHTML;
                 }).join('/');
 
@@ -4576,126 +4523,6 @@ window.BoardsView = class BoardsView {
         });
 
         return assigneeTable;
-    }
-}
-
-// File: lib/ui/views/HistoryView.js
-window.HistoryView = class HistoryView {
-    
-    constructor(uiManager) {
-        this.uiManager = uiManager;
-    }
-
-    
-    render() {
-        const historyContent = document.getElementById('history-time-summary-content');
-        if (!historyContent) return;
-        historyContent.innerHTML = '';
-        const urlKey = getHistoryKey();
-        const history = GM_getValue(urlKey, []);
-        const urlInfo = document.createElement('div');
-        urlInfo.style.fontSize = '12px';
-        urlInfo.style.color = '#666';
-        urlInfo.style.marginBottom = '10px';
-        urlInfo.style.wordBreak = 'break-all';
-
-        historyContent.appendChild(urlInfo);
-        if (history.length === 0) {
-            this.renderNoHistoryMessage(historyContent);
-            if (this.uiManager && this.uiManager.removeLoadingScreen) {
-                this.uiManager.removeLoadingScreen('history-tab');
-            }
-            return;
-        }
-        this.addClearHistoryButton(historyContent, urlKey);
-        this.renderHistoryTable(historyContent, history);
-        if (this.uiManager && this.uiManager.removeLoadingScreen) {
-            this.uiManager.removeLoadingScreen('history-tab');
-        }
-    }
-
-    
-    renderNoHistoryMessage(container) {
-        const noDataMsg = document.createElement('p');
-        noDataMsg.textContent = 'No history data available for this URL yet.';
-        noDataMsg.style.color = '#666';
-        container.appendChild(noDataMsg);
-    }
-
-    
-    addClearHistoryButton(container, urlKey) {
-        const clearHistoryBtn = document.createElement('button');
-        clearHistoryBtn.textContent = 'Clear History';
-        clearHistoryBtn.style.padding = '3px 6px';
-        clearHistoryBtn.style.fontSize = '12px';
-        clearHistoryBtn.style.backgroundColor = '#dc3545';
-        clearHistoryBtn.style.color = 'white';
-        clearHistoryBtn.style.border = 'none';
-        clearHistoryBtn.style.borderRadius = '3px';
-        clearHistoryBtn.style.cursor = 'pointer';
-        clearHistoryBtn.style.marginBottom = '10px';
-        clearHistoryBtn.onclick = () => {
-            if (confirm('Are you sure you want to clear history data for this URL?')) {
-                GM_setValue(urlKey, []);
-                this.render(); // Re-render the tab
-            }
-        };
-        container.appendChild(clearHistoryBtn);
-    }
-
-    
-    renderHistoryTable(container, history) {
-        const table = document.createElement('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        const headerRow = document.createElement('tr');
-        headerRow.style.borderBottom = '2px solid #ddd';
-        headerRow.style.fontWeight = 'bold';
-
-        const dateHeader = document.createElement('th');
-        dateHeader.textContent = 'Date';
-        dateHeader.style.textAlign = 'left';
-        dateHeader.style.padding = '5px 0';
-
-        const hoursHeader = document.createElement('th');
-        hoursHeader.textContent = 'Hours';
-        hoursHeader.style.textAlign = 'right';
-        hoursHeader.style.padding = '5px 0';
-
-        const milestoneHeader = document.createElement('th');
-        milestoneHeader.textContent = 'Milestone';
-        milestoneHeader.style.textAlign = 'left';
-        milestoneHeader.style.padding = '5px 0';
-
-        headerRow.appendChild(dateHeader);
-        headerRow.appendChild(hoursHeader);
-        headerRow.appendChild(milestoneHeader);
-        table.appendChild(headerRow);
-        history.slice().reverse().forEach(entry => {
-            const row = document.createElement('tr');
-            row.style.borderBottom = '1px solid #eee';
-
-            const dateCell = document.createElement('td');
-            const entryDate = new Date(entry.timestamp);
-            dateCell.textContent = entryDate.toLocaleDateString() + ' ' + entryDate.toLocaleTimeString().substring(0, 5);
-            dateCell.style.padding = '5px 0';
-
-            const hoursCell = document.createElement('td');
-            hoursCell.textContent = `${entry.totalHours}h`;
-            hoursCell.style.textAlign = 'right';
-            hoursCell.style.padding = '5px 0';
-
-            const milestoneCell = document.createElement('td');
-            milestoneCell.textContent = entry.milestone;
-            milestoneCell.style.padding = '5px 0';
-
-            row.appendChild(dateCell);
-            row.appendChild(hoursCell);
-            row.appendChild(milestoneCell);
-            table.appendChild(row);
-        });
-
-        container.appendChild(table);
     }
 }
 
@@ -5799,7 +5626,6 @@ window.UIManager = class UIManager {
         this.tabManager = new TabManager(this);
         this.summaryView = new SummaryView(this);
         this.boardsView = new BoardsView(this);
-        this.historyView = new HistoryView(this);
         this.bulkCommentsView = new BulkCommentsView(this);
         this.issueSelector = new IssueSelector({
             uiManager: this,
@@ -5811,7 +5637,6 @@ window.UIManager = class UIManager {
         });
     }
 
-    
     
     initialize(attachmentElement = document.body) {
         if (document.getElementById('assignee-time-summary')) {
@@ -5915,7 +5740,7 @@ window.UIManager = class UIManager {
             this.milestoneManager = new MilestoneManager({
                 gitlabApi: this.gitlabApi,
                 onMilestonesLoaded: (milestones) => {
-                                    }
+                }
             });
         } catch (e) {
             console.error('Error initializing MilestoneManager:', e);
@@ -6030,7 +5855,7 @@ window.UIManager = class UIManager {
     
     updateBoardStats(stats) {
         if (!this.boardStats) return;
-        const totalCards = stats?.totalCards || 0;
+        const totalCards = stats?.totalCards || a0;
         const withTimeCards = stats?.withTimeCards || 0;
         const closedCards = stats?.closedCards || 0;
 
@@ -6236,7 +6061,6 @@ window.UIManager = class UIManager {
         const tabContents = [
             document.getElementById('assignee-time-summary-content'),
             document.getElementById('boards-time-summary-content'),
-            document.getElementById('history-time-summary-content'),
             document.getElementById('bulk-comments-content')
         ];
         const wrapper = document.getElementById('assignee-time-summary-wrapper');
@@ -6261,12 +6085,10 @@ window.UIManager = class UIManager {
                 content.style.minHeight = `calc(100% - ${subtractHeight}px)`;
                 content.style.height = `calc(100% - ${subtractHeight}px)`;
                 content.style.position = 'relative';
-
-                            }
+            }
         });
     }
 }
-
 
 // File: lib/ui/index.js
 window.uiManager = window.uiManager || new UIManager();
@@ -6414,7 +6236,6 @@ setTimeout(() => {
 }, 2000); // Wait 2 seconds to ensure all elements are loaded
 
 // File: lib/index.js
-
 function createUIManager(attachmentElement = document.body) {
     if (!window.gitlabApi) {
         try {
@@ -6462,7 +6283,7 @@ let isInitialized = false;
 
 function checkAndInit() {
     if (isInitialized) {
-                return;
+        return;
     }
 
     if (window.location.href.includes('/boards')) {
@@ -6491,7 +6312,7 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
             const boardsElement = document.querySelector('[data-testid="boards-list"]');
 
             if (boardsElement) {
-                                resolve(boardsElement);
+                resolve(boardsElement);
                 return;
             }
             const fallbackSelectors = [
@@ -6503,7 +6324,7 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
             for (const selector of fallbackSelectors) {
                 const element = document.querySelector(selector);
                 if (element) {
-                                        resolve(element);
+                    resolve(element);
                     return;
                 }
             }
@@ -6531,7 +6352,7 @@ function updateSummary(forceHistoryUpdate = false) {
 
     try {
         const result = processBoards();
-        
+
         const {
             assigneeTimeMap,
             boardData,
@@ -6545,13 +6366,6 @@ function updateSummary(forceHistoryUpdate = false) {
         clearTimeout(loadingTimeout);
         loadingTimeout = setTimeout(() => {
             boardFullyLoaded = true;
-            if (boardFullyLoaded) {
-                try {
-                    saveHistoryEntry(totalEstimate, currentMilestone, forceHistoryUpdate);
-                } catch (e) {
-                    console.error('Error saving history:', e);
-                }
-            }
         }, 3000); // 3 second delay
         window.uiManager.updateBoardStats({
             totalCards: cardsProcessed,
@@ -6630,7 +6444,7 @@ function setupSettingsManager(uiManager) {
 
 function waitForBoards() {
     if (window.boardsInitialized) {
-                return;
+        return;
     }
     let statusDiv = document.getElementById('board-stats-summary');
     if (!statusDiv) {
@@ -6684,17 +6498,6 @@ function waitForBoards() {
     }, 500);
 }
 
-
-function renderHistory() {
-    try {
-        if (window.uiManager?.historyView) {
-            window.uiManager.historyView.render();
-        }
-    } catch (e) {
-        console.error('Error rendering history:', e);
-    }
-}
-
 checkAndInit();
 
 let lastUrl = window.location.href;
@@ -6715,7 +6518,6 @@ window.gitlabApi = window.gitlabApi || new GitLabAPI();
 window.updateSummary = updateSummary;
 window.checkAndInit = checkAndInit;
 window.waitForBoards = waitForBoards;
-window.renderHistory = renderHistory;
 window.SettingsManager = SettingsManager;
 window.LabelManager = LabelManager;
 window.AssigneeManager = AssigneeManager;
@@ -6737,6 +6539,126 @@ window.addEventListener('resize', () => {
 });
 
 
+
+// File: lib/ui/views/HistoryView.js
+window.HistoryView = class HistoryView {
+    
+    constructor(uiManager) {
+        this.uiManager = uiManager;
+    }
+
+    
+    render() {
+        const historyContent = document.getElementById('history-time-summary-content');
+        if (!historyContent) return;
+        historyContent.innerHTML = '';
+        const urlKey = getHistoryKey();
+        const history = GM_getValue(urlKey, []);
+        const urlInfo = document.createElement('div');
+        urlInfo.style.fontSize = '12px';
+        urlInfo.style.color = '#666';
+        urlInfo.style.marginBottom = '10px';
+        urlInfo.style.wordBreak = 'break-all';
+
+        historyContent.appendChild(urlInfo);
+        if (history.length === 0) {
+            this.renderNoHistoryMessage(historyContent);
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('history-tab');
+            }
+            return;
+        }
+        this.addClearHistoryButton(historyContent, urlKey);
+        this.renderHistoryTable(historyContent, history);
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('history-tab');
+        }
+    }
+
+    
+    renderNoHistoryMessage(container) {
+        const noDataMsg = document.createElement('p');
+        noDataMsg.textContent = 'No history data available for this URL yet.';
+        noDataMsg.style.color = '#666';
+        container.appendChild(noDataMsg);
+    }
+
+    
+    addClearHistoryButton(container, urlKey) {
+        const clearHistoryBtn = document.createElement('button');
+        clearHistoryBtn.textContent = 'Clear History';
+        clearHistoryBtn.style.padding = '3px 6px';
+        clearHistoryBtn.style.fontSize = '12px';
+        clearHistoryBtn.style.backgroundColor = '#dc3545';
+        clearHistoryBtn.style.color = 'white';
+        clearHistoryBtn.style.border = 'none';
+        clearHistoryBtn.style.borderRadius = '3px';
+        clearHistoryBtn.style.cursor = 'pointer';
+        clearHistoryBtn.style.marginBottom = '10px';
+        clearHistoryBtn.onclick = () => {
+            if (confirm('Are you sure you want to clear history data for this URL?')) {
+                GM_setValue(urlKey, []);
+                this.render(); // Re-render the tab
+            }
+        };
+        container.appendChild(clearHistoryBtn);
+    }
+
+    
+    renderHistoryTable(container, history) {
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        const headerRow = document.createElement('tr');
+        headerRow.style.borderBottom = '2px solid #ddd';
+        headerRow.style.fontWeight = 'bold';
+
+        const dateHeader = document.createElement('th');
+        dateHeader.textContent = 'Date';
+        dateHeader.style.textAlign = 'left';
+        dateHeader.style.padding = '5px 0';
+
+        const hoursHeader = document.createElement('th');
+        hoursHeader.textContent = 'Hours';
+        hoursHeader.style.textAlign = 'right';
+        hoursHeader.style.padding = '5px 0';
+
+        const milestoneHeader = document.createElement('th');
+        milestoneHeader.textContent = 'Milestone';
+        milestoneHeader.style.textAlign = 'left';
+        milestoneHeader.style.padding = '5px 0';
+
+        headerRow.appendChild(dateHeader);
+        headerRow.appendChild(hoursHeader);
+        headerRow.appendChild(milestoneHeader);
+        table.appendChild(headerRow);
+        history.slice().reverse().forEach(entry => {
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #eee';
+
+            const dateCell = document.createElement('td');
+            const entryDate = new Date(entry.timestamp);
+            dateCell.textContent = entryDate.toLocaleDateString() + ' ' + entryDate.toLocaleTimeString().substring(0, 5);
+            dateCell.style.padding = '5px 0';
+
+            const hoursCell = document.createElement('td');
+            hoursCell.textContent = `${entry.totalHours}h`;
+            hoursCell.style.textAlign = 'right';
+            hoursCell.style.padding = '5px 0';
+
+            const milestoneCell = document.createElement('td');
+            milestoneCell.textContent = entry.milestone;
+            milestoneCell.style.padding = '5px 0';
+
+            row.appendChild(dateCell);
+            row.appendChild(hoursCell);
+            row.appendChild(milestoneCell);
+            table.appendChild(row);
+        });
+
+        container.appendChild(table);
+    }
+}
 
 // File: main.js (main script content)
 
