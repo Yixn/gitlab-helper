@@ -5583,7 +5583,22 @@ window.SprintManagementView = class SprintManagementView {
                 if (this.sprintState.extraHoursClosed > 0 && !this.sprintState.survivorsSet) {
                     this.sprintState.survivorsSet = true;
                 }
+                if (this.sprintState.id && this.sprintHistory && this.sprintHistory.length > 0) {
+                    const historyIndex = this.sprintHistory.findIndex(sprint => sprint.id === this.sprintState.id);
 
+                    if (historyIndex >= 0) {
+                        // Update the history record with the new values
+                        this.sprintHistory[historyIndex].totalTickets = this.sprintState.totalTickets;
+                        this.sprintHistory[historyIndex].closedTickets = this.sprintState.closedTickets;
+                        this.sprintHistory[historyIndex].totalHours = this.sprintState.totalHours;
+                        this.sprintHistory[historyIndex].closedHours = this.sprintState.closedHours;
+                        this.sprintHistory[historyIndex].extraHoursClosed = this.sprintState.extraHoursClosed;
+
+                        // Save the updated history
+                        this.saveSprintHistory();
+                        this.notification.info("Sprint data updated in history as well.");
+                    }
+                }
                 this.saveSprintState();
                 this.notification.success('Sprint data updated successfully.');
                 this.render();
@@ -6088,7 +6103,7 @@ window.SprintManagementView = class SprintManagementView {
                         ${sprint.closedTickets}/${sprint.totalTickets}
                     </div>
                     <div style="font-size: 14px; color: #6c757d;">
-                        ${ticketCompletion}% completed
+                        ${ticketCompletion.toFixed(2)}% completed
                     </div>
                 </div>
                 
@@ -6098,7 +6113,7 @@ window.SprintManagementView = class SprintManagementView {
                         ${totalClosedHours}/${sprint.totalHours}h
                     </div>
                     <div style="font-size: 14px; color: #6c757d;">
-                        ${hourCompletion}% completed
+                        ${hourCompletion.toFixed(2)}% completed
                     </div>
                 </div>
             </div>
