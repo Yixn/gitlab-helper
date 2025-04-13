@@ -1232,17 +1232,10 @@ window.IssueSelector = class IssueSelector {
         this.selectedOverlays = [];
 
         // Directly target the card areas using the data-testid
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-
-        console.log(`Found ${cardAreas.length} card areas with data-testid="board-list-cards-area"`);
+        const cardAreas = document.querySelectorAll('.board-list');
 
         cardAreas.forEach(cardArea => {
             try {
-                // Make sure the card area has position relative
-                const areaStyle = window.getComputedStyle(cardArea);
-                if (areaStyle.position !== 'relative' && areaStyle.position !== 'absolute') {
-                    cardArea.style.position = 'relative';
-                }
 
                 // Get all cards in this area
                 const cards = cardArea.querySelectorAll('.board-card');
@@ -1250,6 +1243,12 @@ window.IssueSelector = class IssueSelector {
 
                 // Process each card
                 cards.forEach((card, index) => {
+                    // Make sure the card area has position relative
+                    const cardStyle = window.getComputedStyle(card);
+                    if (cardStyle.position !== 'relative' && cardStyle.position !== 'absolute') {
+                        cardArea.style.position = 'relative';
+                    }
+
                     try {
                         const issueItem = this.getIssueItemFromCard(card);
                         if (!issueItem) return;
@@ -1302,7 +1301,7 @@ window.IssueSelector = class IssueSelector {
                             badge.style.fontSize = '12px';
                             badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
 
-                            overlay.appendChild(badge);
+                            card.appendChild(badge);
                             this.selectedOverlays.push(overlay);
                         }
 
@@ -1326,8 +1325,7 @@ window.IssueSelector = class IssueSelector {
                             this.toggleCardSelection(card, overlay);
                         });
 
-                        // Append overlay to the cardArea
-                        cardArea.appendChild(overlay);
+                        card.appendChild(overlay);
                         this.selectionOverlays.push(overlay);
                     } catch (error) {
                         console.error('Error creating overlay for card:', error);
