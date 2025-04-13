@@ -1858,7 +1858,9 @@ window.TabManager = class TabManager {
         summaryContent.id = 'assignee-time-summary-content';
         summaryContent.style.display = this.currentTab === 'summary' ? 'block' : 'none';
         summaryContent.style.position = 'relative'; // Explicitly set position relative
-        summaryContent.style.minHeight = '300px'; // Increased minimum height for the loader
+        summaryContent.style.height = '530px';
+        summaryContent.style.overflowY = 'auto';
+        summaryContent.style.maxHeight = '60vh';
         parentElement.appendChild(summaryContent);
         this.contentAreas['summary'] = summaryContent;
         if (this.uiManager && this.uiManager.addLoadingScreen) {
@@ -1869,7 +1871,9 @@ window.TabManager = class TabManager {
         boardsContent.id = 'boards-time-summary-content';
         boardsContent.style.display = this.currentTab === 'boards' ? 'block' : 'none';
         boardsContent.style.position = 'relative'; // Explicitly set position relative
-        boardsContent.style.minHeight = '300px'; // Increased minimum height for the loader
+        boardsContent.style.height = '530px';
+        boardsContent.style.overflowY = 'auto';
+        boardsContent.style.maxHeight = '60vh';
         parentElement.appendChild(boardsContent);
         this.contentAreas['boards'] = boardsContent;
         if (this.uiManager && this.uiManager.addLoadingScreen) {
@@ -1880,7 +1884,9 @@ window.TabManager = class TabManager {
         bulkCommentsContent.id = 'bulk-comments-content';
         bulkCommentsContent.style.display = this.currentTab === 'bulkcomments' ? 'block' : 'none';
         bulkCommentsContent.style.position = 'relative'; // Explicitly set position relative
-        bulkCommentsContent.style.minHeight = '300px'; // Increased minimum height for the loader
+        bulkCommentsContent.style.height = '530px';
+        bulkCommentsContent.style.overflowY = 'auto';
+        bulkCommentsContent.style.maxHeight = '60vh';
         parentElement.appendChild(bulkCommentsContent);
         this.contentAreas['bulkcomments'] = bulkCommentsContent;
         if (this.uiManager && this.uiManager.addLoadingScreen) {
@@ -1892,7 +1898,9 @@ window.TabManager = class TabManager {
         sprintManagementContent.id = 'sprint-management-content';
         sprintManagementContent.style.display = this.currentTab === 'sprintmanagement' ? 'block' : 'none';
         sprintManagementContent.style.position = 'relative';
-        sprintManagementContent.style.minHeight = '300px';
+        sprintManagementContent.style.height = '530px';
+        sprintManagementContent.style.overflowY = 'auto';
+        sprintManagementContent.style.maxHeight = '60vh';
         parentElement.appendChild(sprintManagementContent);
         this.contentAreas['sprintmanagement'] = sprintManagementContent;
         if (this.uiManager && this.uiManager.addLoadingScreen) {
@@ -4739,7 +4747,6 @@ window.SprintManagementView = class SprintManagementView {
 
         // Create milestone display
         const milestoneInfo = document.createElement('div');
-        milestoneInfo.style.margin = '20px';
         milestoneInfo.style.padding = '10px';
         milestoneInfo.style.backgroundColor = '#f8f9fa';
         milestoneInfo.style.borderRadius = '6px';
@@ -4758,8 +4765,8 @@ window.SprintManagementView = class SprintManagementView {
         const stepsContainer = document.createElement('div');
         stepsContainer.style.display = 'flex';
         stepsContainer.style.flexDirection = 'column';
-        stepsContainer.style.gap = '15px';
-        stepsContainer.style.margin = '20px';
+        stepsContainer.style.gap = '5px';
+        stepsContainer.style.marginTop = '10px';
         stepsContainer.style.padding = '15px';
         stepsContainer.style.backgroundColor = '#f8f9fa';
         stepsContainer.style.borderRadius = '6px';
@@ -4805,7 +4812,7 @@ window.SprintManagementView = class SprintManagementView {
         const utilityContainer = document.createElement('div');
         utilityContainer.style.display = 'flex';
         utilityContainer.style.justifyContent = 'space-between';
-        utilityContainer.style.marginTop = '30px';
+        utilityContainer.style.marginTop = '10px';
 
 // Reset Sprint Button (always enabled)
         const resetButton = document.createElement('button');
@@ -4871,7 +4878,7 @@ window.SprintManagementView = class SprintManagementView {
         lockedContainer.style.padding = '40px';
         lockedContainer.style.backgroundColor = '#f8f9fa';
         lockedContainer.style.borderRadius = '6px';
-        lockedContainer.style.margin = '20px';
+        lockedContainer.style.margin = '10px';
         lockedContainer.style.textAlign = 'center';
 
         // Lock icon
@@ -5569,7 +5576,7 @@ window.SprintManagementView = class SprintManagementView {
 // Method to display current sprint data
     showSprintDataSummary(container) {
         const dataContainer = document.createElement('div');
-        dataContainer.style.margin = '20px';
+        dataContainer.style.margin = '10px';
         dataContainer.style.padding = '15px';
         dataContainer.style.backgroundColor = '#f8f9fa';
         dataContainer.style.borderRadius = '6px';
@@ -5828,7 +5835,7 @@ window.SprintManagementView = class SprintManagementView {
         }
 
         const historySection = document.createElement('div');
-        historySection.style.margin = '20px';
+        historySection.style.margin = '10px';
         historySection.style.padding = '15px';
         historySection.style.backgroundColor = '#f8f9fa';
         historySection.style.borderRadius = '6px';
@@ -6604,8 +6611,6 @@ window.BulkCommentsView = class BulkCommentsView {
     addCommentSection(container) {
         const commentSection = document.createElement('div');
         commentSection.classList.add('api-section');
-        commentSection.style.marginBottom = '15px';
-        commentSection.style.padding = '10px';
         commentSection.style.backgroundColor = '#f5f5f5';
         commentSection.style.borderRadius = '8px';
         commentSection.style.border = '1px solid #e0e0e0';
