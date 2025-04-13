@@ -1229,7 +1229,7 @@ window.IssueSelector = class IssueSelector {
         pageOverlay.style.left = '0';
         pageOverlay.style.width = `${fullWidth}px`; // Set to calculated full width
         pageOverlay.style.height = '100%';
-        pageOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+        pageOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
         pageOverlay.style.zIndex = '98';
         pageOverlay.style.pointerEvents = 'none';
         boardsContainer.appendChild(pageOverlay);
@@ -1256,7 +1256,7 @@ window.IssueSelector = class IssueSelector {
                 const attachmentRect = attachmentElement.getBoundingClientRect();
                 const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
                 const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                const offsetLeft = rect.left - attachmentRect.left + scrollLeft;
+                const offsetLeft = rect.left - attachmentRect.left + scrollLeft - 10;
                 const offsetTop = rect.top - attachmentRect.top + scrollTop;
                 const overlay = document.createElement('div');
                 overlay.className = 'card-selection-overlay';
@@ -1546,7 +1546,7 @@ window.IssueSelector = class IssueSelector {
             if (overlay.className === 'card-selection-overlay' && overlay.originalCard) {
                 const card = overlay.originalCard;
                 const rect = card.getBoundingClientRect();
-                const offsetLeft = rect.left - attachmentRect.left + scrollLeft;
+                const offsetLeft = rect.left - attachmentRect.left + scrollLeft - 10;
                 const offsetTop = rect.top - attachmentRect.top + scrollTop;
 
                 overlay.style.left = `${offsetLeft}px`;
@@ -4421,17 +4421,37 @@ window.BoardsView = class BoardsView {
         boardsContent.innerHTML = '';
         const boardsList = document.createElement('div');
         boardsList.className = 'boards-list-summary';
-        const sortedBoards = Object.keys(boardData).sort((a, b) => {
+
+        // Filter out empty boards (those with no tickets or no time estimate)
+        const nonEmptyBoards = Object.keys(boardData).filter(boardName => {
+            return boardData[boardName].tickets > 0 && boardData[boardName].timeEstimate > 0;
+        });
+
+        // Sort the remaining boards by time estimate
+        const sortedBoards = nonEmptyBoards.sort((a, b) => {
             return boardData[b].timeEstimate - boardData[a].timeEstimate;
         });
-        sortedBoards.forEach(boardName => {
-            const boardSection = this.createBoardSection(
-                boardName,
-                boardData[boardName],
-                boardAssigneeData[boardName]
-            );
-            boardsList.appendChild(boardSection);
-        });
+
+        if (sortedBoards.length === 0) {
+            // Display a message when there are no non-empty boards
+            const emptyMessage = document.createElement('div');
+            emptyMessage.textContent = 'No boards with time estimates found.';
+            emptyMessage.style.padding = '15px';
+            emptyMessage.style.color = '#666';
+            emptyMessage.style.fontStyle = 'italic';
+            emptyMessage.style.textAlign = 'center';
+            boardsList.appendChild(emptyMessage);
+        } else {
+            // Create sections for each non-empty board
+            sortedBoards.forEach(boardName => {
+                const boardSection = this.createBoardSection(
+                    boardName,
+                    boardData[boardName],
+                    boardAssigneeData[boardName]
+                );
+                boardsList.appendChild(boardSection);
+            });
+        }
 
         boardsContent.appendChild(boardsList);
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
@@ -4476,10 +4496,20 @@ window.BoardsView = class BoardsView {
 
         boardHeader.appendChild(boardInfo);
         boardHeader.appendChild(boardToggle);
-        if (assigneeData) {
+
+        // Only add assignee table if there's assignee data
+        if (assigneeData && Object.keys(assigneeData).length > 0) {
             boardDetails.appendChild(
                 this.createAssigneeTable(assigneeData)
             );
+        } else {
+            // Add a message if there's no assignee data
+            const noAssigneesMsg = document.createElement('div');
+            noAssigneesMsg.textContent = 'No assignee data available for this board.';
+            noAssigneesMsg.style.padding = '8px 0';
+            noAssigneesMsg.style.color = '#666';
+            noAssigneesMsg.style.fontStyle = 'italic';
+            boardDetails.appendChild(noAssigneesMsg);
         }
 
         boardSection.appendChild(boardHeader);
