@@ -513,7 +513,7 @@ window.getLastActiveTab = function getLastActiveTab() {
         }
         if (typeof tabId !== 'string') {
             const stringTabId = String(tabId);
-            if (stringTabId && ['summary', 'boards', 'bulkcomments'].includes(stringTabId)) {
+            if (stringTabId && ['summary', 'boards', 'bulkcomments', "sprintmanagement"].includes(stringTabId)) {
                 return stringTabId;
             }
             console.warn('Invalid tab ID format, using default');
@@ -523,7 +523,7 @@ window.getLastActiveTab = function getLastActiveTab() {
         if (tabId === 'history') {
             return 'summary';
         }
-        if (!['summary', 'boards', 'bulkcomments'].includes(tabId)) {
+        if (!['summary', 'boards', 'bulkcomments, "sprintmanagement"'].includes(tabId)) {
             console.warn(`Unknown tab ID: ${tabId}, using default`);
             return DEFAULT_SETTINGS.lastActiveTab;
         }
@@ -539,7 +539,7 @@ window.getLastActiveTab = function getLastActiveTab() {
 window.saveLastActiveTab = function saveLastActiveTab(tabId) {
     try {
         const tabIdStr = String(tabId);
-        if (!['summary', 'boards', 'bulkcomments'].includes(tabIdStr)) {
+        if (!['summary', 'boards', 'bulkcomments', "sprintmanagement"].includes(tabIdStr)) {
             console.warn(`Attempting to save invalid tab ID: ${tabIdStr}, using default`);
             return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, DEFAULT_SETTINGS.lastActiveTab);
         }
@@ -556,7 +556,7 @@ window.saveLastActiveTab = function saveLastActiveTab(tabId) {
 window.Notification = class Notification {
     
     constructor(options = {}) {
-        this.position = 'bottom-left';
+        this.position = 'top-right';
         this.duration = options.duration || 3000;
         this.animationDuration = options.animationDuration || '0.3s';
         this.container = null;
@@ -575,7 +575,7 @@ window.Notification = class Notification {
         this.container.style.zIndex = '100';
         switch (this.position) {
             case 'top-right':
-                this.container.style.top = '20px';
+                this.container.style.top = '120px';
                 this.container.style.right = '20px';
                 break;
             case 'top-left':
@@ -1705,6 +1705,7 @@ window.TabManager = class TabManager {
         this.createTab('summary', 'Summary', this.currentTab === 'summary');
         this.createTab('boards', 'Boards', this.currentTab === 'boards');
         this.createTab('bulkcomments', 'Bulk Comments', this.currentTab === 'bulkcomments');
+        this.createTab('sprintmanagement', 'Manage Sprint', this.currentTab === 'sprintmanagement');
         parentElement.appendChild(this.tabContainer);
         this.createContentAreas(parentElement);
     }
@@ -1764,6 +1765,18 @@ window.TabManager = class TabManager {
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(bulkCommentsContent, 'bulkcomments-tab', 'Loading comment tools...');
         }
+
+        // Add the Sprint Management content area
+        const sprintManagementContent = document.createElement('div');
+        sprintManagementContent.id = 'sprint-management-content';
+        sprintManagementContent.style.display = this.currentTab === 'sprintmanagement' ? 'block' : 'none';
+        sprintManagementContent.style.position = 'relative';
+        sprintManagementContent.style.minHeight = '300px';
+        parentElement.appendChild(sprintManagementContent);
+        this.contentAreas['sprintmanagement'] = sprintManagementContent;
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            this.uiManager.addLoadingScreen(sprintManagementContent, 'sprintmanagement-tab', 'Loading sprint management tools...');
+        }
     }
 
     
@@ -1778,6 +1791,7 @@ window.TabManager = class TabManager {
         this.contentAreas[tabId].style.display = 'block';
         this.currentTab = tabId;
         try {
+
             saveLastActiveTab(tabId);
         } catch(e) {
             console.warn('Error saving tab selection:', e);
@@ -4526,6 +4540,234 @@ window.BoardsView = class BoardsView {
     }
 }
 
+// File: lib/ui/views/SprintManagementView.js
+
+window.SprintManagementView = class SprintManagementView {
+    
+    constructor(uiManager) {
+        this.uiManager = uiManager;
+        this.notification = null;
+        try {
+            // Import Notification if available
+            if (typeof Notification === 'function') {
+                this.notification = new Notification({
+                    position: 'bottom-right',
+                    duration: 3000
+                });
+            }
+        } catch (e) {
+            console.error('Error initializing notification:', e);
+        }
+    }
+
+    
+    render() {
+        const sprintManagementContent = document.getElementById('sprint-management-content');
+        if (!sprintManagementContent) return;
+
+        sprintManagementContent.innerHTML = '';
+
+        // Create the copy button directly
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy Closed Issue Names';
+        copyButton.className = 'copy-tickets-button';
+        copyButton.style.padding = '10px 16px';
+        copyButton.style.backgroundColor = '#1f75cb';
+        copyButton.style.color = 'white';
+        copyButton.style.border = 'none';
+        copyButton.style.borderRadius = '4px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.fontWeight = 'bold';
+        copyButton.style.transition = 'background-color 0.2s ease';
+        copyButton.style.margin = '20px';
+
+        copyButton.addEventListener('mouseenter', () => {
+            copyButton.style.backgroundColor = '#1a63ac';
+        });
+
+        copyButton.addEventListener('mouseleave', () => {
+            copyButton.style.backgroundColor = '#1f75cb';
+        });
+
+        copyButton.addEventListener('click', () => this.copyClosedTickets());
+
+        sprintManagementContent.appendChild(copyButton);
+
+        // Create status message (hidden initially)
+        const statusMsg = document.createElement('div');
+        statusMsg.id = 'copy-status-message';
+        statusMsg.style.marginLeft = '20px';
+        statusMsg.style.fontSize = '14px';
+        statusMsg.style.color = '#666';
+        statusMsg.style.fontStyle = 'italic';
+        statusMsg.style.display = 'none'; // Hide initially
+        sprintManagementContent.appendChild(statusMsg);
+
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('sprint-management-tab');
+        }
+    }
+
+    
+    copyClosedTickets() {
+        try {
+            // Get all closed tickets
+            const closedTickets = this.getClosedTickets();
+
+            if (closedTickets.length === 0) {
+                this.updateStatus('No closed tickets found on the board', 'warning');
+                return;
+            }
+
+            // Format tickets as plain text with newlines
+            const formattedText = closedTickets.map(ticket => ticket.title).join('\n');
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(formattedText)
+                .then(() => {
+                    this.updateStatus(`Copied ${closedTickets.length} issue ${closedTickets.length !== 1 ? 'names' : 'name'} to clipboard`, 'success');
+                })
+                .catch(err => {
+                    console.error('Error copying to clipboard:', err);
+                    this.updateStatus('Failed to copy to clipboard', 'error');
+                });
+
+        } catch (error) {
+            console.error('Error copying closed tickets:', error);
+            this.updateStatus('Error processing issues', 'error');
+        }
+    }
+
+    
+    updateStatus(message, type = 'info') {
+        const statusMsg = document.getElementById('copy-status-message');
+        if (!statusMsg) return;
+
+        statusMsg.textContent = message;
+        statusMsg.style.display = 'block'; // Show the message
+
+        // Set color based on type
+        switch (type) {
+            case 'success':
+                statusMsg.style.color = '#28a745';
+                break;
+            case 'warning':
+                statusMsg.style.color = '#ffc107';
+                break;
+            case 'error':
+                statusMsg.style.color = '#dc3545';
+                break;
+            default:
+                statusMsg.style.color = '#666';
+        }
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            if (statusMsg) {
+                statusMsg.style.display = 'none';
+            }
+        }, 3000);
+
+        // Also show notification if available
+        if (this.notification) {
+            this.notification[type](message);
+        }
+    }
+
+    
+    getClosedTickets() {
+        const closedTickets = [];
+        const boardLists = document.querySelectorAll('.board-list');
+
+        boardLists.forEach(boardList => {
+            let boardTitle = '';
+
+            try {
+                if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+                    const boardComponent = boardList.__vue__.$children.find(child =>
+                        child.$props && child.$props.list && child.$props.list.title);
+
+                    if (boardComponent && boardComponent.$props.list.title) {
+                        boardTitle = boardComponent.$props.list.title.toLowerCase();
+                    }
+                }
+
+                if (!boardTitle) {
+                    const boardHeader = boardList.querySelector('.board-title-text');
+                    if (boardHeader) {
+                        boardTitle = boardHeader.textContent.trim().toLowerCase();
+                    }
+                }
+            } catch (e) {
+                console.error('Error getting board title:', e);
+                const boardHeader = boardList.querySelector('.board-title-text');
+                if (boardHeader) {
+                    boardTitle = boardHeader.textContent.trim().toLowerCase();
+                }
+            }
+
+            // Check if this is a closed/done board
+            const isClosedBoard = boardTitle.includes('done') ||
+                boardTitle.includes('closed') ||
+                boardTitle.includes('complete') ||
+                boardTitle.includes('finished');
+
+            if (isClosedBoard) {
+                // Process all cards in this closed board
+                const boardCards = boardList.querySelectorAll('.board-card');
+
+                boardCards.forEach(card => {
+                    try {
+                        if (card.__vue__ && card.__vue__.$children) {
+                            const issue = card.__vue__.$children.find(child =>
+                                child.$props && child.$props.item);
+
+                            if (issue && issue.$props && issue.$props.item) {
+                                const item = issue.$props.item;
+
+                                // Extract title and id from the issue
+                                const title = item.title;
+                                const id = item.iid;
+
+                                if (title) {
+                                    closedTickets.push({
+                                        id: id || 'unknown',
+                                        title: title
+                                    });
+                                }
+                            }
+                        } else {
+                            // Fallback if Vue component not available
+                            const titleEl = card.querySelector('.board-card-title');
+                            if (titleEl) {
+                                const title = titleEl.textContent.trim();
+                                let id = 'unknown';
+
+                                // Try to extract ID if available
+                                const idMatch = card.querySelector('[data-issue-id]');
+                                if (idMatch && idMatch.dataset.issueId) {
+                                    id = idMatch.dataset.issueId;
+                                }
+
+                                if (title) {
+                                    closedTickets.push({
+                                        id: id,
+                                        title: title
+                                    });
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error processing card:', err);
+                    }
+                });
+            }
+        });
+
+        return closedTickets;
+    }
+}
+
 // File: lib/ui/views/BulkCommentsView.js
 window.BulkCommentsView = class BulkCommentsView {
     
@@ -5627,6 +5869,7 @@ window.UIManager = class UIManager {
         this.summaryView = new SummaryView(this);
         this.boardsView = new BoardsView(this);
         this.bulkCommentsView = new BulkCommentsView(this);
+        this.sprintManagementView = new SprintManagementView(this);
         this.issueSelector = new IssueSelector({
             uiManager: this,
             onSelectionChange: (selectedIssues) => {
@@ -6383,13 +6626,22 @@ function updateSummary(forceHistoryUpdate = false) {
                 cardsProcessed,
                 cardsWithTime,
                 currentMilestone,
-                validBoardData,       // Ensure we pass valid object
-                validBoardAssigneeData // Ensure we pass valid object
+                validBoardData,
+                validBoardAssigneeData
             );
         }
         if (window.uiManager.boardsView) {
             window.uiManager.boardsView.render(validBoardData, validBoardAssigneeData);
         }
+
+        // Update Sprint Management tab if it's visible
+        const sprintManagementContent = document.getElementById('sprint-management-content');
+        if (sprintManagementContent &&
+            sprintManagementContent.style.display === 'block' &&
+            window.uiManager.sprintManagementView) {
+            window.uiManager.sprintManagementView.render();
+        }
+
         const bulkCommentsContent = document.getElementById('bulk-comments-content');
         if (bulkCommentsContent &&
             bulkCommentsContent.style.display === 'block' &&

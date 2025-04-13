@@ -68,6 +68,7 @@ const CONFIG = {
         // UI views
         'ui/views/SummaryView.js',
         'ui/views/BoardsView.js',
+        'ui/views/SprintManagementView.js',
         'ui/views/BulkCommentsView.js',
 
         // Main UI
