@@ -505,6 +505,7 @@ window.saveAssigneeWhitelist = function saveAssigneeWhitelist(whitelist) {
 }
 
 
+
 window.getLastActiveTab = function getLastActiveTab() {
     try {
         const tabId = loadFromStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, null);
@@ -513,7 +514,7 @@ window.getLastActiveTab = function getLastActiveTab() {
         }
         if (typeof tabId !== 'string') {
             const stringTabId = String(tabId);
-            if (stringTabId && ['summary', 'boards', 'bulkcomments', "sprintmanagement"].includes(stringTabId)) {
+            if (stringTabId && ['summary', 'boards', 'bulkcomments', 'sprintmanagement'].includes(stringTabId)) {
                 return stringTabId;
             }
             console.warn('Invalid tab ID format, using default');
@@ -523,7 +524,7 @@ window.getLastActiveTab = function getLastActiveTab() {
         if (tabId === 'history') {
             return 'summary';
         }
-        if (!['summary', 'boards', 'bulkcomments, "sprintmanagement"'].includes(tabId)) {
+        if (!['summary', 'boards', 'bulkcomments', 'sprintmanagement'].includes(tabId)) {
             console.warn(`Unknown tab ID: ${tabId}, using default`);
             return DEFAULT_SETTINGS.lastActiveTab;
         }
@@ -539,7 +540,7 @@ window.getLastActiveTab = function getLastActiveTab() {
 window.saveLastActiveTab = function saveLastActiveTab(tabId) {
     try {
         const tabIdStr = String(tabId);
-        if (!['summary', 'boards', 'bulkcomments', "sprintmanagement"].includes(tabIdStr)) {
+        if (!['summary', 'boards', 'bulkcomments', 'sprintmanagement'].includes(tabIdStr)) {
             console.warn(`Attempting to save invalid tab ID: ${tabIdStr}, using default`);
             return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, DEFAULT_SETTINGS.lastActiveTab);
         }
@@ -1800,6 +1801,12 @@ window.TabManager = class TabManager {
             this.uiManager.bulkCommentsView.render();
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
                 this.uiManager.removeLoadingScreen('bulkcomments-tab');
+            }
+        }
+        if (tabId === 'sprintmanagement' && this.uiManager.sprintManagementView) {
+            this.uiManager.sprintManagementView.render();
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('sprintmanagement-tab');
             }
         }
     }
