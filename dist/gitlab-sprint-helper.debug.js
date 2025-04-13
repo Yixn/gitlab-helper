@@ -6986,7 +6986,6 @@ window.BulkCommentsView = class BulkCommentsView {
             let that = this
             this.refreshBoard().then(function(){
                 progressContainer.style.display = 'none';
-                that.uiManager.issueSelector.applyOverflowFixes()
                 that.clearSelectedIssues();
                 that.uiManager.issueSelector.exitSelectionMode();
                 that.uiManager.removeLoadingScreen('comment-submit');
@@ -6996,7 +6995,12 @@ window.BulkCommentsView = class BulkCommentsView {
             if (successCount > 0) {
                 this.notification.warning(`Added comment to ${successCount} issues, failed for ${failCount}`);
                 setTimeout(() => {
-                    this.refreshBoard();
+                    this.refreshBoard().then(function(){
+                        progressContainer.style.display = 'none';
+                        that.clearSelectedIssues();
+                        that.uiManager.issueSelector.exitSelectionMode();
+                        that.uiManager.removeLoadingScreen('comment-submit');
+                    });
                 }, 1000);
             } else {
                 this.notification.error(`Failed to add comments to all ${failCount} issues`);
@@ -7086,11 +7090,42 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     async refreshBoard() {
-        const boardLists = document.querySelectorAll('.board-list-component');
-        for (const list of boardLists) {
-            list.__vue__.$apollo.queries.currentList.refetch().then(function(){
-                uiManager.issueSelector.applyOverflowFixes()
-            })
+        try {
+            // Find all board lists
+            const boardLists = document.querySelectorAll('.board-list-component');
+            console.log(`Found ${boardLists.length} board lists to refresh`);
+
+            // Create an array to hold all the refetch promises
+            const refetchPromises = [];
+
+            // Add each refetch operation to the array (don't await them individually)
+            for (const list of boardLists) {
+                if (list.__vue__ && list.__vue__.$apollo && list.__vue__.$apollo.queries.currentList) {
+                    const refetchPromise = list.__vue__.$apollo.queries.currentList.refetch();
+                    refetchPromises.push(refetchPromise);
+                }
+            }
+
+            // Wait for ALL refetch operations to complete
+            await Promise.all(refetchPromises);
+
+            // Now that ALL boards are refreshed, apply overflow fixes and update summary
+            console.log("All boards refreshed, applying overflow fixes and updating summary");
+
+            if (window.uiManager && window.uiManager.issueSelector) {
+                window.uiManager.issueSelector.applyOverflowFixes();
+            }
+
+            if (typeof window.updateSummary === 'function') {
+                window.updateSummary(true);
+            }
+
+            console.log("Board refresh and updates complete");
+            return true;
+
+        } catch (error) {
+            console.error("Error refreshing boards:", error);
+            return false;
         }
     }
 }
