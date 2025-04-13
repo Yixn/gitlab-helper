@@ -341,6 +341,8 @@ window.processBoards = function processBoards() {
                 console.error('Error processing card:', e);
             }
         });
+
+        uiManager.issueSelector.applyOverflowFixes()
     });
 
     return {
@@ -1419,21 +1421,6 @@ window.IssueSelector = class IssueSelector {
             }
         });
 
-        // Restore original styles
-        if (this.originalStyles && this.originalStyles.length) {
-            this.originalStyles.forEach(({element, property, value}) => {
-                if (element) {
-                    if (property === 'overflow-x') {
-                        element.style.overflowX = value;
-                    } else if (property === 'overflow') {
-                        element.style.overflow = value;
-                    } else if (property === 'position') {
-                        element.style.position = value;
-                    }
-                }
-            });
-            this.originalStyles = [];
-        }
 
         // Remove the selection counter and help text
         if (this.selectionCounter && this.selectionCounter.parentNode) {
@@ -1942,6 +1929,7 @@ window.TabManager = class TabManager {
                 this.uiManager.removeLoadingScreen('sprintmanagement-tab');
             }
         }
+        uiManager.issueSelector.applyOverflowFixes()
     }
 }
 
@@ -4789,27 +4777,27 @@ window.SprintManagementView = class SprintManagementView {
         // Step 2: Prepare for Next Sprint Button (renamed from Set Sprint Survivors)
         this.createStepButton(
             stepsContainer,
-            '2. Prepare for Next Sprint',
+            '2. Ready for next Sprint',
             '#6f42c1',
             () => this.prepareForNextSprint(),
             this.sprintState.endSprint && !this.sprintState.preparedForNext  // Only enabled if step 1 is done but step 2 is not
         );
 
-        // Step 3: Copy Closed Issues Button
-        this.createStepButton(
-            stepsContainer,
-            '3. Copy Closed Issue Names',
-            '#fd7e14',
-            () => this.copyClosedTickets(),
-            this.sprintState.preparedForNext  // Only enabled if steps 1 and 2 are done
-        );
-
         // Step 4: Copy Sprint Data Button
         this.createStepButton(
             stepsContainer,
-            '4. Copy Sprint Data Summary',
+            '3. Copy Sprint Data Summary',
             '#28a745',
             () => this.copySprintData(),
+            this.sprintState.preparedForNext  // Only enabled if steps 1 and 2 are done
+        );
+
+        // Step 3: Copy Closed Issues Button
+        this.createStepButton(
+            stepsContainer,
+            '4. Copy Closed Issue Names',
+            '#fd7e14',
+            () => this.copyClosedTickets(),
             this.sprintState.preparedForNext  // Only enabled if steps 1 and 2 are done
         );
 
@@ -7096,6 +7084,7 @@ window.UIManager = class UIManager {
                 }
             }
         });
+
     }
 
     
