@@ -1089,25 +1089,20 @@ window.SelectionDisplay = class SelectionDisplay {
             issueItem.appendChild(removeBtn);
             this.issuesList.appendChild(issueItem);
         });
-            }
+    }
 
     
-    removeIssue(index) {
-        if (index >= 0 && index < this.selectedIssues.length) {
+    onRemoveIssue(index) {
+        if (this.selectedIssues.length > index) {
+            const removedIssue = this.selectedIssues[index];
             this.selectedIssues.splice(index, 1);
-            this.updateDisplay();
-            if (typeof this.onRemoveIssue === 'function') {
-                this.onRemoveIssue(index);
-            } else {
-                try {
-                    if (window.uiManager && window.uiManager.issueSelector) {
-                        window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
-                    }
-                } catch (e) {
-                    console.error('Error syncing with IssueSelector:', e);
-                }
+            if (this.uiManager && this.uiManager.issueSelector) {
+                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+            } else if (window.uiManager && window.uiManager.issueSelector) {
+                window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
             }
-                    }
+        }
+        // Remove status message update since we removed the status element
     }
 
 
@@ -1115,7 +1110,7 @@ window.SelectionDisplay = class SelectionDisplay {
     setSelectedIssues(issues) {
         this.selectedIssues = Array.isArray(issues) ? [...issues] : [];
         this.updateDisplay();
-            }
+    }
 }
 
 // File: lib/ui/components/IssueSelector.js
@@ -1139,16 +1134,14 @@ window.IssueSelector = class IssueSelector {
 
     startSelection() {
         if (this.isSelectingIssue) {
-                        return;
+            return;
         }
 
         this.isSelectingIssue = true;
         const currentSelection = [...this.selectedIssues];
-        const statusMsg = document.getElementById('comment-status');
-        if (statusMsg) {
-            statusMsg.textContent = 'Click on cards to select/deselect issues. Press ESC or click DONE when finished.';
-            statusMsg.style.color = '#1f75cb';
-        }
+
+        // Remove the status message update since we removed the status element
+
         let boardsContainer = document.querySelector('.boards-list');
         if (!boardsContainer) {
             const possibleSelectors = [
@@ -1198,8 +1191,8 @@ window.IssueSelector = class IssueSelector {
             selectButton.style.backgroundColor = '#28a745'; // Green when active
             selectButton.textContent = '✓ Selecting...';
         }
+    }
 
-            }
     
 
     createCardOverlays(currentSelection = [], attachmentElement = document.body) {
@@ -1366,7 +1359,7 @@ window.IssueSelector = class IssueSelector {
 
     
     exitSelectionMode() {
-                this.isSelectingIssue = false;
+        this.isSelectingIssue = false;
         const pageOverlay = document.getElementById('selection-page-overlay');
         if (pageOverlay) {
             pageOverlay.remove();
@@ -1389,21 +1382,8 @@ window.IssueSelector = class IssueSelector {
             this.onSelectionComplete(this.selectedIssues);
         }
 
-        const statusMsg = document.getElementById('comment-status');
-        if (statusMsg) {
-            if (this.selectedIssues.length > 0) {
-                statusMsg.textContent = `${this.selectedIssues.length} issues selected.`;
-                statusMsg.style.color = '#28a745';
-                statusMsg.style.backgroundColor = '#f8f9fa';
-                statusMsg.style.border = '1px solid #e9ecef';
-            } else {
-                statusMsg.textContent = 'No issues selected. Click "Select" to choose issues.';
-                statusMsg.style.color = '#666';
-                statusMsg.style.backgroundColor = '#f8f9fa';
-                statusMsg.style.border = '1px solid #e9ecef';
-            }
-        }
-            }
+        // Remove the status message update since we removed the status element
+    }
 
 
     toggleCardSelection(card, overlay) {
@@ -1705,8 +1685,8 @@ window.TabManager = class TabManager {
         this.tabContainer.style.borderBottom = '1px solid #ddd';
         this.createTab('summary', 'Summary', this.currentTab === 'summary');
         this.createTab('boards', 'Boards', this.currentTab === 'boards');
-        this.createTab('bulkcomments', 'Bulk Comments', this.currentTab === 'bulkcomments');
-        this.createTab('sprintmanagement', 'Manage Sprint', this.currentTab === 'sprintmanagement');
+        this.createTab('bulkcomments', 'Issues', this.currentTab === 'bulkcomments');
+        this.createTab('sprintmanagement', 'Sprint', this.currentTab === 'sprintmanagement');
         parentElement.appendChild(this.tabContainer);
         this.createContentAreas(parentElement);
     }
@@ -4574,7 +4554,14 @@ window.SprintManagementView = class SprintManagementView {
 
         sprintManagementContent.innerHTML = '';
 
-        // Create the copy button directly
+        // Create button container for better layout
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.flexDirection = 'column';
+        buttonContainer.style.gap = '15px';
+        buttonContainer.style.margin = '20px';
+
+        // Create the copy button for closed issue names
         const copyButton = document.createElement('button');
         copyButton.textContent = 'Copy Closed Issue Names';
         copyButton.className = 'copy-tickets-button';
@@ -4586,7 +4573,6 @@ window.SprintManagementView = class SprintManagementView {
         copyButton.style.cursor = 'pointer';
         copyButton.style.fontWeight = 'bold';
         copyButton.style.transition = 'background-color 0.2s ease';
-        copyButton.style.margin = '20px';
 
         copyButton.addEventListener('mouseenter', () => {
             copyButton.style.backgroundColor = '#1a63ac';
@@ -4598,22 +4584,40 @@ window.SprintManagementView = class SprintManagementView {
 
         copyButton.addEventListener('click', () => this.copyClosedTickets());
 
-        sprintManagementContent.appendChild(copyButton);
+        // Create the sprint data button
+        const sprintDataButton = document.createElement('button');
+        sprintDataButton.textContent = 'Copy Sprint Data Summary';
+        sprintDataButton.className = 'sprint-data-button';
+        sprintDataButton.style.padding = '10px 16px';
+        sprintDataButton.style.backgroundColor = '#28a745';
+        sprintDataButton.style.color = 'white';
+        sprintDataButton.style.border = 'none';
+        sprintDataButton.style.borderRadius = '4px';
+        sprintDataButton.style.cursor = 'pointer';
+        sprintDataButton.style.fontWeight = 'bold';
+        sprintDataButton.style.transition = 'background-color 0.2s ease';
 
-        // Create status message (hidden initially)
-        const statusMsg = document.createElement('div');
-        statusMsg.id = 'copy-status-message';
-        statusMsg.style.marginLeft = '20px';
-        statusMsg.style.fontSize = '14px';
-        statusMsg.style.color = '#666';
-        statusMsg.style.fontStyle = 'italic';
-        statusMsg.style.display = 'none'; // Hide initially
-        sprintManagementContent.appendChild(statusMsg);
+        sprintDataButton.addEventListener('mouseenter', () => {
+            sprintDataButton.style.backgroundColor = '#218838';
+        });
+
+        sprintDataButton.addEventListener('mouseleave', () => {
+            sprintDataButton.style.backgroundColor = '#28a745';
+        });
+
+        sprintDataButton.addEventListener('click', () => this.copySprintData());
+
+        buttonContainer.appendChild(copyButton);
+        buttonContainer.appendChild(sprintDataButton);
+        sprintManagementContent.appendChild(buttonContainer);
+
+        // Removed status message element
 
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
-            this.uiManager.removeLoadingScreen('sprint-management-tab');
+            this.uiManager.removeLoadingScreen('sprintmanagement-tab');
         }
     }
+
 
     
     copyClosedTickets() {
@@ -4647,37 +4651,12 @@ window.SprintManagementView = class SprintManagementView {
 
     
     updateStatus(message, type = 'info') {
-        const statusMsg = document.getElementById('copy-status-message');
-        if (!statusMsg) return;
-
-        statusMsg.textContent = message;
-        statusMsg.style.display = 'block'; // Show the message
-
-        // Set color based on type
-        switch (type) {
-            case 'success':
-                statusMsg.style.color = '#28a745';
-                break;
-            case 'warning':
-                statusMsg.style.color = '#ffc107';
-                break;
-            case 'error':
-                statusMsg.style.color = '#dc3545';
-                break;
-            default:
-                statusMsg.style.color = '#666';
-        }
-
-        // Auto-hide after 3 seconds
-        setTimeout(() => {
-            if (statusMsg) {
-                statusMsg.style.display = 'none';
-            }
-        }, 3000);
-
-        // Also show notification if available
+        // Only use notifications - no DOM elements
         if (this.notification) {
             this.notification[type](message);
+        } else {
+            // Fallback if notification system is not available
+            console.log(`${type.toUpperCase()}: ${message}`);
         }
     }
 
@@ -4772,6 +4751,130 @@ window.SprintManagementView = class SprintManagementView {
         });
 
         return closedTickets;
+    }
+    
+    copySprintData() {
+        try {
+            // Get all relevant data
+            const closedTickets = this.getClosedTickets();
+            const sprintData = this.calculateSprintData();
+
+            const formattedData = `${sprintData.totalTickets}\n${closedTickets.length}\n${sprintData.totalHours}\n${sprintData.closedHours}\n\n${sprintData.prediction}`;
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(formattedData)
+                .then(() => {
+                    this.updateStatus('Sprint data copied to clipboard', 'success');
+                })
+                .catch(err => {
+                    console.error('Error copying sprint data to clipboard:', err);
+                    this.updateStatus('Failed to copy sprint data', 'error');
+                });
+        } catch (error) {
+            console.error('Error copying sprint data:', error);
+            this.updateStatus('Error processing sprint data', 'error');
+        }
+    }
+
+    
+    calculateSprintData() {
+        let totalTickets = 0;
+        let totalHours = 0;
+        let closedHours = 0;
+
+        const boardLists = document.querySelectorAll('.board-list');
+
+        boardLists.forEach(boardList => {
+            let boardTitle = '';
+
+            try {
+                if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+                    const boardComponent = boardList.__vue__.$children.find(child =>
+                        child.$props && child.$props.list && child.$props.list.title);
+
+                    if (boardComponent && boardComponent.$props.list.title) {
+                        boardTitle = boardComponent.$props.list.title.toLowerCase();
+                    }
+                }
+
+                if (!boardTitle) {
+                    const boardHeader = boardList.querySelector('.board-title-text');
+                    if (boardHeader) {
+                        boardTitle = boardHeader.textContent.trim().toLowerCase();
+                    }
+                }
+            } catch (e) {
+                console.error('Error getting board title:', e);
+                const boardHeader = boardList.querySelector('.board-title-text');
+                if (boardHeader) {
+                    boardTitle = boardHeader.textContent.trim().toLowerCase();
+                }
+            }
+
+            // Check if this is a closed/done board
+            const isClosedBoard = boardTitle.includes('done') ||
+                boardTitle.includes('closed') ||
+                boardTitle.includes('complete') ||
+                boardTitle.includes('finished');
+
+            // Process all cards in this board
+            const boardCards = boardList.querySelectorAll('.board-card');
+
+            boardCards.forEach(card => {
+                try {
+                    if (card.__vue__ && card.__vue__.$children) {
+                        const issue = card.__vue__.$children.find(child =>
+                            child.$props && child.$props.item);
+
+                        if (issue && issue.$props && issue.$props.item) {
+                            const item = issue.$props.item;
+
+                            // Count total tickets
+                            totalTickets++;
+
+                            // Sum up time estimates if available
+                            if (item.timeEstimate) {
+                                const hours = item.timeEstimate / 3600; // Convert seconds to hours
+                                totalHours += hours;
+
+                                // Add to closed hours if in closed board
+                                if (isClosedBoard) {
+                                    closedHours += hours;
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error processing card:', err);
+                }
+            });
+        });
+
+        // Round the hours to 1 decimal place
+        totalHours = Math.round(totalHours * 10) / 10;
+        closedHours = Math.round(closedHours * 10) / 10;
+
+        // Calculate prediction
+        let prediction = 'schlecht';
+        const closedTickets = this.getClosedTickets().length;
+
+        // Calculate ratios
+        const ticketRatio = totalTickets > 0 ? closedTickets / totalTickets : 0;
+        const hoursRatio = totalHours > 0 ? closedHours / totalHours : 0;
+
+        // Determine prediction based on ratios
+        if (ticketRatio > 0.7 || hoursRatio > 0.7) {
+            prediction = 'gut';
+        } else if (ticketRatio > 0.5 || hoursRatio > 0.5) {
+            prediction = 'mittel';
+        }
+
+        return {
+            totalTickets,
+            totalHours,
+            closedHours,
+            prediction
+        };
     }
 }
 
@@ -5142,18 +5245,8 @@ window.BulkCommentsView = class BulkCommentsView {
         if (this.selectionDisplay) {
             this.selectionDisplay.setSelectedIssues(this.selectedIssues);
         }
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            const count = this.selectedIssues.length;
-            if (count > 0) {
-                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected. Enter your comment and click "Add Comment".`;
-                statusEl.style.color = 'green';
-            } else if (!this.isLoading) {
-                statusEl.textContent = 'No issues selected. Click "Select Issues".';
-                statusEl.style.color = '#666';
-            }
-        }
-            }
+        // Remove the status element update
+    }
 
     
     onRemoveIssue(index) {
@@ -5493,18 +5586,8 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     createStatusElements(container) {
-        const statusMsg = document.createElement('div');
-        statusMsg.id = 'comment-status';
-        statusMsg.style.fontSize = '13px';
-        statusMsg.style.marginTop = '10px';
-        statusMsg.style.padding = '8px 12px';
-        statusMsg.style.borderRadius = '4px';
-        statusMsg.style.backgroundColor = '#f8f9fa';
-        statusMsg.style.border = '1px solid #e9ecef';
-        statusMsg.style.textAlign = 'center';
-        statusMsg.style.color = '#666';
-        statusMsg.textContent = 'Loading shortcuts...';
-        container.appendChild(statusMsg);
+        // Remove the status message element completely
+
         const progressContainer = document.createElement('div');
         progressContainer.id = 'comment-progress-container';
         progressContainer.style.display = 'none';
@@ -5544,13 +5627,8 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     showLoadingState() {
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            statusEl.textContent = 'Loading shortcuts...';
-            statusEl.style.color = '#1f75cb';
-            statusEl.style.backgroundColor = '#f8f9fa';
-            statusEl.style.border = '1px solid #e9ecef';
-        }
+        // Remove the reference to statusEl since we're no longer using it
+
         if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.label) {
             this.addLabelShortcut([
                 { value: '', label: 'Loading labels...' }
@@ -5607,27 +5685,19 @@ window.BulkCommentsView = class BulkCommentsView {
             return;
         }
 
-        const statusEl = document.getElementById('comment-status');
+        // Remove references to the status element
         const progressContainer = document.getElementById('comment-progress-container');
         const progressBar = document.getElementById('comment-progress-bar');
         const progressLabel = document.getElementById('comment-progress-label');
 
         if (this.selectedIssues.length === 0) {
             this.notification.error('No issues selected');
-            if (statusEl) {
-                statusEl.textContent = 'Error: No issues selected.';
-                statusEl.style.color = '#dc3545';
-            }
             return;
         }
 
         const comment = this.commentInput.value.trim();
         if (!comment) {
             this.notification.error('Comment cannot be empty');
-            if (statusEl) {
-                statusEl.textContent = 'Error: Comment cannot be empty.';
-                statusEl.style.color = '#dc3545';
-            }
             return;
         }
         let fullUILoadingScreen;
@@ -5645,10 +5715,6 @@ window.BulkCommentsView = class BulkCommentsView {
                     `Sending comments to ${this.selectedIssues.length} issues...`
                 );
             }
-        }
-        if (statusEl) {
-            statusEl.textContent = `Submitting comments to ${this.selectedIssues.length} issues...`;
-            statusEl.style.color = '#1f75cb';
         }
 
         if (progressContainer) {
@@ -5673,10 +5739,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
         if (!gitlabApi) {
             this.notification.error('GitLab API not available');
-            if (statusEl) {
-                statusEl.textContent = 'Error: GitLab API not available.';
-                statusEl.style.color = '#dc3545';
-            }
 
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -5731,11 +5793,6 @@ window.BulkCommentsView = class BulkCommentsView {
             submitBtn.style.cursor = 'pointer';
         }
         if (successCount === this.selectedIssues.length) {
-            if (statusEl) {
-                statusEl.textContent = `Successfully added comment to all ${successCount} issues!`;
-                statusEl.style.color = '#28a745';
-            }
-
             this.notification.success(`Added comment to ${successCount} issues`);
             if (this.commentInput) {
                 this.commentInput.value = '';
@@ -5750,19 +5807,11 @@ window.BulkCommentsView = class BulkCommentsView {
             }
             setTimeout(() => {
                 this.clearSelectedIssues();
-
-                if (statusEl) {
-                    statusEl.textContent = '';
-                }
             }, 3000);
             setTimeout(() => {
                 this.refreshBoard();
             }, 1000);
         } else {
-            if (statusEl) {
-                statusEl.textContent = `Added comment to ${successCount} issues, failed for ${failCount} issues.`;
-                statusEl.style.color = successCount > 0 ? '#ff9900' : '#dc3545';
-            }
             if (successCount > 0) {
                 this.notification.warning(`Added comment to ${successCount} issues, failed for ${failCount}`);
                 setTimeout(() => {
@@ -6118,10 +6167,6 @@ window.UIManager = class UIManager {
         totalText.textContent = `Total: ${totalCards} cards`;
         totalStats.appendChild(totalText);
 
-        const withTimeText = document.createElement('span');
-        withTimeText.textContent = `(${withTimeCards} with time)`;
-        withTimeText.style.color = '#777';
-        totalStats.appendChild(withTimeText);
         const closedStats = document.createElement('div');
         closedStats.textContent = `Closed: ${closedCards} cards`;
         closedStats.style.color = '#28a745';
