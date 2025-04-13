@@ -1125,6 +1125,10 @@ window.IssueSelector = class IssueSelector {
         this.selectionOverlays = [];
         this.selectedOverlays = []; // Track which overlays are selected
         this.selectedIssues = options.initialSelection || []; // Store multiple selected issues
+        this.pageOverlay = null; // Track the page overlay separately
+        this.selectionCounter = null; // Track the selection counter element
+        this.helpText = null; // Track the help text element
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isSelectingIssue) {
                 this.exitSelectionMode();
@@ -1177,9 +1181,9 @@ window.IssueSelector = class IssueSelector {
         pageOverlay.style.left = '0';
         pageOverlay.style.width = '100%';
         pageOverlay.style.height = '100%';
-        pageOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'; // Keep original darker tint
+        pageOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
         pageOverlay.style.zIndex = '98';
-        pageOverlay.style.pointerEvents = 'auto'; // Allow clicking on the overlay
+        pageOverlay.style.pointerEvents = 'none'; // This allows clicking on the overlay
 
         // Add click handler to page overlay to exit selection mode
         pageOverlay.addEventListener('click', (e) => {
@@ -1191,10 +1195,13 @@ window.IssueSelector = class IssueSelector {
 
         boardsContainer.appendChild(pageOverlay);
 
+        // Store direct reference to the page overlay
+        this.pageOverlay = pageOverlay;
+
         // Create card overlays for each board-list
         this.createCardOverlays(currentSelection, boardsContainer);
 
-        // Create fixed controls for selection
+        // Create fixed UI elements
         this.createFixedControls();
 
         // Update the select button state
@@ -1202,7 +1209,7 @@ window.IssueSelector = class IssueSelector {
         if (selectButton) {
             selectButton.dataset.active = 'true';
             selectButton.style.backgroundColor = '#28a745'; // Green when active
-            selectButton.textContent = '✓ Selecting...';
+            selectButton.textContent = '✓ Done';
         }
 
         // Add scroll event listener for repositioning
@@ -1214,64 +1221,57 @@ window.IssueSelector = class IssueSelector {
     createCardOverlays(currentSelection = [], attachmentElement = document.body) {
         // First clear any existing overlays
         this.selectionOverlays.forEach(overlay => {
-            if (overlay && overlay.parentNode && overlay.id !== 'selection-page-overlay') {
+            if (overlay && overlay.parentNode) {
                 overlay.parentNode.removeChild(overlay);
             }
         });
 
-        // Filter out the page overlay so we don't remove it
-        this.selectionOverlays = this.selectionOverlays.filter(overlay =>
-            overlay && overlay.id === 'selection-page-overlay'
-        );
-
+        // Reset tracking arrays
+        this.selectionOverlays = [];
         this.selectedIssues = currentSelection || [];
         this.selectedOverlays = [];
 
-        // Process each board list separately
-        const boardLists = document.querySelectorAll('.board-list');
+        // Directly target the card areas using the data-testid
+        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
 
-        boardLists.forEach(boardList => {
-            // Find the cards container within this board list
-            const cardsContainer = boardList.querySelector('.board-list-cards');
+        console.log(`Found ${cardAreas.length} card areas with data-testid="board-list-cards-area"`);
 
-            if (!cardsContainer) {
-                return; // Skip if no cards container found
-            }
+        cardAreas.forEach(cardArea => {
+            try {
+                // Make sure the card area has position relative
+                const areaStyle = window.getComputedStyle(cardArea);
+                if (areaStyle.position !== 'relative' && areaStyle.position !== 'absolute') {
+                    cardArea.style.position = 'relative';
+                }
 
-            // Get all cards in this board
-            const boardCards = boardList.querySelectorAll('.board-card');
+                // Get all cards in this area
+                const cards = cardArea.querySelectorAll('.board-card');
+                console.log(`Found ${cards.length} cards in card area`);
 
-            boardCards.forEach((card, index) => {
-                try {
-                    // Calculate position relative to the cards container
-                    const rect = card.getBoundingClientRect();
-                    const containerRect = cardsContainer.getBoundingClientRect();
+                // Process each card
+                cards.forEach((card, index) => {
+                    try {
+                        const issueItem = this.getIssueItemFromCard(card);
+                        if (!issueItem) return;
 
-                    // Calculate position relative to the cards container
-                    const top = rect.top - containerRect.top;
-                    const left = rect.left - containerRect.left;
-
-                    const overlay = document.createElement('div');
-                    overlay.className = 'card-selection-overlay';
-                    overlay.style.position = 'absolute';
-                    overlay.style.left = `${left}px`;
-                    overlay.style.top = `${top}px`;
-                    overlay.style.width = `${rect.width}px`;
-                    overlay.style.height = `${rect.height}px`;
-                    overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
-                    overlay.style.border = '2px solid rgba(31, 117, 203, 0.6)';
-                    overlay.style.borderRadius = '4px';
-                    overlay.style.zIndex = '99';
-                    overlay.style.cursor = 'pointer';
-                    overlay.style.transition = 'background-color 0.2s ease';
-                    overlay.dataset.cardId = card.id || `card-${Date.now()}-${index}`;
-                    overlay.dataset.selected = 'false';
-                    overlay.originalCard = card;
-
-                    const issueItem = this.getIssueItemFromCard(card);
-
-                    if (issueItem) {
+                        // Create overlay directly above the card
+                        const overlay = document.createElement('div');
+                        overlay.className = 'card-selection-overlay';
+                        overlay.style.position = 'absolute';
+                        overlay.style.zIndex = '99';
+                        overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+                        overlay.style.border = '2px solid rgba(31, 117, 203, 0.6)';
+                        overlay.style.borderRadius = '4px';
+                        overlay.style.cursor = 'pointer';
+                        overlay.style.transition = 'background-color 0.2s ease';
+                        overlay.style.boxSizing = 'border-box';
+                        overlay.dataset.cardId = card.id || `card-${Date.now()}-${index}`;
+                        overlay.dataset.selected = 'false';
+                        overlay.originalCard = card;
                         overlay.dataset.issueId = `${issueItem.iid}-${issueItem.referencePath}`;
+
+                        // Position the overlay directly over the card
+                        this.positionOverlay(overlay, card, cardArea);
 
                         // Check if this issue is already in the current selection
                         if (currentSelection.some(issue =>
@@ -1305,48 +1305,49 @@ window.IssueSelector = class IssueSelector {
                             overlay.appendChild(badge);
                             this.selectedOverlays.push(overlay);
                         }
+
+                        // Add event listeners
+                        overlay.addEventListener('mouseenter', function () {
+                            if (this.dataset.selected !== 'true') {
+                                this.style.backgroundColor = 'rgba(31, 117, 203, 0.3)';
+                                this.style.boxShadow = '0 0 8px rgba(31, 117, 203, 0.5)';
+                            }
+                        });
+
+                        overlay.addEventListener('mouseleave', function () {
+                            if (this.dataset.selected !== 'true') {
+                                this.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+                                this.style.boxShadow = 'none';
+                            }
+                        });
+
+                        overlay.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.toggleCardSelection(card, overlay);
+                        });
+
+                        // Append overlay to the cardArea
+                        cardArea.appendChild(overlay);
+                        this.selectionOverlays.push(overlay);
+                    } catch (error) {
+                        console.error('Error creating overlay for card:', error);
                     }
-
-                    overlay.addEventListener('mouseenter', function() {
-                        if (this.dataset.selected !== 'true') {
-                            this.style.backgroundColor = 'rgba(31, 117, 203, 0.3)';
-                            this.style.boxShadow = '0 0 8px rgba(31, 117, 203, 0.5)';
-                        }
-                    });
-
-                    overlay.addEventListener('mouseleave', function() {
-                        if (this.dataset.selected !== 'true') {
-                            this.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
-                            this.style.boxShadow = 'none';
-                        }
-                    });
-
-                    overlay.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.toggleCardSelection(card, overlay);
-                    });
-
-                    // Append overlay to the cards container for this board list
-                    cardsContainer.appendChild(overlay);
-                    this.selectionOverlays.push(overlay);
-
-                } catch (error) {
-                    console.error('Error creating overlay for card:', error);
-                }
-            });
+                });
+            } catch (error) {
+                console.error('Error processing card area:', error);
+            }
         });
     }
 
     
     updateSelectionCounter() {
-        const counter = document.getElementById('selection-counter');
-        if (counter) {
+        if (this.selectionCounter) {
             const count = this.selectedIssues.length;
-            counter.textContent = `${count} issue${count !== 1 ? 's' : ''} selected`;
+            this.selectionCounter.textContent = `${count} issue${count !== 1 ? 's' : ''} selected`;
             if (count > 0) {
-                counter.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
+                this.selectionCounter.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
             } else {
-                counter.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                this.selectionCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
         }
         if (typeof this.onSelectionChange === 'function') {
@@ -1407,13 +1408,31 @@ window.IssueSelector = class IssueSelector {
             }
         });
     }
+
     
     exitSelectionMode() {
         if (!this.isSelectingIssue) return;
 
         this.isSelectingIssue = false;
 
-        // Remove all selection overlays including page overlay
+        // Make sure we directly remove the page overlay
+        if (this.pageOverlay && this.pageOverlay.parentNode) {
+            this.pageOverlay.parentNode.removeChild(this.pageOverlay);
+            this.pageOverlay = null;
+        }
+
+        // Remove the selection counter and help text
+        if (this.selectionCounter && this.selectionCounter.parentNode) {
+            this.selectionCounter.parentNode.removeChild(this.selectionCounter);
+            this.selectionCounter = null;
+        }
+
+        if (this.helpText && this.helpText.parentNode) {
+            this.helpText.parentNode.removeChild(this.helpText);
+            this.helpText = null;
+        }
+
+        // Clean up the other overlays
         this.selectionOverlays.forEach(overlay => {
             if (overlay && overlay.parentNode) {
                 overlay.parentNode.removeChild(overlay);
@@ -1529,60 +1548,34 @@ window.IssueSelector = class IssueSelector {
             console.error('Error syncing selection with bulk comments view:', error);
         }
     }
+
     
     repositionOverlays() {
         if (!this.isSelectingIssue) return;
 
-        // Process each board list separately
-        const boardLists = document.querySelectorAll('.board-list');
+        // Update the position of the help text
+        if (this.helpText) {
+            this.helpText.style.top = '10px';
+            this.helpText.style.left = '50%';
+        }
 
-        boardLists.forEach(boardList => {
-            // Find the cards container within this board list
-            const cardsContainer = boardList.querySelector('.board-list-cards');
+        // Update the position of the selection counter
+        if (this.selectionCounter) {
+            this.selectionCounter.style.top = '50px';
+            this.selectionCounter.style.left = '50%';
+        }
 
-            if (!cardsContainer) {
-                return; // Skip if no cards container found
-            }
+        // Update positions of card overlays
+        this.selectionOverlays.forEach(overlay => {
+            if (overlay && overlay.className === 'card-selection-overlay' && overlay.originalCard) {
+                const card = overlay.originalCard;
+                const container = overlay.parentNode;
 
-            // Find overlays in this container
-            const overlays = Array.from(cardsContainer.querySelectorAll('.card-selection-overlay'));
-
-            overlays.forEach(overlay => {
-                if (overlay.originalCard) {
-                    const card = overlay.originalCard;
-                    const rect = card.getBoundingClientRect();
-                    const containerRect = cardsContainer.getBoundingClientRect();
-
-                    // Update position
-                    const top = rect.top - containerRect.top;
-                    const left = rect.left - containerRect.left;
-
-                    overlay.style.left = `${left}px`;
-                    overlay.style.top = `${top}px`;
-                    overlay.style.width = `${rect.width}px`;
-                    overlay.style.height = `${rect.height}px`;
+                if (card && container) {
+                    this.positionOverlay(overlay, card, container);
                 }
-            });
+            }
         });
-
-        // Ensure fixed controls remain in the right position
-        const doneButton = document.getElementById('selection-cancel-button');
-        if (doneButton) {
-            doneButton.style.bottom = '20px';
-            doneButton.style.right = '20px';
-        }
-
-        const counter = document.getElementById('selection-counter');
-        if (counter) {
-            counter.style.bottom = '20px';
-            counter.style.left = '20px';
-        }
-
-        const helpText = document.getElementById('selection-help-text');
-        if (helpText) {
-            helpText.style.top = '10px';
-            helpText.style.left = '50%';
-        }
     }
 
     
@@ -1603,7 +1596,26 @@ window.IssueSelector = class IssueSelector {
             }
         }
         this.syncSelectionWithBulkCommentsView();
-            }
+    }
+
+    positionOverlay(overlay, card, container) {
+        try {
+            const cardRect = card.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            // Calculate position relative to container
+            const top = cardRect.top - containerRect.top + (container.scrollTop || 0);
+            const left = cardRect.left - containerRect.left + (container.scrollLeft || 0);
+
+            overlay.style.top = `${top}px`;
+            overlay.style.left = `${left}px`;
+            overlay.style.width = `${cardRect.width}px`;
+            overlay.style.height = `${cardRect.height}px`;
+        } catch (e) {
+            console.error('Error positioning overlay:', e);
+        }
+    }
+
     updateOverlaysFromSelection() {
         if (!this.isSelectingIssue) return;
 
@@ -1660,65 +1672,13 @@ window.IssueSelector = class IssueSelector {
             console.error('Error updating overlays from selection:', error);
         }
     }
+
     createFixedControls() {
-        const cancelButton = document.createElement('div');
-        cancelButton.id = 'selection-cancel-button';
-        cancelButton.textContent = 'DONE';
-        cancelButton.style.position = 'fixed';  // Use fixed positioning
-        cancelButton.style.bottom = '20px';
-        cancelButton.style.right = '20px'; // Fixed position
-        cancelButton.style.backgroundColor = '#28a745';
-        cancelButton.style.color = 'white';
-        cancelButton.style.padding = '10px 20px';
-        cancelButton.style.borderRadius = '4px';
-        cancelButton.style.cursor = 'pointer';
-        cancelButton.style.fontWeight = 'bold';
-        cancelButton.style.zIndex = '999';  // Higher z-index
-        cancelButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
-        cancelButton.style.transition = 'all 0.2s ease';
-
-        cancelButton.addEventListener('mouseenter', function() {
-            this.style.backgroundColor = '#218838';
-            this.style.transform = 'translateY(-2px)';
-            this.style.boxShadow = '0 6px 15px rgba(0, 0, 0, 0.5)';
-        });
-
-        cancelButton.addEventListener('mouseleave', function() {
-            this.style.backgroundColor = '#28a745';
-            this.style.transform = 'translateY(0)';
-            this.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
-        });
-
-        cancelButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.exitSelectionMode();
-        });
-
-        document.body.appendChild(cancelButton);
-        this.selectionOverlays.push(cancelButton);
-
-        const selectionCounter = document.createElement('div');
-        selectionCounter.id = 'selection-counter';
-        selectionCounter.textContent = `${this.selectedIssues.length} issues selected`;
-        selectionCounter.style.position = 'fixed';  // Use fixed positioning
-        selectionCounter.style.bottom = '20px';
-        selectionCounter.style.left = '20px';
-        selectionCounter.style.backgroundColor = this.selectedIssues.length > 0 ?
-            'rgba(40, 167, 69, 0.9)' : 'rgba(0, 0, 0, 0.8)';
-        selectionCounter.style.color = 'white';
-        selectionCounter.style.padding = '8px 16px';
-        selectionCounter.style.borderRadius = '20px';
-        selectionCounter.style.fontSize = '14px';
-        selectionCounter.style.zIndex = '999';  // Higher z-index
-        selectionCounter.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
-
-        document.body.appendChild(selectionCounter);
-        this.selectionOverlays.push(selectionCounter);
-
+        // Create help text at the top
         const helpText = document.createElement('div');
         helpText.id = 'selection-help-text';
-        helpText.textContent = 'Click on issues to select/deselect them • Press ESC or click DONE when finished';
-        helpText.style.position = 'fixed';  // Use fixed positioning
+        helpText.textContent = 'Click on issues to select/deselect them • Press ESC or click button when finished';
+        helpText.style.position = 'fixed';
         helpText.style.top = '10px';
         helpText.style.left = '50%';
         helpText.style.transform = 'translateX(-50%)';
@@ -1727,12 +1687,33 @@ window.IssueSelector = class IssueSelector {
         helpText.style.padding = '8px 16px';
         helpText.style.borderRadius = '20px';
         helpText.style.fontSize = '14px';
-        helpText.style.zIndex = '999';  // Higher z-index
+        helpText.style.zIndex = '999';
         helpText.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.3)';
-
+        this.helpText = helpText;
         document.body.appendChild(helpText);
         this.selectionOverlays.push(helpText);
+
+        // Create selection counter below the help text
+        const selectionCounter = document.createElement('div');
+        selectionCounter.id = 'selection-counter';
+        selectionCounter.textContent = `${this.selectedIssues.length} issues selected`;
+        selectionCounter.style.position = 'fixed';
+        selectionCounter.style.top = '50px'; // Position below help text
+        selectionCounter.style.left = '50%';
+        selectionCounter.style.transform = 'translateX(-50%)';
+        selectionCounter.style.backgroundColor = this.selectedIssues.length > 0 ?
+            'rgba(40, 167, 69, 0.9)' : 'rgba(0, 0, 0, 0.8)';
+        selectionCounter.style.color = 'white';
+        selectionCounter.style.padding = '8px 16px';
+        selectionCounter.style.borderRadius = '20px';
+        selectionCounter.style.fontSize = '14px';
+        selectionCounter.style.zIndex = '999';
+        selectionCounter.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
+        this.selectionCounter = selectionCounter;
+        document.body.appendChild(selectionCounter);
+        this.selectionOverlays.push(selectionCounter);
     }
+
     
     handleScroll = () => {
         this.repositionOverlays();
