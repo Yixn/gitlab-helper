@@ -19,7 +19,7 @@
 
 
 window.formatHours = function formatHours(seconds) {
-    return (seconds / 3600).toFixed(1);
+    return (seconds / 3600);
 }
 
 window.generateColorFromString = function generateColorFromString(str) {
@@ -4297,8 +4297,121 @@ window.SummaryView = class SummaryView {
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
-
     
+    addCopySummaryButton(container, assigneeTimeMap, totalTickets) {
+        // Initialize notification if not already available
+        if (!this.notification) {
+            try {
+                // Import Notification if available
+                if (typeof Notification === 'function') {
+                    this.notification = new Notification({
+                        position: 'bottom-right',
+                        duration: 3000
+                    });
+                }
+            } catch (e) {
+                console.error('Error initializing notification:', e);
+            }
+        }
+
+        // Create a button container with some margin
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.marginTop = '15px';
+        buttonContainer.style.textAlign = 'center';
+
+        // Create the copy button with improved styling
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy Summary Data';
+        copyButton.style.padding = '8px 16px';
+        copyButton.style.backgroundColor = '#1f75cb';
+        copyButton.style.color = 'white';
+        copyButton.style.border = 'none';
+        copyButton.style.borderRadius = '4px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.fontWeight = 'bold';
+        copyButton.style.transition = 'background-color 0.2s ease';
+
+        // Hover effects
+        copyButton.addEventListener('mouseenter', () => {
+            copyButton.style.backgroundColor = '#1a63ac';
+        });
+
+        copyButton.addEventListener('mouseleave', () => {
+            copyButton.style.backgroundColor = '#1f75cb';
+        });
+
+        // Click handler to format and copy data
+        copyButton.onclick = () => {
+            try {
+                // Format data with tab separation
+                let formattedData = '';
+
+                // Sort assignees by time spent (descending)
+                const sortedAssignees = Object.keys(assigneeTimeMap).sort((a, b) => {
+                    return assigneeTimeMap[b] - assigneeTimeMap[a];
+                });
+
+                // Add each assignee with their hours - exactly one tab character between name and hours
+                sortedAssignees.forEach(name => {
+                    const hours = (assigneeTimeMap[name] / 3600); // Convert seconds to hours with 1 decimal
+                    formattedData += `${name}\t${hours}\n`;
+                });
+
+                // Add total tickets count at the end
+                formattedData += `Issues\t${totalTickets}`;
+
+                // Copy to clipboard
+                navigator.clipboard.writeText(formattedData)
+                    .then(() => {
+                        // Show notification - find the first available notification method
+                        if (this.notification) {
+                            this.notification.success('Summary data copied to clipboard');
+                        } else if (this.uiManager && this.uiManager.notification) {
+                            this.uiManager.notification.success('Summary data copied to clipboard');
+                        } else {
+                            console.log('Summary data copied to clipboard');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy data:', err);
+                        if (this.notification) {
+                            this.notification.error('Failed to copy data to clipboard');
+                        } else if (this.uiManager && this.uiManager.notification) {
+                            this.uiManager.notification.error('Failed to copy data to clipboard');
+                        } else {
+                            console.error('Failed to copy data to clipboard');
+                        }
+                    });
+
+                // Add visual feedback to the button
+                const originalText = copyButton.textContent;
+                copyButton.textContent = '✓ Copied!';
+                copyButton.style.backgroundColor = '#28a745';
+
+                setTimeout(() => {
+                    copyButton.textContent = originalText;
+                    copyButton.style.backgroundColor = '#1f75cb';
+                }, 1500);
+
+            } catch (error) {
+                console.error('Error formatting or copying data:', error);
+                if (this.notification) {
+                    this.notification.error('Error preparing data for clipboard');
+                } else if (this.uiManager && this.uiManager.notification) {
+                    this.uiManager.notification.error('Error preparing data for clipboard');
+                } else {
+                    console.error('Error preparing data for clipboard');
+                }
+            }
+        };
+
+        buttonContainer.appendChild(copyButton);
+        container.appendChild(buttonContainer);
+    }
+    
+    // Modified render method in SummaryView.js
+// This is how you should update the existing render method
+
     render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
         const summaryContent = document.getElementById('assignee-time-summary-content');
 
@@ -4336,6 +4449,10 @@ window.SummaryView = class SummaryView {
             this.renderMilestoneInfo(summaryContent, currentMilestone);
         }
         this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData);
+
+        // Add the new copy button
+        this.addCopySummaryButton(summaryContent, assigneeTimeMap, cardsWithTime);
+
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
             this.uiManager.removeLoadingScreen('summary-tab');
         }
@@ -5383,7 +5500,7 @@ window.SprintManagementView = class SprintManagementView {
             this.saveSprintState();
 
             // Notify and refresh
-            this.notification.success(`Sprint preparation complete. ${extraHoursClosed.toFixed(1)}h of carried over work identified.`);
+            this.notification.success(`Sprint preparation complete. ${extraHoursClosed}h of carried over work identified.`);
             this.render();
         } catch (error) {
             console.error('Error preparing for next sprint:', error);
@@ -5637,12 +5754,12 @@ window.SprintManagementView = class SprintManagementView {
 
         dataContainer.appendChild(createDataRow('Total Tickets:', totalTickets));
         dataContainer.appendChild(createDataRow('Closed Tickets:', closedTickets));
-        dataContainer.appendChild(createDataRow('Total Hours:', totalHours.toFixed(1) + 'h'));
-        dataContainer.appendChild(createDataRow('Closed Hours:', closedHours.toFixed(1) + 'h'));
+        dataContainer.appendChild(createDataRow('Total Hours:', totalHours + 'h'));
+        dataContainer.appendChild(createDataRow('Closed Hours:', closedHours + 'h'));
 
         if (extraHoursClosed > 0) {
-            dataContainer.appendChild(createDataRow('Extra Hours Closed:', extraHoursClosed.toFixed(1) + 'h'));
-            dataContainer.appendChild(createDataRow('Total Hours Closed:', (closedHours + extraHoursClosed).toFixed(1) + 'h'));
+            dataContainer.appendChild(createDataRow('Extra Hours Closed:', extraHoursClosed + 'h'));
+            dataContainer.appendChild(createDataRow('Total Hours Closed:', (closedHours + extraHoursClosed) + 'h'));
         }
 
         if (timestamp) {
@@ -5928,7 +6045,7 @@ window.SprintManagementView = class SprintManagementView {
             const totalClosedHours = (sprint.closedHours || 0) + (sprint.extraHoursClosed || 0);
             const tdHours = document.createElement('td');
             tdHours.style.padding = '8px';
-            tdHours.textContent = `${totalClosedHours.toFixed(1)}/${sprint.totalHours.toFixed(1)}h`;
+            tdHours.textContent = `${totalClosedHours}/${sprint.totalHours}h`;
             row.appendChild(tdHours);
 
             // Completion date
@@ -5949,10 +6066,10 @@ window.SprintManagementView = class SprintManagementView {
     showSprintDetails(sprint) {
         const totalClosedHours = (sprint.closedHours || 0) + (sprint.extraHoursClosed || 0);
         const ticketCompletion = sprint.totalTickets > 0
-            ? (sprint.closedTickets / sprint.totalTickets * 100).toFixed(1)
+            ? (sprint.closedTickets / sprint.totalTickets * 100)
             : 0;
         const hourCompletion = sprint.totalHours > 0
-            ? (totalClosedHours / sprint.totalHours * 100).toFixed(1)
+            ? (totalClosedHours / sprint.totalHours * 100)
             : 0;
 
         // Format dates
@@ -5978,7 +6095,7 @@ window.SprintManagementView = class SprintManagementView {
                 <div style="padding: 10px; background-color: #e9ecef; border-radius: 4px;">
                     <h4 style="margin-top: 0; font-size: 14px;">Hours</h4>
                     <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">
-                        ${totalClosedHours.toFixed(1)}/${sprint.totalHours.toFixed(1)}h
+                        ${totalClosedHours}/${sprint.totalHours}h
                     </div>
                     <div style="font-size: 14px; color: #6c757d;">
                         ${hourCompletion}% completed
@@ -5999,7 +6116,7 @@ window.SprintManagementView = class SprintManagementView {
                     </tr>
                     <tr style="border-bottom: 1px solid #dee2e6;">
                         <td style="padding: 8px; font-weight: bold;">Carried Over Hours:</td>
-                        <td style="padding: 8px;">${(sprint.extraHoursClosed || 0).toFixed(1)}h</td>
+                        <td style="padding: 8px;">${(sprint.extraHoursClosed || 0)}h</td>
                     </tr>
                 </table>
             </div>
@@ -6036,7 +6153,7 @@ window.SprintManagementView = class SprintManagementView {
                     <td style="padding: 8px;">${name}</td>
                     <td style="padding: 8px; text-align: center;">${data.closedTickets}/${data.totalTickets}</td>
                     <td style="padding: 8px; text-align: center;">${userTicketCompletion}%</td>
-                    <td style="padding: 8px; text-align: right;">${data.closedHours.toFixed(1)}/${data.totalHours.toFixed(1)}h</td>
+                    <td style="padding: 8px; text-align: right;">${data.closedHours}/${data.totalHours}h</td>
                 </tr>
             `;
             });
@@ -7915,7 +8032,7 @@ function updateSummary(forceHistoryUpdate = false) {
             withTimeCards: cardsWithTime,
             closedCards: closedBoardCards || 0
         });
-        const totalHours = (totalEstimate / 3600).toFixed(1);
+        const totalHours = (totalEstimate / 3600);
         window.uiManager.updateHeader(`Summary ${totalHours}h`);
         const validBoardData = boardData || {};
         const validBoardAssigneeData = boardAssigneeData || {};
