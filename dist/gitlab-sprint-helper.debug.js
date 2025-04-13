@@ -6612,7 +6612,7 @@ window.BulkCommentsView = class BulkCommentsView {
         this.selectionDisplay.createSelectionContainer(commentSection);
         this.createCommentInput(commentSection);
         this.createActionButtons(commentSection);
-        this.createStatusElements(commentSection);
+        this.createStatusElements(document.getElementById("assignee-time-summary"));
         this.isLoading = true;
         this.showLoadingState();
         try {
@@ -6778,10 +6778,7 @@ window.BulkCommentsView = class BulkCommentsView {
         progressContainer.id = 'comment-progress-container';
         progressContainer.style.display = 'none';
         progressContainer.style.marginTop = '15px';
-        progressContainer.style.padding = '10px';
-        progressContainer.style.backgroundColor = '#f8f9fa';
-        progressContainer.style.borderRadius = '4px';
-        progressContainer.style.border = '1px solid #e9ecef';
+        progressContainer.style.color = 'white';
 
         const progressLabel = document.createElement('div');
         progressLabel.id = 'comment-progress-label';
@@ -6794,16 +6791,15 @@ window.BulkCommentsView = class BulkCommentsView {
 
         const progressBarOuter = document.createElement('div');
         progressBarOuter.style.height = '12px';
-        progressBarOuter.style.backgroundColor = '#e9ecef';
-        progressBarOuter.style.borderRadius = '6px';
+        progressBarOuter.style.backgroundColor = 'black';
         progressBarOuter.style.overflow = 'hidden';
-        progressBarOuter.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.1)';
+        progressBarOuter.style.boxShadow = 'inset 0 1px 3px rgba(255,255,255,0.1)';
 
         const progressBarInner = document.createElement('div');
         progressBarInner.id = 'comment-progress-bar';
         progressBarInner.style.height = '100%';
         progressBarInner.style.width = '0%';
-        progressBarInner.style.backgroundColor = '#1f75cb';
+        progressBarInner.style.backgroundColor = '#00ff2ac7';
         progressBarInner.style.transition = 'width 0.3s ease';
 
         progressBarOuter.appendChild(progressBarInner);
@@ -6905,6 +6901,11 @@ window.BulkCommentsView = class BulkCommentsView {
 
         if (progressContainer) {
             progressContainer.style.display = 'block';
+            progressContainer.style.position = 'absolute';
+            progressContainer.style.left = 0;
+            progressContainer.style.right = 0;
+            progressContainer.style.bottom = 0;
+            progressContainer.style.zIndex = 102;
         }
 
         if (progressBar) {
@@ -6984,24 +6985,24 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.commentInput.value = '';
             }
             let that = this
-            this.refreshBoard().then(function(){
+
+            this.refreshBoard().then(function () {
                 progressContainer.style.display = 'none';
                 that.clearSelectedIssues();
                 that.uiManager.issueSelector.exitSelectionMode();
                 that.uiManager.removeLoadingScreen('comment-submit');
             })
-
         } else {
             if (successCount > 0) {
                 this.notification.warning(`Added comment to ${successCount} issues, failed for ${failCount}`);
-                setTimeout(() => {
-                    this.refreshBoard().then(function(){
-                        progressContainer.style.display = 'none';
-                        that.clearSelectedIssues();
-                        that.uiManager.issueSelector.exitSelectionMode();
-                        that.uiManager.removeLoadingScreen('comment-submit');
-                    });
-                }, 1000);
+
+                this.refreshBoard().then(function () {
+                    progressContainer.style.display = 'none';
+                    that.clearSelectedIssues();
+                    that.uiManager.issueSelector.exitSelectionMode();
+                    that.uiManager.removeLoadingScreen('comment-submit');
+                });
+
             } else {
                 this.notification.error(`Failed to add comments to all ${failCount} issues`);
             }
