@@ -6065,6 +6065,7 @@ window.BulkCommentsView = class BulkCommentsView {
             onRemoveIssue: (index) => this.onRemoveIssue(index)
         });
     }
+
     
     
     updateAssignShortcut(items) {
@@ -6150,10 +6151,11 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
             }
 
-                    } catch (e) {
+        } catch (e) {
             console.error('Error updating assign shortcut:', e);
         }
     }
+
     
     initializeAllShortcuts() {
         if (!this.commandShortcuts) return;
@@ -6167,7 +6169,7 @@ window.BulkCommentsView = class BulkCommentsView {
             }
             if (!addedShortcuts.has('label')) {
                 this.addLabelShortcut([
-                    { value: '', label: 'Loading labels...' }
+                    {value: '', label: 'Loading labels...'}
                 ]);
                 addedShortcuts.add('label');
             }
@@ -6194,12 +6196,12 @@ window.BulkCommentsView = class BulkCommentsView {
                 type: 'milestone',
                 label: '/milestone',
                 items: [
-                    { value: '', label: 'Set Milestone' },
-                    { value: '%current', label: 'Current Sprint' },
-                    { value: '%next', label: 'Next Sprint' },
-                    { value: '%upcoming', label: 'Upcoming' },
-                    { value: 'none', label: 'Remove Milestone' },
-                    { value: 'custom', label: 'Custom...' }
+                    {value: '', label: 'Set Milestone'},
+                    {value: '%current', label: 'Current Sprint'},
+                    {value: '%next', label: 'Next Sprint'},
+                    {value: '%upcoming', label: 'Upcoming'},
+                    {value: 'none', label: 'Remove Milestone'},
+                    {value: 'custom', label: 'Custom...'}
                 ],
                 onSelect: (value) => {
                     if (!value) return;
@@ -6236,33 +6238,32 @@ window.BulkCommentsView = class BulkCommentsView {
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
         let assignItems = [
-            { value: '', label: 'Assign to...' },
-            { value: '@me', label: 'Myself' },
-            { value: 'none', label: 'Unassign' }
+            {value: '', label: 'Assign to...'},
+            {value: '@me', label: 'Myself'},
+            {value: 'none', label: 'Unassign'}
         ];
         let directWhitelist = null;
         try {
             if (typeof GM_getValue === 'function') {
                 directWhitelist = GM_getValue('gitLabHelperAssigneeWhitelist', []);
-                            }
+            }
         } catch (e) {
             console.error("Error accessing GM_getValue:", e);
         }
         if (Array.isArray(directWhitelist) && directWhitelist.length > 0) {
-            assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
+            assignItems.push({value: 'separator', label: '────── Favorites ──────'});
             const whitelistItems = directWhitelist.map(assignee => ({
                 value: assignee.username,
                 label: assignee.name || assignee.username
             }));
 
             assignItems = assignItems.concat(whitelistItems);
-        }
-        else {
+        } else {
             let assignees = [];
             if (this.assigneeManager && typeof this.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = this.assigneeManager.getAssigneeWhitelist();
-                                    } catch (e) {
+                } catch (e) {
                     console.error("Error getting assignees from this.assigneeManager:", e);
                 }
             }
@@ -6270,21 +6271,21 @@ window.BulkCommentsView = class BulkCommentsView {
                 typeof window.assigneeManager.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = window.assigneeManager.getAssigneeWhitelist();
-                                    } catch (e) {
+                } catch (e) {
                     console.error("Error getting assignees from window.assigneeManager:", e);
                 }
             }
             if ((!assignees || !assignees.length) && typeof getAssigneeWhitelist === 'function') {
                 try {
                     assignees = getAssigneeWhitelist();
-                                    } catch (e) {
+                } catch (e) {
                     console.error("Error getting assignees from imported getAssigneeWhitelist:", e);
                 }
             }
             if ((!assignees || !assignees.length) && typeof window.getAssigneeWhitelist === 'function') {
                 try {
                     assignees = window.getAssigneeWhitelist();
-                                    } catch (e) {
+                } catch (e) {
                     console.error("Error getting assignees from window.getAssigneeWhitelist:", e);
                 }
             }
@@ -6293,13 +6294,13 @@ window.BulkCommentsView = class BulkCommentsView {
                     const storedValue = localStorage.getItem('gitLabHelperAssigneeWhitelist');
                     if (storedValue) {
                         assignees = JSON.parse(storedValue);
-                                            }
+                    }
                 } catch (e) {
                     console.error("Error getting assignees from localStorage:", e);
                 }
             }
             if (Array.isArray(assignees) && assignees.length > 0) {
-                assignItems.push({ value: 'separator', label: '────── Favorites ──────' });
+                assignItems.push({value: 'separator', label: '────── Favorites ──────'});
                 const whitelistItems = assignees.map(assignee => ({
                     value: assignee.username,
                     label: assignee.name || assignee.username
@@ -6310,14 +6311,14 @@ window.BulkCommentsView = class BulkCommentsView {
                 console.warn("Could not find any assignees through any method");
             }
         }
-        assignItems.push({ value: 'custom', label: 'Custom...' });
+        assignItems.push({value: 'custom', label: 'Custom...'});
         this.updateAssignShortcut(assignItems);
         setTimeout(() => {
             this.fetchGroupMembers()
                 .then(members => {
                     if (members && members.length > 0) {
                         const updatedItems = [...assignItems];
-                        updatedItems.push({ value: 'separator2', label: '────── Group Members ──────' });
+                        updatedItems.push({value: 'separator2', label: '────── Group Members ──────'});
                         const existingUsernames = assignItems
                             .filter(item => item.value && !['separator', 'separator2', 'custom', 'manage', '@me', 'none', ''].includes(item.value))
                             .map(item => item.value.toLowerCase());
@@ -6342,7 +6343,6 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
 
-
     
     async fetchGroupMembers() {
         try {
@@ -6362,12 +6362,12 @@ window.BulkCommentsView = class BulkCommentsView {
             if (pathInfo.type === 'project') {
                 members = await this.gitlabApi.callGitLabApi(
                     `projects/${pathInfo.encodedPath}/members`,
-                    { params: { per_page: 100 } }
+                    {params: {per_page: 100}}
                 );
             } else if (pathInfo.type === 'group') {
                 members = await this.gitlabApi.callGitLabApi(
                     `groups/${pathInfo.encodedPath}/members`,
-                    { params: { per_page: 100 } }
+                    {params: {per_page: 100}}
                 );
             } else {
                 throw new Error('Unsupported path type: ' + pathInfo.type);
@@ -6420,7 +6420,7 @@ window.BulkCommentsView = class BulkCommentsView {
                 statusEl.style.color = '#666';
             }
         }
-            }
+    }
 
     
     createActionButtons(container) {
@@ -6504,19 +6504,55 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
     clearSelectedIssues() {
+        // First, make sure we're working with the right object
+        console.log('Current selectedIssues:', this.selectedIssues);
+
+        // Clear the array with proper Vue reactivity
+        this.selectedIssues.splice(0, this.selectedIssues.length);
+
+        // Alternative approach - assign a new empty array
         this.selectedIssues = [];
-        if (this.selectionDisplay) {
+
+        // Check if selectionDisplay exists and has the method
+        if (this.selectionDisplay && typeof this.selectionDisplay.setSelectedIssues === 'function') {
+            console.log('Calling selectionDisplay.setSelectedIssues with empty array');
             this.selectionDisplay.setSelectedIssues([]);
+        } else {
+            console.warn('selectionDisplay not available or missing setSelectedIssues method');
+            // Try to find it if not available
+            if (this.uiManager && this.uiManager.bulkCommentsView &&
+                this.uiManager.bulkCommentsView.selectionDisplay) {
+                console.log('Found selectionDisplay through uiManager');
+                this.uiManager.bulkCommentsView.selectionDisplay.setSelectedIssues([]);
+            }
         }
+
+        // Set status message
         const statusEl = document.getElementById('comment-status');
         if (statusEl) {
             statusEl.textContent = 'Selection cleared.';
             statusEl.style.color = '#666';
         }
+
+        // Show notification
         if (this.notification) {
             this.notification.info('Selection cleared');
         }
-            }
+
+        // Also try to clear selection in issueSelector if available
+        if (this.uiManager && this.uiManager.issueSelector) {
+            console.log('Clearing selection in issueSelector');
+            this.uiManager.issueSelector.setSelectedIssues([]);
+        }
+
+        // Force a component update
+        if (typeof this.$forceUpdate === 'function') {
+            this.$forceUpdate();
+        }
+
+        console.log('Selection cleared, current selectedIssues:', this.selectedIssues);
+    }
+
     
     render() {
         const bulkCommentsContent = document.getElementById('bulk-comments-content');
@@ -6583,7 +6619,7 @@ window.BulkCommentsView = class BulkCommentsView {
             if (this.commentInput && this.commandShortcuts) {
                 this.initializeAllShortcuts();
                 this.addLabelShortcut([
-                    { value: '', label: 'Loading labels...' }
+                    {value: '', label: 'Loading labels...'}
                 ]);
                 if (this.labelManager && typeof this.labelManager.fetchAllLabels === 'function') {
                     this.labelManager.fetchAllLabels()
@@ -6622,12 +6658,12 @@ window.BulkCommentsView = class BulkCommentsView {
     
     getFallbackLabels() {
         return [
-            { value: '', label: 'Add Label' },
-            { value: 'bug', label: 'Bug' },
-            { value: 'feature', label: 'Feature' },
-            { value: 'enhancement', label: 'Enhancement' },
-            { value: 'documentation', label: 'Documentation' },
-            { value: 'custom', label: 'Custom...' }
+            {value: '', label: 'Add Label'},
+            {value: 'bug', label: 'Bug'},
+            {value: 'feature', label: 'Feature'},
+            {value: 'enhancement', label: 'Enhancement'},
+            {value: 'documentation', label: 'Documentation'},
+            {value: 'custom', label: 'Custom...'}
         ];
     }
 
@@ -6701,7 +6737,7 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.commandShortcuts = new CommandShortcut({
                     targetElement: commentInput,
                     onShortcutInsert: (type, value) => {
-                                            }
+                    }
                 });
                 this.commandShortcuts.initialize(shortcutsWrapper);
                 if (placeholderShortcuts.parentNode === shortcutsWrapper) {
@@ -6781,7 +6817,7 @@ window.BulkCommentsView = class BulkCommentsView {
 
         if (this.commandShortcuts && !this.commandShortcuts.shortcuts?.label) {
             this.addLabelShortcut([
-                { value: '', label: 'Loading labels...' }
+                {value: '', label: 'Loading labels...'}
             ]);
         }
 
@@ -6917,12 +6953,12 @@ window.BulkCommentsView = class BulkCommentsView {
             }
 
             if (progressLabel) {
-                progressLabel.textContent = `Processing ${i+1} of ${this.selectedIssues.length} issues...`;
+                progressLabel.textContent = `Processing ${i + 1} of ${this.selectedIssues.length} issues...`;
             }
             if (this.uiManager && this.uiManager.updateLoadingMessage) {
                 this.uiManager.updateLoadingMessage(
                     'comment-submit',
-                    `Sending comment to issue #${issue.iid || i+1} (${i+1}/${this.selectedIssues.length})...`
+                    `Sending comment to issue #${issue.iid || i + 1} (${i + 1}/${this.selectedIssues.length})...`
                 );
             }
 
@@ -6947,20 +6983,15 @@ window.BulkCommentsView = class BulkCommentsView {
             if (this.commentInput) {
                 this.commentInput.value = '';
             }
-            setTimeout(() => {
-                if (progressContainer) {
-                    progressContainer.style.display = 'none';
-                }
-            }, 2000);
-            if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
-                this.uiManager.issueSelector.exitSelectionMode();
-            }
-            setTimeout(() => {
-                this.clearSelectedIssues();
-            }, 3000);
-            setTimeout(() => {
-                this.refreshBoard();
-            }, 1000);
+            let that = this
+            this.refreshBoard().then(function(){
+                progressContainer.style.display = 'none';
+                that.uiManager.issueSelector.applyOverflowFixes()
+                that.clearSelectedIssues();
+                that.uiManager.issueSelector.exitSelectionMode();
+                that.uiManager.removeLoadingScreen('comment-submit');
+            })
+
         } else {
             if (successCount > 0) {
                 this.notification.warning(`Added comment to ${successCount} issues, failed for ${failCount}`);
@@ -6992,26 +7023,26 @@ window.BulkCommentsView = class BulkCommentsView {
             if (customLabels) {
                 labelItems = customLabels;
             } else if (this.labelManager && this.labelManager.filteredLabels && this.labelManager.filteredLabels.length) {
-                labelItems = [{ value: '', label: 'Add Label' }];
+                labelItems = [{value: '', label: 'Add Label'}];
                 const labels = this.labelManager.filteredLabels.map(label => ({
                     value: label.name,
                     label: label.name
                 }));
 
                 labelItems = labelItems.concat(labels);
-                labelItems.push({ value: 'custom', label: 'Custom...' });
+                labelItems.push({value: 'custom', label: 'Custom...'});
             } else {
                 try {
                     const whitelist = getLabelWhitelist();
                     if (whitelist && whitelist.length > 0) {
-                        labelItems = [{ value: '', label: 'Add Label' }];
+                        labelItems = [{value: '', label: 'Add Label'}];
                         const whitelistItems = whitelist.map(term => ({
                             value: term,
                             label: term
                         }));
 
                         labelItems = labelItems.concat(whitelistItems);
-                        labelItems.push({ value: 'custom', label: 'Custom...' });
+                        labelItems.push({value: 'custom', label: 'Custom...'});
                     } else {
                         labelItems = this.getFallbackLabels();
                     }
@@ -7054,8 +7085,13 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
     
-    refreshBoard() {
-        window.location.reload()
+    async refreshBoard() {
+        const boardLists = document.querySelectorAll('.board-list-component');
+        for (const list of boardLists) {
+            list.__vue__.$apollo.queries.currentList.refetch().then(function(){
+                uiManager.issueSelector.applyOverflowFixes()
+            })
+        }
     }
 }
 
