@@ -67,6 +67,30 @@ window.getContrastColor = function getContrastColor(bgColor) {
     return luminance > 0.5 ? 'black' : 'white';
 }
 
+
+
+window.isActiveInputElement = function isActiveInputElement(element) {
+    // Check if element is an input field, textarea, or has contenteditable
+    if (element.tagName === 'INPUT') {
+        const type = element.getAttribute('type');
+        // These input types expect typing
+        const typingInputs = ['text', 'password', 'email', 'search', 'tel', 'url', null, ''];
+        return typingInputs.includes(type);
+    }
+
+    if (element.tagName === 'TEXTAREA') {
+        return true;
+    }
+
+    // Check for contenteditable
+    if (element.hasAttribute('contenteditable') &&
+        element.getAttribute('contenteditable') !== 'false') {
+        return true;
+    }
+
+    return false;
+}
+
 // File: lib/api/APIUtils.js
 
 
@@ -415,7 +439,8 @@ const DEFAULT_SETTINGS = {
     ],
     assigneeWhitelist: [],
     lastActiveTab: 'summary',
-    uiCollapsed: false
+    uiCollapsed: false,
+    toggleShortcut: 'c' // Default shortcut is 'c'
 };
 
 
@@ -549,6 +574,39 @@ window.saveLastActiveTab = function saveLastActiveTab(tabId) {
         return saveToStorage(STORAGE_KEYS.LAST_ACTIVE_TAB, tabIdStr);
     } catch (error) {
         console.error('Error saving last active tab:', error);
+        return false;
+    }
+}
+
+
+window.getToggleShortcut = function getToggleShortcut() {
+    try {
+        const shortcut = loadFromStorage(STORAGE_KEYS.TOGGLE_SHORTCUT, null);
+        if (shortcut === null) {
+            return DEFAULT_SETTINGS.toggleShortcut;
+        }
+        // Make sure it's a single character
+        if (typeof shortcut === 'string' && shortcut.length === 1) {
+            return shortcut;
+        }
+        console.warn('Invalid toggle shortcut format, using default');
+        return DEFAULT_SETTINGS.toggleShortcut;
+    } catch (error) {
+        console.error('Error getting toggle shortcut:', error);
+        return DEFAULT_SETTINGS.toggleShortcut;
+    }
+}
+
+
+window.saveToggleShortcut = function saveToggleShortcut(shortcut) {
+    try {
+        if (typeof shortcut !== 'string' || shortcut.length !== 1) {
+            console.warn('Attempting to save invalid shortcut, using default');
+            shortcut = DEFAULT_SETTINGS.toggleShortcut;
+        }
+        return saveToStorage(STORAGE_KEYS.TOGGLE_SHORTCUT, shortcut);
+    } catch (error) {
+        console.error('Error saving toggle shortcut:', error);
         return false;
     }
 }
@@ -864,6 +922,8 @@ window.CommandShortcut = class CommandShortcut {
         }
     }
 
+    // Modify the CommandShortcut class in lib/ui/components/CommandShortcut.js to support toggle mode
+
     
     addCustomShortcut(options) {
         if (!this.shortcutsContainer) {
@@ -887,19 +947,85 @@ window.CommandShortcut = class CommandShortcut {
         shortcutContainer.style.height = '36px'; // Fixed height
         shortcutContainer.style.boxSizing = 'border-box';
         shortcutContainer.dataset.shortcutType = options.type; // Add data attribute for ordering
+
+        // Label and Toggle container (new)
+        const labelContainer = document.createElement('div');
+        labelContainer.style.display = 'flex';
+        labelContainer.style.alignItems = 'center';
+        labelContainer.style.minWidth = '100px';
+        labelContainer.style.flexShrink = '0'; // Prevent shrinking
+
         const shortcutLabel = document.createElement('div');
         shortcutLabel.textContent = options.label;
         shortcutLabel.style.fontSize = '13px';
         shortcutLabel.style.fontWeight = 'bold';
         shortcutLabel.style.color = '#555';
-        shortcutLabel.style.minWidth = '100px';
-        shortcutLabel.style.flexShrink = '0'; // Prevent shrinking
         shortcutLabel.style.whiteSpace = 'nowrap';
+
+        labelContainer.appendChild(shortcutLabel);
+
+        // Create toggle button if toggleMode is enabled
+        let toggleButton = null;
+        let isAddMode = true; // Default to add mode
+        let originalItems = [...options.items]; // Store original items
+
+        if (options.toggleMode) {
+            toggleButton = document.createElement('button');
+            toggleButton.type = 'button';
+            toggleButton.innerHTML = '+'; // Default to add mode
+            toggleButton.title = 'Toggle between Add and Remove mode';
+            toggleButton.style.marginLeft = '6px';
+            toggleButton.style.width = '20px';
+            toggleButton.style.height = '20px';
+            toggleButton.style.display = 'flex';
+            toggleButton.style.alignItems = 'center';
+            toggleButton.style.justifyContent = 'center';
+            toggleButton.style.border = '1px solid #ccc';
+            toggleButton.style.borderRadius = '50%';
+            toggleButton.style.backgroundColor = '#28a745'; // Green for add
+            toggleButton.style.color = 'white';
+            toggleButton.style.fontSize = '14px';
+            toggleButton.style.fontWeight = 'bold';
+            toggleButton.style.cursor = 'pointer';
+            toggleButton.style.padding = '0';
+            toggleButton.style.lineHeight = '1';
+
+            toggleButton.addEventListener('click', () => {
+                isAddMode = !isAddMode;
+
+                // Update toggle button appearance
+                if (isAddMode) {
+                    toggleButton.innerHTML = '+';
+                    toggleButton.style.backgroundColor = '#28a745'; // Green for add
+                    toggleButton.title = 'Switch to Remove mode';
+                } else {
+                    toggleButton.innerHTML = '−'; // Using minus sign
+                    toggleButton.style.backgroundColor = '#dc3545'; // Red for remove
+                    toggleButton.title = 'Switch to Add mode';
+                }
+
+                // Update dropdown first option
+                if (dropdown.options.length > 0) {
+                    if (options.type === 'label') {
+                        dropdown.options[0].text = isAddMode ? 'Add Label' : 'Remove Label';
+                    } else if (options.type === 'assign') {
+                        dropdown.options[0].text = isAddMode ? 'Assign to...' : 'Unassign from...';
+                    }
+                }
+
+                // Store the mode in the dropdown element for access in the handler
+                dropdown.dataset.mode = isAddMode ? 'add' : 'remove';
+            });
+
+            labelContainer.appendChild(toggleButton);
+        }
+
         const dropdownContainer = document.createElement('div');
         dropdownContainer.style.flex = '1';
         dropdownContainer.style.position = 'relative';
         dropdownContainer.style.height = '24px'; // Fixed height
         dropdownContainer.style.marginLeft = '10px';
+
         const dropdown = document.createElement('select');
         dropdown.className = `${options.type}-dropdown`;
         dropdown.style.width = '100%';
@@ -911,11 +1037,16 @@ window.CommandShortcut = class CommandShortcut {
         dropdown.style.borderRadius = '4px';
         dropdown.style.backgroundColor = '#fff';
         dropdown.style.boxSizing = 'border-box';
+
+        // Set initial mode
+        dropdown.dataset.mode = 'add';
+
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
         placeholderOption.textContent = options.items[0]?.label || 'Select...';
         placeholderOption.selected = true;
         dropdown.appendChild(placeholderOption);
+
         if (options.items && options.items.length > 0) {
             options.items.forEach((item, index) => {
                 if (index === 0) return; // Skip the first one, already added as placeholder
@@ -926,16 +1057,21 @@ window.CommandShortcut = class CommandShortcut {
                 dropdown.appendChild(option);
             });
         }
+
         dropdown.addEventListener('change', (e) => {
             const selectedValue = e.target.value;
             if (selectedValue && options.onSelect) {
-                options.onSelect(selectedValue);
+                // Pass the current mode to the onSelect handler
+                const currentMode = dropdown.dataset.mode || 'add';
+                options.onSelect(selectedValue, currentMode);
                 e.target.value = ''; // Reset after selection
             }
         });
+
         dropdownContainer.appendChild(dropdown);
-        shortcutContainer.appendChild(shortcutLabel);
+        shortcutContainer.appendChild(labelContainer);
         shortcutContainer.appendChild(dropdownContainer);
+
         const shortcutOrder = ['estimate', 'label', 'milestone', 'assign'];
         const thisTypeIndex = shortcutOrder.indexOf(options.type);
 
@@ -959,9 +1095,11 @@ window.CommandShortcut = class CommandShortcut {
                 this.shortcutsContainer.appendChild(shortcutContainer);
             }
         }
+
         this.shortcuts[options.type] = {
             element: shortcutContainer,
             dropdown: dropdown,
+            toggleButton: toggleButton,
             options: options
         };
 
@@ -1066,6 +1204,7 @@ window.SelectionDisplay = class SelectionDisplay {
             issueInfo.style.whiteSpace = 'nowrap';
             issueInfo.style.marginRight = '5px';
             issueItem.appendChild(issueInfo);
+
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '×';
             removeBtn.style.backgroundColor = 'transparent';
@@ -1076,6 +1215,10 @@ window.SelectionDisplay = class SelectionDisplay {
             removeBtn.style.cursor = 'pointer';
             removeBtn.style.padding = '0 5px';
             removeBtn.title = 'Remove this issue';
+
+            // Use more reliable approach to capture the current index
+            removeBtn.setAttribute('data-index', index);
+
             removeBtn.addEventListener('mouseenter', () => {
                 removeBtn.style.color = '#c82333';
             });
@@ -1083,16 +1226,51 @@ window.SelectionDisplay = class SelectionDisplay {
             removeBtn.addEventListener('mouseleave', () => {
                 removeBtn.style.color = '#dc3545';
             });
-            removeBtn.onclick = (e) => {
+
+            // Use a properly scoped click handler
+            removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.removeIssue(index);
-            };
+                const clickedIndex = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                if (!isNaN(clickedIndex)) {
+                    this.removeIssue(clickedIndex);
+                }
+            });
 
             issueItem.appendChild(removeBtn);
             this.issuesList.appendChild(issueItem);
         });
     }
 
+    
+    removeIssue(index) {
+        if (this.selectedIssues.length > index) {
+            const removedIssue = this.selectedIssues[index];
+            this.selectedIssues.splice(index, 1);
+
+            // Update selection in issue selector
+            if (this.uiManager && this.uiManager.issueSelector) {
+                this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+            } else if (window.uiManager && window.uiManager.issueSelector) {
+                window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
+            }
+
+            // Update the display
+            this.updateDisplay();
+
+            // Update status if needed
+            const statusEl = document.getElementById('comment-status');
+            if (statusEl) {
+                const count = this.selectedIssues.length;
+                if (count > 0) {
+                    statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
+                    statusEl.style.color = 'green';
+                } else {
+                    statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                    statusEl.style.color = '#666';
+                }
+            }
+        }
+    }
     
     onRemoveIssue(index) {
         if (this.selectedIssues.length > index) {
@@ -3231,12 +3409,14 @@ window.MilestoneManager = class MilestoneManager {
 }
 
 // File: lib/ui/managers/SettingsManager.js
+
 window.SettingsManager = class SettingsManager {
     
     constructor(options = {}) {
         this.labelManager = options.labelManager;
         this.assigneeManager = options.assigneeManager;
         this.gitlabApi = options.gitlabApi || window.gitlabApi;
+        this.uiManager = options.uiManager || window.uiManager;
         this.onSettingsChanged = options.onSettingsChanged || null;
         this.notification = new Notification({
             position: 'bottom-right',
@@ -3296,12 +3476,22 @@ window.SettingsManager = class SettingsManager {
         modalHeader.appendChild(modalTitle);
         modalHeader.appendChild(closeButton);
         const contentContainer = document.createElement('div');
+
+        // Add General Settings section first (new)
+        this.createCollapsibleSection(
+            contentContainer,
+            'General',
+            'Configure application-wide settings',
+            (container) => this.createGeneralSettings(container),
+            true // Start expanded
+        );
+
         this.createCollapsibleSection(
             contentContainer,
             'Assignees',
             'Manage assignees for quick access in comments',
             (container) => this.createAssigneeSettings(container),
-            true // Start expanded
+            false // Start collapsed
         );
 
         this.createCollapsibleSection(
@@ -3319,6 +3509,7 @@ window.SettingsManager = class SettingsManager {
             (container) => this.createAppearanceSettings(container),
             false // Start collapsed
         );
+
         const buttonContainer = document.createElement('div');
         buttonContainer.style.marginTop = '20px';
         buttonContainer.style.display = 'flex';
@@ -3373,13 +3564,13 @@ window.SettingsManager = class SettingsManager {
     createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
         startExpanded = false;
         const section = document.createElement('div');
-        section.className = 'settings-section';
+        section.className = 'gitlab-helper-settings-section'; // Renamed CSS class
         section.style.marginBottom = '15px';
         section.style.border = '1px solid #ddd';
         section.style.borderRadius = '6px';
         section.style.overflow = 'hidden';
         const header = document.createElement('div');
-        header.className = 'settings-section-header';
+        header.className = 'gitlab-helper-settings-header'; // Renamed CSS class
         header.style.padding = '12px 15px';
         header.style.backgroundColor = '#f8f9fa';
         header.style.borderBottom = startExpanded ? '1px solid #ddd' : 'none';
@@ -3417,8 +3608,8 @@ window.SettingsManager = class SettingsManager {
         header.appendChild(titleContainer);
         header.appendChild(toggle);
         const content = document.createElement('div');
-        content.className = 'settings-section-content';
-        content.style.padding = '15px';
+        content.className = 'gitlab-helper-settings-content'; // Renamed CSS class
+        content.style.padding = '5px';
         content.style.display = startExpanded ? 'block' : 'none';
         content.style.backgroundColor = 'white';
         let contentBuilt = false;
@@ -3565,7 +3756,7 @@ window.SettingsManager = class SettingsManager {
         }
 
         whitelistedContent.appendChild(assigneeListContainer);
-        whitelistedContent.appendChild(this.createAddAssigneeForm(assigneeListContainer, createEmptyMessage));
+        // whitelistedContent.appendChild(this.createAddAssigneeForm(assigneeListContainer, createEmptyMessage));
         const availableListContainer = document.createElement('div');
         availableListContainer.className = 'available-assignees-list';
         availableListContainer.style.height = '300px'; // Fixed height instead of min/max
@@ -4090,7 +4281,7 @@ window.SettingsManager = class SettingsManager {
                     throw new Error('Could not determine project/group path');
                 }
                 const allLabels = await this.gitlabApi.callGitLabApi(pathInfo.apiUrl, {
-                    params: { per_page: 100 }
+                    params: {per_page: 100}
                 });
                 displayLabels(allLabels);
             } catch (error) {
@@ -4147,7 +4338,7 @@ window.SettingsManager = class SettingsManager {
                 whitelistContainer.appendChild(checkboxContainer);
             });
 
-                    };
+        };
         fetchAndDisplayAllLabels();
 
         container.appendChild(whitelistSection);
@@ -4189,6 +4380,7 @@ window.SettingsManager = class SettingsManager {
             }
         }, 300);
     }
+
     
     createAppearanceSettings(container) {
         const appearanceSection = document.createElement('div');
@@ -4254,14 +4446,29 @@ window.SettingsManager = class SettingsManager {
 
     
     resetAllSettings() {
+        // Reset label whitelist
         this.resetLabelWhitelist();
+
+        // Reset assignee whitelist
         saveAssigneeWhitelist([]);
+
+        // Reset toggle shortcut
+        const defaultShortcut = DEFAULT_SETTINGS.toggleShortcut;
+        saveToggleShortcut(defaultShortcut);
+
+        // Update the active keyboard handler
+        if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
+            window.uiManager.updateKeyboardShortcut(defaultShortcut);
+        } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
+            this.uiManager.updateKeyboardShortcut(defaultShortcut);
+        }
+
+        // Notify any listeners
         if (this.onSettingsChanged) {
             this.onSettingsChanged('all');
         }
     }
 
-    
     
     autoSaveWhitelist(container) {
         const newWhitelist = [];
@@ -4287,7 +4494,118 @@ window.SettingsManager = class SettingsManager {
             this.onSettingsChanged('labels');
         }
 
+    }
+
+    
+    createGeneralSettings(container) {
+        const generalSection = document.createElement('div');
+
+        const title = document.createElement('h4');
+        title.textContent = 'General Settings';
+        title.style.marginBottom = '10px';
+
+        const description = document.createElement('p');
+        description.textContent = 'Configure general behavior of the GitLab Sprint Helper.';
+        description.style.marginBottom = '15px';
+        description.style.fontSize = '14px';
+        description.style.color = '#666';
+
+        generalSection.appendChild(title);
+        generalSection.appendChild(description);
+
+        // Keyboard Shortcut Setting
+        const shortcutSection = document.createElement('div');
+        shortcutSection.style.marginBottom = '20px';
+        shortcutSection.style.padding = '15px';
+        shortcutSection.style.backgroundColor = '#f8f9fa';
+        shortcutSection.style.borderRadius = '4px';
+
+        const shortcutTitle = document.createElement('h5');
+        shortcutTitle.textContent = 'Toggle Visibility Shortcut';
+        shortcutTitle.style.marginTop = '0';
+        shortcutTitle.style.marginBottom = '10px';
+        shortcutTitle.style.fontSize = '16px';
+
+        const shortcutDescription = document.createElement('p');
+        shortcutDescription.textContent = 'Set a keyboard shortcut to toggle the visibility of GitLab Sprint Helper. The shortcut will only work when not typing in an input field.';
+        shortcutDescription.style.marginBottom = '15px';
+        shortcutDescription.style.fontSize = '14px';
+        shortcutDescription.style.color = '#666';
+
+        const shortcutInputContainer = document.createElement('div');
+        shortcutInputContainer.style.display = 'flex';
+        shortcutInputContainer.style.alignItems = 'center';
+        shortcutInputContainer.style.gap = '10px';
+
+        const shortcutLabel = document.createElement('label');
+        shortcutLabel.textContent = 'Shortcut Key:';
+        shortcutLabel.style.fontWeight = 'bold';
+        shortcutLabel.style.minWidth = '100px';
+
+        const shortcutInput = document.createElement('input');
+        shortcutInput.type = 'text';
+        shortcutInput.maxLength = 1;
+        shortcutInput.style.padding = '8px';
+        shortcutInput.style.width = '60px';
+        shortcutInput.style.textAlign = 'center';
+        shortcutInput.style.fontSize = '16px';
+        shortcutInput.style.border = '1px solid #ccc';
+        shortcutInput.style.borderRadius = '4px';
+
+        // Get current shortcut
+        const currentShortcut = getToggleShortcut();
+        shortcutInput.value = currentShortcut;
+
+        // Preview area to show current shortcut
+        const shortcutPreview = document.createElement('div');
+        shortcutPreview.style.marginLeft = '10px';
+        shortcutPreview.style.color = '#666';
+        shortcutPreview.textContent = `Current: Press '${currentShortcut}' to toggle`;
+
+        // Handle input changes
+        shortcutInput.addEventListener('input', () => {
+            if (shortcutInput.value.length === 0) return;
+
+            const newShortcut = shortcutInput.value.charAt(0).toLowerCase();
+            if (newShortcut) {
+                // Save the new shortcut to storage
+                saveToggleShortcut(newShortcut);
+
+                // Update the UI
+                shortcutPreview.textContent = `Current: Press '${newShortcut}' to toggle`;
+                this.notification.success(`Shortcut changed to '${newShortcut}'`);
+
+                // Update the active keyboard handler
+                if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
+                    window.uiManager.updateKeyboardShortcut(newShortcut);
+                } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
+                    this.uiManager.updateKeyboardShortcut(newShortcut);
+                }
+
+                // Notify any listeners
+                if (this.onSettingsChanged) {
+                    this.onSettingsChanged('general');
+                }
             }
+        });
+
+        // Force lowercase for consistency
+        shortcutInput.addEventListener('keyup', () => {
+            shortcutInput.value = shortcutInput.value.toLowerCase();
+        });
+
+        shortcutInputContainer.appendChild(shortcutLabel);
+        shortcutInputContainer.appendChild(shortcutInput);
+        shortcutInputContainer.appendChild(shortcutPreview);
+
+        shortcutSection.appendChild(shortcutTitle);
+        shortcutSection.appendChild(shortcutDescription);
+        shortcutSection.appendChild(shortcutInputContainer);
+
+        generalSection.appendChild(shortcutSection);
+
+        container.appendChild(generalSection);
+    }
 
 }
 
@@ -6226,7 +6544,6 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
     
-    
     updateAssignShortcut(items) {
         if (!this.commandShortcuts) {
             console.error("Cannot update assign shortcut: commandShortcuts not available");
@@ -6251,7 +6568,8 @@ window.BulkCommentsView = class BulkCommentsView {
                 type: 'assign',
                 label: '/assign',
                 items: items,
-                onSelect: (value) => {
+                toggleMode: true, // Enable toggle mode
+                onSelect: (value, mode) => {
                     if (!value || value === 'separator' || value === 'separator2') return;
 
                     if (value === 'manage') {
@@ -6284,24 +6602,48 @@ window.BulkCommentsView = class BulkCommentsView {
                         return;
                     }
 
-                    let assignText = '/assign ';
-
-                    if (value === 'none') {
-                        assignText += '@none';
-                    } else if (value === '@me') {
-                        assignText += '@me';
+                    // Use mode parameter to determine command
+                    let assignText;
+                    if (mode === 'remove') {
+                        assignText = `/unassign `;
+                        if (value === 'none') {
+                            // This doesn't make sense in remove mode, so just use @none
+                            assignText += '@none';
+                        } else if (value === '@me') {
+                            assignText += '@me';
+                        } else {
+                            assignText += value.startsWith('@') ? value : `@${value}`;
+                        }
                     } else {
-                        assignText += value.startsWith('@') ? value : `@${value}`;
+                        assignText = `/assign `;
+                        if (value === 'none') {
+                            assignText += '@none';
+                        } else if (value === '@me') {
+                            assignText += '@me';
+                        } else {
+                            assignText += value.startsWith('@') ? value : `@${value}`;
+                        }
                     }
 
                     this.insertTextAtCursor(textarea, assignText);
 
-                    if (value === 'none') {
-                        this.notification.info('Issue will be unassigned');
-                    } else if (value === '@me') {
-                        this.notification.info('Issue will be assigned to you');
+                    // Notification based on mode and value
+                    if (mode === 'remove') {
+                        if (value === 'none') {
+                            this.notification.info('Issue will be unassigned from everyone');
+                        } else if (value === '@me') {
+                            this.notification.info('Issue will be unassigned from you');
+                        } else {
+                            this.notification.info(`Issue will be unassigned from ${value.replace('@', '')}`);
+                        }
                     } else {
-                        this.notification.info(`Issue will be assigned to ${value.replace('@', '')}`);
+                        if (value === 'none') {
+                            this.notification.info('Issue will be unassigned');
+                        } else if (value === '@me') {
+                            this.notification.info('Issue will be assigned to you');
+                        } else {
+                            this.notification.info(`Issue will be assigned to ${value.replace('@', '')}`);
+                        }
                     }
                 }
             });
@@ -6309,7 +6651,6 @@ window.BulkCommentsView = class BulkCommentsView {
                 this.commandShortcuts.shortcuts['assign'].dropdown) {
                 this.commandShortcuts.shortcuts['assign'].dropdown.value = currentValue;
             }
-
         } catch (e) {
             console.error('Error updating assign shortcut:', e);
         }
@@ -6393,7 +6734,6 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 
     
-    
     addAssignShortcut() {
         if (!this.commandShortcuts) return;
         let assignItems = [
@@ -6471,6 +6811,7 @@ window.BulkCommentsView = class BulkCommentsView {
             }
         }
         assignItems.push({value: 'custom', label: 'Custom...'});
+        assignItems.push({value: 'manage', label: '✏️ Manage Assignees...'});
         this.updateAssignShortcut(assignItems);
         setTimeout(() => {
             this.fetchGroupMembers()
@@ -6562,21 +6903,30 @@ window.BulkCommentsView = class BulkCommentsView {
         if (this.selectedIssues.length > index) {
             const removedIssue = this.selectedIssues[index];
             this.selectedIssues.splice(index, 1);
+
+            // Update the issue selector if available
             if (this.uiManager && this.uiManager.issueSelector) {
                 this.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
             } else if (window.uiManager && window.uiManager.issueSelector) {
                 window.uiManager.issueSelector.setSelectedIssues([...this.selectedIssues]);
             }
-        }
-        const statusEl = document.getElementById('comment-status');
-        if (statusEl) {
-            const count = this.selectedIssues.length;
-            if (count > 0) {
-                statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
-                statusEl.style.color = 'green';
-            } else {
-                statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
-                statusEl.style.color = '#666';
+
+            // Update status message
+            const statusEl = document.getElementById('comment-status');
+            if (statusEl) {
+                const count = this.selectedIssues.length;
+                if (count > 0) {
+                    statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
+                    statusEl.style.color = 'green';
+                } else {
+                    statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
+                    statusEl.style.color = '#666';
+                }
+            }
+
+            // Make sure we update our local selection display if available
+            if (this.selectionDisplay) {
+                this.selectionDisplay.setSelectedIssues([...this.selectedIssues]);
             }
         }
     }
@@ -7220,7 +7570,8 @@ window.BulkCommentsView = class BulkCommentsView {
                 type: 'label',
                 label: '/label',
                 items: labelItems,
-                onSelect: (value) => {
+                toggleMode: true, // Enable toggle mode
+                onSelect: (value, mode) => {
                     if (!value) return;
 
                     if (value === 'custom') {
@@ -7231,10 +7582,23 @@ window.BulkCommentsView = class BulkCommentsView {
 
                     const textarea = document.getElementById('issue-comment-input');
                     if (!textarea) return;
-                    const labelText = `/label ~"${value}"`;
+
+                    let labelText;
+
+                    // Use mode parameter to determine whether to add or remove
+                    if (mode === 'remove') {
+                        labelText = `/unlabel ~"${value}"`;
+                    } else {
+                        labelText = `/label ~"${value}"`;
+                    }
 
                     this.insertTextAtCursor(textarea, labelText);
-                    this.notification.info(`Label added: ${value}`);
+
+                    if (mode === 'remove') {
+                        this.notification.info(`Label removal command added: ${value}`);
+                    } else {
+                        this.notification.info(`Label added: ${value}`);
+                    }
                 }
             });
             if (currentValue && this.commandShortcuts.shortcuts['label'] &&
@@ -7322,7 +7686,6 @@ window.UIManager = class UIManager {
             this.container = document.getElementById('assignee-time-summary');
             this.contentWrapper = document.getElementById('assignee-time-summary-wrapper');
             this.container.style.position = 'relative';
-
             return;
         }
         this.container = document.createElement('div');
@@ -7367,6 +7730,8 @@ window.UIManager = class UIManager {
                 this.issueSelector.exitSelectionMode();
             }
         });
+        // Initialize keyboard shortcuts
+        this.initializeKeyboardShortcuts();
         try {
             const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
             if (isCollapsed) {
@@ -7583,6 +7948,7 @@ window.UIManager = class UIManager {
                     labelManager: this.labelManager,
                     assigneeManager: this.assigneeManager,
                     gitlabApi: this.gitlabApi,
+                    uiManager: this,  // Pass reference to this UIManager instance
                     onSettingsChanged: (type) => {
                         if (type === 'all' || type === 'labels') {
                             if (this.bulkCommentsView) {
@@ -7763,7 +8129,68 @@ window.UIManager = class UIManager {
             }
         });
     }
+
+    
+    initializeKeyboardShortcuts() {
+        try {
+            // Get the toggle shortcut from settings
+            this.toggleShortcut = getToggleShortcut();
+
+            // Define the keyboard handler
+            this.keyboardHandler = this.createKeyboardHandler();
+
+            // Add global keyboard listener
+            document.addEventListener('keydown', this.keyboardHandler);
+
+            console.log(`Initialized keyboard shortcuts: toggle with '${this.toggleShortcut}'`);
+        } catch (error) {
+            console.error('Error initializing keyboard shortcuts:', error);
+        }
+    }
+
+    
+    createKeyboardHandler() {
+        return (e) => {
+            // Skip if user is typing in an input, textarea, or contenteditable element
+            if (isActiveInputElement(e.target)) {
+                return;
+            }
+
+            // Toggle visibility with the configured shortcut
+            if (e.key.toLowerCase() === this.toggleShortcut.toLowerCase()) {
+                this.toggleCollapse();
+                e.preventDefault(); // Prevent default browser action
+            }
+        };
+    }
+
+    
+    updateKeyboardShortcut(newShortcut) {
+        if (!newShortcut || typeof newShortcut !== 'string' || newShortcut.length !== 1) {
+            console.warn('Invalid shortcut provided:', newShortcut);
+            return;
+        }
+
+        try {
+            // Remove the old event listener
+            if (this.keyboardHandler) {
+                document.removeEventListener('keydown', this.keyboardHandler);
+            }
+
+            // Update the shortcut
+            this.toggleShortcut = newShortcut;
+
+            // Create and attach a new event handler
+            this.keyboardHandler = this.createKeyboardHandler();
+            document.addEventListener('keydown', this.keyboardHandler);
+
+            console.log(`Updated keyboard shortcut to: '${this.toggleShortcut}'`);
+        } catch (error) {
+            console.error('Error updating keyboard shortcut:', error);
+        }
+    }
 }
+
 
 // File: lib/ui/index.js
 window.uiManager = window.uiManager || new UIManager();
