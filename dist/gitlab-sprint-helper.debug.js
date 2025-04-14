@@ -4300,6 +4300,9 @@ window.SummaryView = class SummaryView {
         if (this.gitlabApi) {
             this.fetchMembers();
         }
+        // Add a rendering lock
+        this.isRendering = false;
+        this.pendingRender = false;
     }
 
     addCopySummaryButton(container, assigneeTimeMap, totalTickets) {
@@ -4386,54 +4389,85 @@ window.SummaryView = class SummaryView {
     }
 
     async render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
-        const summaryContent = document.getElementById('assignee-time-summary-content');
-        if (!summaryContent) return;
-        if (!this.membersList || this.membersList.length === 0) {
-            summaryContent.innerHTML = '<div style="text-align: center; padding: 20px;">Loading team members...</div>';
-            try {
-                await this.fetchMembers();
-            } catch (error) {
-                console.error('Error fetching members:', error);
-            }
-        }
-        summaryContent.innerHTML = '';
-        if (this.uiManager) {
-            this.uiManager.updateBoardStats({
-                totalCards: cardsProcessed,
-                withTimeCards: cardsWithTime,
-                closedCards: this.getClosedBoardCount()
-            });
-        }
-        if (cardsWithTime === 0) {
-            this.renderNoDataMessage(summaryContent);
-            if (this.uiManager && this.uiManager.removeLoadingScreen) {
-                this.uiManager.removeLoadingScreen('summary-tab');
-            }
+        // If already rendering, set pendingRender flag and return
+        if (this.isRendering) {
+            this.pendingRender = true;
             return;
         }
-        const totalHours = formatHours(totalEstimate);
-        let doneHours = 0;
-        for (const boardName in boardData) {
-            const lowerBoardName = boardName.toLowerCase();
-            if (lowerBoardName.includes('done') || lowerBoardName.includes('closed') || lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
-                doneHours += boardData[boardName].timeEstimate || 0;
+
+        try {
+            this.isRendering = true;
+
+            const summaryContent = document.getElementById('assignee-time-summary-content');
+            if (!summaryContent) return;
+
+            if (!this.membersList || this.membersList.length === 0) {
+                summaryContent.innerHTML = '<div style="text-align: center; padding: 20px;">Loading team members...</div>';
+                try {
+                    await this.fetchMembers();
+                } catch (error) {
+                    console.error('Error fetching members:', error);
+                }
             }
-        }
-        const doneHoursFormatted = formatHours(doneHours);
-        if (this.uiManager) {
-            this.uiManager.updateHeader(`Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`);
-        }
-        if (currentMilestone) {
-            this.renderMilestoneInfo(summaryContent, currentMilestone);
-        }
-        let that = this
-        this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData).then(function () {
+
+            summaryContent.innerHTML = '';
+            if (this.uiManager) {
+                this.uiManager.updateBoardStats({
+                    totalCards: cardsProcessed,
+                    withTimeCards: cardsWithTime,
+                    closedCards: this.getClosedBoardCount()
+                });
+            }
+
+            if (cardsWithTime === 0) {
+                this.renderNoDataMessage(summaryContent);
+                if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                    this.uiManager.removeLoadingScreen('summary-tab');
+                }
+                return;
+            }
+
+            const totalHours = formatHours(totalEstimate);
+            let doneHours = 0;
+            for (const boardName in boardData) {
+                const lowerBoardName = boardName.toLowerCase();
+                if (lowerBoardName.includes('done') || lowerBoardName.includes('closed') ||
+                    lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
+                    doneHours += boardData[boardName].timeEstimate || 0;
+                }
+            }
+            const doneHoursFormatted = formatHours(doneHours);
+
+            if (this.uiManager) {
+                this.uiManager.updateHeader(`Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`);
+            }
+
+            if (currentMilestone) {
+                this.renderMilestoneInfo(summaryContent, currentMilestone);
+            }
+
+            let that = this;
+            await this.renderDataTableWithDistribution(
+                summaryContent,
+                assigneeTimeMap,
+                totalHours,
+                boardData,
+                boardAssigneeData
+            );
+
             that.addCopySummaryButton(summaryContent, assigneeTimeMap, cardsWithTime);
             if (that.uiManager && that.uiManager.removeLoadingScreen) {
                 that.uiManager.removeLoadingScreen('summary-tab');
             }
-        })
+        } finally {
+            // Release the rendering lock
+            this.isRendering = false;
 
+            // If there's a pending render, trigger it after a short delay
+            if (this.pendingRender) {
+                this.pendingRender = false;
+            }
+        }
     }
 
     getWhitelistedAssignees() {
