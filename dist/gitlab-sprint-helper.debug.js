@@ -4142,63 +4142,63 @@ window.SettingsManager = class SettingsManager {
         return addForm;
     }
 
-    
-    
     async fetchGitLabUsers(container) {
-        if (!this.gitlabApi) {
-            this.notification.error('GitLab API not available');
-            return;
-        }
-        this.isLoadingAssignees = true;
-        container.innerHTML = '';
-
-        const loadingMessage = document.createElement('div');
-        loadingMessage.textContent = 'Loading users from GitLab...';
-        loadingMessage.style.padding = '15px';
-        loadingMessage.style.textAlign = 'center';
-        container.appendChild(loadingMessage);
-
         try {
-            const pathInfo = getPathFromUrl();
-
-            if (!pathInfo) {
-                throw new Error('Could not determine project/group path');
+            if (!this.gitlabApi) {
+                this.notification.error('GitLab API not available');
+                return;
             }
-            let users = [];
-            if (pathInfo.type === 'project') {
-                users = await this.gitlabApi.callGitLabApi(
-                    `projects/${pathInfo.encodedPath}/members`,
-                    {params: {per_page: 100}}
-                );
-            } else if (pathInfo.type === 'group') {
-                users = await this.gitlabApi.callGitLabApi(
-                    `groups/${pathInfo.encodedPath}/members`,
-                    {params: {per_page: 100}}
-                );
-            }
-            this.availableAssignees = users.map(user => ({
-                id: user.id,
-                name: user.name,
-                username: user.username,
-                avatar_url: user.avatar_url
-            }));
-            this.renderAvailableUsers(container);
-
-        } catch (error) {
-            console.error('Error fetching GitLab users:', error);
-
+            this.isLoadingAssignees = true;
             container.innerHTML = '';
-            const errorMessage = document.createElement('div');
-            errorMessage.textContent = `Error loading users: ${error.message}`;
-            errorMessage.style.padding = '15px';
-            errorMessage.style.color = '#dc3545';
-            errorMessage.style.textAlign = 'center';
-            container.appendChild(errorMessage);
 
-            this.notification.error('Failed to load GitLab users');
-        } finally {
-            this.isLoadingAssignees = false;
-        }
+            const loadingMessage = document.createElement('div');
+            loadingMessage.textContent = 'Loading users from GitLab...';
+            loadingMessage.style.padding = '15px';
+            loadingMessage.style.textAlign = 'center';
+            container.appendChild(loadingMessage);
+
+            try {
+                const pathInfo = getPathFromUrl();
+
+                if (!pathInfo) {
+                    throw new Error('Could not determine project/group path');
+                }
+                let users = [];
+                if (pathInfo.type === 'project') {
+                    users = await this.gitlabApi.callGitLabApi(
+                        `projects/${pathInfo.encodedPath}/members/all`,
+                        {params: {per_page: 100, all_available: true}}
+                    );
+                } else if (pathInfo.type === 'group') {
+                    users = await this.gitlabApi.callGitLabApi(
+                        `groups/${pathInfo.encodedPath}/members/all`,
+                        {params: {per_page: 100, all_available: true}}
+                    );
+                }
+                this.availableAssignees = users.map(user => ({
+                    id: user.id,
+                    name: user.name,
+                    username: user.username,
+                    avatar_url: user.avatar_url
+                }));
+                this.renderAvailableUsers(container);
+
+            } catch (error) {
+                console.error('Error fetching GitLab users:', error);
+
+                container.innerHTML = '';
+                const errorMessage = document.createElement('div');
+                errorMessage.textContent = `Error loading users: ${error.message}`;
+                errorMessage.style.padding = '15px';
+                errorMessage.style.color = '#dc3545';
+                errorMessage.style.textAlign = 'center';
+                container.appendChild(errorMessage);
+
+                this.notification.error('Failed to load GitLab users');
+            } finally {
+                this.isLoadingAssignees = false;
+            }
+        } catch (error) {}
     }
 
     
@@ -5870,8 +5870,6 @@ window.SummaryView = class SummaryView {
             .replace(/\s+/g, '.')
             .replace(/[^a-z0-9._-]/g, '');
     }
-
-    
     async fetchMembers() {
         try {
             // Initialize with whitelist members as these are likely relevant
@@ -5904,9 +5902,9 @@ window.SummaryView = class SummaryView {
             // Determine the correct endpoint for this project/group
             let endpoint;
             if (pathInfo.type === 'project') {
-                endpoint = `projects/${pathInfo.encodedPath}/members`;
+                endpoint = `projects/${pathInfo.encodedPath}/members/all`;
             } else if (pathInfo.type === 'group') {
-                endpoint = `groups/${pathInfo.encodedPath}/members`;
+                endpoint = `groups/${pathInfo.encodedPath}/members/all`;
             } else {
                 console.warn('Unsupported path type, using whitelist only:', pathInfo.type);
                 this.membersList = allMembers;
@@ -5917,7 +5915,7 @@ window.SummaryView = class SummaryView {
             console.log(`Fetching members from endpoint: ${endpoint}`);
             const members = await this.gitlabApi.callGitLabApiWithCache(
                 endpoint,
-                {params: {per_page: 100}}
+                {params: {per_page: 100, all_available: true}}
             );
 
             if (!Array.isArray(members)) {
@@ -5964,6 +5962,7 @@ window.SummaryView = class SummaryView {
 
             // Include history assignees for their stats
             const historyAssignees = this.getHistoryAssignees();
+            debugger
             historyAssignees.forEach(assignee => {
                 if (!assignee || !assignee.username) return;
 
@@ -7914,8 +7913,6 @@ window.BulkCommentsView = class BulkCommentsView {
 
     
 
-// lib/ui/views/BulkCommentsView.js - fetchGroupMembers method
-
     async fetchGroupMembers() {
         try {
             if (!this.gitlabApi) {
@@ -7933,13 +7930,13 @@ window.BulkCommentsView = class BulkCommentsView {
             let members;
             if (pathInfo.type === 'project') {
                 members = await this.gitlabApi.callGitLabApiWithCache(
-                    `projects/${pathInfo.encodedPath}/members`,
-                    {params: {per_page: 100}}
+                    `projects/${pathInfo.encodedPath}/members/all`,
+                    {params: {per_page: 100, all_available: true}}
                 );
             } else if (pathInfo.type === 'group') {
                 members = await this.gitlabApi.callGitLabApiWithCache(
-                    `groups/${pathInfo.encodedPath}/members`,
-                    {params: {per_page: 100}}
+                    `groups/${pathInfo.encodedPath}/members/all`,
+                    {params: {per_page: 100, all_available: true}}
                 );
             } else {
                 throw new Error('Unsupported path type: ' + pathInfo.type);
