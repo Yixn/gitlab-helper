@@ -4855,15 +4855,15 @@ window.SummaryView = class SummaryView {
             if (cells.length >= 3) {
                 // Second column (time)
                 if (cells[1]) {
-                    cells[1].style.width = '80px';
-                    cells[1].style.minWidth = '80px';
-                    cells[1].style.maxWidth = '80px';
+                    cells[1].style.width = '30px';
+                    cells[1].style.minWidth = '30px';
+                    cells[1].style.maxWidth = '30px';
                 }
                 // Third column (distribution)
                 if (cells[2]) {
-                    cells[2].style.width = '180px';
-                    cells[2].style.minWidth = '180px';
-                    cells[2].style.maxWidth = '180px';
+                    cells[2].style.width = '120px';
+                    cells[2].style.minWidth = '120px';
+                    cells[2].style.maxWidth = '120px';
                 }
                 // First column (name) takes remaining space
                 if (cells[0]) {
@@ -6379,11 +6379,11 @@ window.BulkCommentsView = class BulkCommentsView {
   }
   updateAssignShortcut(items) {
     if (!this.commandShortcuts) {
-      console.error("Cannot update assign shortcut: commandShortcuts not available");
+
       return;
     }
     if (!items || items.length <= 3) {
-      console.warn("Not updating assign shortcut: no meaningful items to add");
+
       return;
     }
     try {
@@ -6623,7 +6623,6 @@ window.BulkCommentsView = class BulkCommentsView {
         }));
         assignItems = assignItems.concat(whitelistItems);
       } else {
-        console.warn("Could not find any assignees through any method");
       }
     }
     this.updateAssignShortcut(assignItems);
