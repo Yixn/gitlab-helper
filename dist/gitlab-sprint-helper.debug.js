@@ -270,8 +270,6 @@ window.GitLabAPI = GitLabAPI;
 window.gitlabApi = window.gitlabApi || new GitLabAPI();
 
 // File: lib/core/DataProcessor.js
-
-
 // lib/core/DataProcessor.js - processBoards function
 window.processBoards = function processBoards() {
     const assigneeTimeMap = {};
@@ -282,6 +280,9 @@ window.processBoards = function processBoards() {
     let cardsWithTime = 0;
     let currentMilestone = null;
     let closedBoardCards = 0;
+    // Initialize userDistributionMap here at the top level
+    const userDistributionMap = {};
+
     const boardLists = document.querySelectorAll('.board-list');
 
     boardLists.forEach((boardList, listIndex) => {
@@ -369,6 +370,20 @@ window.processBoards = function processBoards() {
                                 assignees.forEach(assignee => {
                                     const assigneeShare = timeEstimate / assignees.length;
                                     const name = assignee.name;
+
+                                    // Initialize user distribution map if needed
+                                    if (!userDistributionMap[name]) {
+                                        userDistributionMap[name] = {};
+                                        // Initialize with zero for all boards
+                                        Object.keys(boardData).forEach(board => {
+                                            userDistributionMap[name][board] = 0;
+                                        });
+                                    }
+
+                                    // Update the distribution for this board
+                                    userDistributionMap[name][boardTitle] =
+                                        (userDistributionMap[name][boardTitle] || 0) + assigneeShare;
+
                                     if (!assigneeTimeMap[name]) {
                                         assigneeTimeMap[name] = 0;
                                     }
@@ -383,6 +398,19 @@ window.processBoards = function processBoards() {
                                     boardAssigneeData[boardTitle][name].timeEstimate += assigneeShare;
                                 });
                             } else {
+                                // Handle unassigned items
+                                if (!userDistributionMap['Unassigned']) {
+                                    userDistributionMap['Unassigned'] = {};
+                                    // Initialize with zero for all boards
+                                    Object.keys(boardData).forEach(board => {
+                                        userDistributionMap['Unassigned'][board] = 0;
+                                    });
+                                }
+
+                                // Update the distribution for this board
+                                userDistributionMap['Unassigned'][boardTitle] =
+                                    (userDistributionMap['Unassigned'][boardTitle] || 0) + timeEstimate;
+
                                 if (!assigneeTimeMap['Unassigned']) {
                                     assigneeTimeMap['Unassigned'] = 0;
                                 }
@@ -407,6 +435,35 @@ window.processBoards = function processBoards() {
         uiManager.issueSelector.applyOverflowFixes()
     });
 
+    // Format the distribution data to store with the history
+    const formattedUserDistributions = {};
+    Object.keys(userDistributionMap).forEach(name => {
+        // Get ordered board names to ensure consistent order
+        const orderedBoards = Object.keys(userDistributionMap[name]).sort((a, b) => {
+            // Put done/closed boards at the end
+            const aIsClosed = a.toLowerCase().includes('done') ||
+                a.toLowerCase().includes('closed') ||
+                a.toLowerCase().includes('complete') ||
+                a.toLowerCase().includes('finished');
+            const bIsClosed = b.toLowerCase().includes('done') ||
+                b.toLowerCase().includes('closed') ||
+                b.toLowerCase().includes('complete') ||
+                b.toLowerCase().includes('finished');
+
+            if (aIsClosed && !bIsClosed) return 1;
+            if (!aIsClosed && bIsClosed) return -1;
+            return a.localeCompare(b);
+        });
+
+        // Create an array of formatted hour values
+        formattedUserDistributions[name] = {
+            distribution: orderedBoards.map(board => {
+                const timeInSeconds = userDistributionMap[name][board] || 0;
+                return Math.round(formatHours(timeInSeconds));
+            })
+        };
+    });
+
     try {
         if (window.historyManager) {
             window.historyManager.saveHistoryEntry({
@@ -417,7 +474,8 @@ window.processBoards = function processBoards() {
                 cardsProcessed,
                 cardsWithTime,
                 currentMilestone,
-                closedBoardCards
+                closedBoardCards,
+                userDistributions: formattedUserDistributions // Add this to history
             });
         }
     } catch (e) {
@@ -432,7 +490,8 @@ window.processBoards = function processBoards() {
         cardsProcessed,
         cardsWithTime,
         currentMilestone,
-        closedBoardCards
+        closedBoardCards,
+        userDistributions: formattedUserDistributions // Also return it
     };
 }
 
@@ -475,9 +534,23 @@ window.HistoryManager = class HistoryManager {
                 history[boardKey] = {};
             }
 
+            // Make sure we preserve the userDistributions data
+            const userPerformance = data.userPerformance || {};
+            const userDistributions = data.userDistributions || {};
+
+            // If we have both user performance and distributions, merge them
+            if (Object.keys(userPerformance).length > 0 && Object.keys(userDistributions).length > 0) {
+                Object.keys(userPerformance).forEach(name => {
+                    if (userDistributions[name]) {
+                        userPerformance[name].distribution = userDistributions[name].distribution;
+                    }
+                });
+            }
+
             // Update or create today's entry
             history[boardKey][today] = {
                 ...data,
+                userDistributions: userDistributions, // Ensure this is saved
                 timestamp: new Date().toISOString()
             };
 
@@ -5008,36 +5081,34 @@ window.SummaryView = class SummaryView {
     }
 
     
-    render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
+    async render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
         const summaryContent = document.getElementById('assignee-time-summary-content');
-
         if (!summaryContent) return;
 
-        // Make sure we have members list from at least one source
+        // Show a loading indicator while we fetch members
         if (!this.membersList || this.membersList.length === 0) {
-            // First try loading from local sources (faster)
-            this.loadMembersList();
+            summaryContent.innerHTML = '<div style="text-align: center; padding: 20px;">Loading team members...</div>';
 
-            // Then try API fetch (async, might not be available immediately)
-            if (this.gitlabApi || window.gitlabApi) {
-                this.fetchMembers().then(members => {
-                    if (members && members.length) {
-                        console.log(`Successfully loaded ${members.length} members from API`);
-                        // We don't need to re-render as the links will already be created,
-                        // but for future enhancements this could be useful
-                    }
-                }).catch(err => {
-                    console.warn('Failed to fetch members from API, using local sources only', err);
-                });
+            try {
+                // Wait for members to be fetched
+                await this.fetchMembers();
+            } catch (error) {
+                console.error('Error fetching members:', error);
             }
         }
 
+        // Clear the content to rebuild it
         summaryContent.innerHTML = '';
-        this.uiManager.updateBoardStats({
-            totalCards: cardsProcessed,
-            withTimeCards: cardsWithTime,
-            closedCards: this.getClosedBoardCount()
-        });
+
+        // Update board stats
+        if (this.uiManager) {
+            this.uiManager.updateBoardStats({
+                totalCards: cardsProcessed,
+                withTimeCards: cardsWithTime,
+                closedCards: this.getClosedBoardCount()
+            });
+        }
+
         if (cardsWithTime === 0) {
             this.renderNoDataMessage(summaryContent);
             if (this.uiManager && this.uiManager.removeLoadingScreen) {
@@ -5045,6 +5116,7 @@ window.SummaryView = class SummaryView {
             }
             return;
         }
+
         const totalHours = formatHours(totalEstimate);
         let doneHours = 0;
         for (const boardName in boardData) {
@@ -5058,20 +5130,21 @@ window.SummaryView = class SummaryView {
             }
         }
         const doneHoursFormatted = formatHours(doneHours);
-        this.uiManager.updateHeader(
-            `Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`
-        );
+
+        if (this.uiManager) {
+            this.uiManager.updateHeader(
+                `Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`
+            );
+        }
+
         if (currentMilestone) {
             this.renderMilestoneInfo(summaryContent, currentMilestone);
         }
 
-        // Identify potential assignees that aren't in current assigneeTimeMap
-        this.findPotentialAssignees(assigneeTimeMap);
-
         // Render the data table with both current and potential assignees
         this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData);
 
-        // Add the new copy button
+        // Add the copy button
         this.addCopySummaryButton(summaryContent, assigneeTimeMap, cardsWithTime);
 
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
@@ -5084,49 +5157,69 @@ window.SummaryView = class SummaryView {
         this.potentialAssignees = [];
 
         try {
-            // 1. Check assignee whitelist from settings
+            // Create a set of current assignee names (lowercase for case-insensitive comparison)
+            const currentAssigneeSet = new Set();
+            if (currentAssigneeMap) {
+                Object.keys(currentAssigneeMap).forEach(name => {
+                    currentAssigneeSet.add(name.toLowerCase());
+                });
+            }
+
+            // 1. Collect all potential assignees from various sources
+            let allPotentialAssignees = [];
+
+            // First from whitelist settings
             const whitelistedAssignees = this.getWhitelistedAssignees();
+            if (whitelistedAssignees && whitelistedAssignees.length) {
+                allPotentialAssignees = [...allPotentialAssignees, ...whitelistedAssignees];
+            }
 
-            // 2. Check team members fetched from API
+            // Then from team members fetched from API
             if (this.membersList && this.membersList.length) {
-                whitelistedAssignees.push(...this.membersList);
+                allPotentialAssignees = [...allPotentialAssignees, ...this.membersList];
             }
 
-            // 3. Check last sprint history for additional members
+            // Finally from sprint history
             const historyAssignees = this.getHistoryAssignees();
-            if (historyAssignees.length) {
-                whitelistedAssignees.push(...historyAssignees);
+            if (historyAssignees && historyAssignees.length) {
+                allPotentialAssignees = [...allPotentialAssignees, ...historyAssignees];
             }
 
-            // Filter to keep only assignees not in the current map
-            // and remove duplicates by using a temp Map
-            const tempMap = new Map();
-            const currentAssigneeSet = new Set(Object.keys(currentAssigneeMap || {}).map(name => name.toLowerCase()));
+            // 2. Create a map to handle duplicates, preferring entries with stats
+            const potentialAssigneeMap = new Map();
 
-            whitelistedAssignees.forEach(assignee => {
-                // Skip if we don't have a name or username
+            allPotentialAssignees.forEach(assignee => {
+                // Skip invalid entries
                 if (!assignee || (!assignee.name && !assignee.username)) return;
 
                 const name = assignee.name || assignee.username;
-
-                // Skip if already in current assignees (case-insensitive comparison)
+                // Skip if this person is already in current assignees
                 if (currentAssigneeSet.has(name.toLowerCase())) return;
 
-                // Use either username or name as key to avoid duplicates
-                const key = (assignee.username || name).toLowerCase();
+                // Use name as the key (lowercase for case-insensitive comparison)
+                const key = name.toLowerCase();
 
-                // If we find an entry with stats, prioritize it
-                if (assignee.stats && (!tempMap.has(key) || !tempMap.get(key).stats)) {
-                    tempMap.set(key, assignee);
-                } else if (!tempMap.has(key)) {
-                    tempMap.set(key, assignee);
+                // If we already have this person, prefer the one with stats
+                if (potentialAssigneeMap.has(key)) {
+                    const existing = potentialAssigneeMap.get(key);
+                    // Only replace if new one has stats and existing doesn't
+                    if (assignee.stats && !existing.stats) {
+                        potentialAssigneeMap.set(key, assignee);
+                    }
+                } else {
+                    // First time seeing this person, add them
+                    potentialAssigneeMap.set(key, assignee);
                 }
             });
 
-            // Convert back to array
-            this.potentialAssignees = Array.from(tempMap.values());
+            // 3. Convert the map back to an array
+            this.potentialAssignees = Array.from(potentialAssigneeMap.values());
+
+            // 4. Log the results for debugging
+            console.log(`Found ${this.potentialAssignees.length} potential assignees not currently on board`);
         } catch (error) {
             console.error('Error finding potential assignees:', error);
+            this.potentialAssignees = [];
         }
     }
 
@@ -5167,20 +5260,21 @@ window.SummaryView = class SummaryView {
         let historyAssignees = [];
 
         try {
-            // Try to get sprint history from localStorage
-            const historyStr = localStorage.getItem('gitLabHelperSprintHistory');
+            // First try sprint history (more detailed)
+            const sprintHistoryStr = localStorage.getItem('gitLabHelperSprintHistory');
+            let foundSprintHistory = false;
 
-            if (historyStr) {
-                const history = JSON.parse(historyStr);
+            if (sprintHistoryStr) {
+                const sprintHistory = JSON.parse(sprintHistoryStr);
 
-                if (Array.isArray(history) && history.length > 0) {
+                if (Array.isArray(sprintHistory) && sprintHistory.length > 0) {
                     // Get the most recent sprint entry
-                    const latestSprint = history[0];
+                    const latestSprint = sprintHistory[0];
 
                     if (latestSprint && latestSprint.userPerformance) {
                         // Convert to array of assignees with stats
                         historyAssignees = Object.entries(latestSprint.userPerformance).map(([name, data]) => {
-                            return {
+                            const historyData = {
                                 name: name,
                                 username: this.getUsernameFromName(name),
                                 stats: {
@@ -5191,7 +5285,57 @@ window.SummaryView = class SummaryView {
                                     fromHistory: true
                                 }
                             };
+
+                            // Add distribution data if available
+                            if (latestSprint.userDistributions &&
+                                latestSprint.userDistributions[name] &&
+                                latestSprint.userDistributions[name].distribution) {
+                                historyData.stats.distribution = latestSprint.userDistributions[name].distribution;
+                            }
+
+                            return historyData;
                         });
+
+                        foundSprintHistory = true;
+                        console.log(`Found ${historyAssignees.length} assignees in sprint history`);
+                    }
+                }
+            }
+
+            // If no sprint history, try general history
+            if (!foundSprintHistory) {
+                const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
+
+                if (generalHistoryStr) {
+                    const generalHistory = JSON.parse(generalHistoryStr);
+
+                    // Find most recent history entry for current board
+                    const boardKey = this.getBoardKey();
+                    if (generalHistory[boardKey]) {
+                        const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
+
+                        if (dates.length > 0) {
+                            const latestEntry = generalHistory[boardKey][dates[0]];
+
+                            if (latestEntry && latestEntry.assigneeTimeMap) {
+                                // Convert general history to assignee format
+                                const additionalAssignees = Object.entries(latestEntry.assigneeTimeMap)
+                                    .map(([name, timeEstimate]) => {
+                                        return {
+                                            name: name,
+                                            username: this.getUsernameFromName(name),
+                                            stats: {
+                                                totalHours: formatHours(timeEstimate),
+                                                closedHours: 0, // We don't know this from general history
+                                                fromHistory: true
+                                            }
+                                        };
+                                    });
+
+                                console.log(`Found ${additionalAssignees.length} assignees in general history`);
+                                historyAssignees = [...historyAssignees, ...additionalAssignees];
+                            }
+                        }
                     }
                 }
             }
@@ -5200,6 +5344,24 @@ window.SummaryView = class SummaryView {
         }
 
         return historyAssignees;
+    }
+
+    
+    getBoardKey() {
+        try {
+            const url = window.location.href;
+            // Split at /boards/ and take everything after
+            const splitAtBoards = url.split('/boards/');
+            if (splitAtBoards.length < 2) {
+                return 'unknown-board';
+            }
+
+            // Return everything after /boards/ as the key
+            return splitAtBoards[1];
+        } catch (error) {
+            console.error('Error generating board key:', error);
+            return 'unknown-board';
+        }
     }
 
     
@@ -5297,6 +5459,8 @@ window.SummaryView = class SummaryView {
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
         const boardNames = Object.keys(boardData || {});
+
+        // Create the total row first
         const totalRow = document.createElement('tr');
         totalRow.style.borderBottom = '2px solid #ddd';
         totalRow.style.fontWeight = 'bold';
@@ -5316,23 +5480,27 @@ window.SummaryView = class SummaryView {
             totalLink.style.textDecoration = 'none';
         });
         totalLabelCell.appendChild(totalLink);
-        totalLabelCell.style.padding = '5px 0';
+        totalLabelCell.style.padding = '8px 0';
+        totalLabelCell.style.paddingLeft = '32px'; // Add padding to align with avatar rows
 
         const totalValueCell = document.createElement('td');
         totalValueCell.textContent = `${totalHours}h`;
         totalValueCell.style.textAlign = 'right';
-        totalValueCell.style.padding = '5px 0';
+        totalValueCell.style.padding = '8px 0';
+
         const totalDistributionCell = document.createElement('td');
         totalDistributionCell.style.textAlign = 'right';
-        totalDistributionCell.style.padding = '5px 0 5px 15px';
+        totalDistributionCell.style.padding = '8px 0 8px 15px';
         totalDistributionCell.style.color = '#666';
         totalDistributionCell.style.fontSize = '12px';
+
         if (boardNames.length > 0 && boardData) {
             const distributionValues = boardNames.map(boardName => {
                 const boardDataObj = boardData[boardName] || { timeEstimate: 0 };
                 const hoursFloat = parseFloat(formatHours(boardDataObj.timeEstimate || 0));
                 return Math.round(hoursFloat); // Round to integer
             });
+
             const distributionText = distributionValues.map((hours, index) => {
                 let spanHTML = `<span style="`;
                 if (hours === 0) {
@@ -5354,50 +5522,68 @@ window.SummaryView = class SummaryView {
         totalRow.appendChild(totalDistributionCell);
         table.appendChild(totalRow);
 
-        // Add current assignees (sorted by time estimate)
-        const sortedAssignees = Object.keys(assigneeTimeMap).sort((a, b) => {
-            return assigneeTimeMap[b] - assigneeTimeMap[a];
+        // STEP 1: Add current assignees (sorted by time estimate)
+        // These are the users currently on the board
+        const currentAssigneeSet = new Set();
+        const sortedAssignees = Object.keys(assigneeTimeMap || {}).sort((a, b) => {
+            return (assigneeTimeMap[b] || 0) - (assigneeTimeMap[a] || 0);
         });
 
         sortedAssignees.forEach(name => {
-            const hours = formatHours(assigneeTimeMap[name]);
+            if (!name) return;
+
+            const hours = formatHours(assigneeTimeMap[name] || 0);
             this.addAssigneeRow(table, name, hours, boardNames, boardAssigneeData);
+
+            // Remember this assignee is already shown
+            currentAssigneeSet.add(name.toLowerCase());
         });
 
-        // Add a separator if we have potential assignees
-        if (this.potentialAssignees.length > 0) {
-            const separatorRow = document.createElement('tr');
-            const separatorCell = document.createElement('td');
-            separatorCell.colSpan = 3;
-            separatorCell.style.padding = '10px 0 5px';
-            separatorCell.style.fontSize = '12px';
-            separatorCell.style.color = '#666';
-            separatorCell.style.fontStyle = 'italic';
-            separatorCell.textContent = 'Other Potential Assignees:';
-            separatorRow.appendChild(separatorCell);
-            table.appendChild(separatorRow);
+        // STEP 2: Find other members who have access to this board but aren't currently assigned
+        if (this.membersList && this.membersList.length > 0) {
+            const otherMembers = this.membersList.filter(member => {
+                if (!member) return false;
 
-            // Add all potential assignees with history stats if available
-            this.potentialAssignees.forEach(assignee => {
-                // Use name or fallback to username
-                const name = assignee.name || assignee.username;
+                const name = member.name || member.username;
+                if (!name) return false;
 
-                let extraInfo = '';
-                if (assignee.stats) {
-                    // Show last sprint's hours (marked with '?' to indicate it's historical)
-                    const hours = `${assignee.stats.closedHours || 0}/${assignee.stats.totalHours || 0}h`;
-                    extraInfo = ` (${hours}?)`;
-                }
-
-                this.addAssigneeRow(table, name + extraInfo, '0h', boardNames, {}, true);
+                return !currentAssigneeSet.has(name.toLowerCase());
             });
+
+            if (otherMembers.length > 0) {
+                const separatorRow = document.createElement('tr');
+                const separatorCell = document.createElement('td');
+                separatorCell.colSpan = 3;
+                separatorCell.style.padding = '10px 0 5px 32px'; // Align with avatars
+                separatorCell.style.fontSize = '12px';
+                separatorCell.style.color = '#666';
+                separatorCell.style.fontStyle = 'italic';
+                separatorCell.textContent = 'Other Team Members:';
+                separatorRow.appendChild(separatorCell);
+                table.appendChild(separatorRow);
+
+                // STEP 3: Add other members with board access
+                otherMembers.forEach(member => {
+                    const name = member.name || member.username;
+                    if (!name) return;
+
+                    // Display with historical data if available
+                    if (member.stats) {
+                        this.addAssigneeRow(table, name, '0h', boardNames, {}, true, member.stats);
+                    } else {
+                        this.addAssigneeRow(table, name, '0h', boardNames, {}, true);
+                    }
+                });
+            }
         }
 
         container.appendChild(table);
     }
 
     
-    addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false) {
+    addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null) {
+        if (!name) name = "Unknown User";
+
         const row = document.createElement('tr');
         row.style.borderBottom = '1px solid #eee';
 
@@ -5408,52 +5594,105 @@ window.SummaryView = class SummaryView {
         }
 
         const nameCell = document.createElement('td');
-        // Extract the base name (without any stats info)
-        const baseName = name.split(' (')[0];
+        nameCell.style.display = 'flex';
+        nameCell.style.alignItems = 'center';
+        nameCell.style.padding = '8px 0';
 
-        // Make assignee name clickable
-        const nameLink = document.createElement('a');
+        // Find member details
+        const member = this.findMemberByName(name);
 
-        // Handle 'Unassigned' differently
-        if (baseName === 'Unassigned') {
-            // For Unassigned, we'll link to the board with no assignee filter
-            nameLink.href = window.location.pathname + '?milestone_title=Started';
-            nameLink.textContent = name;
+        // Add avatar
+        const avatar = document.createElement('div');
+        avatar.style.width = '24px';
+        avatar.style.height = '24px';
+        avatar.style.borderRadius = '50%';
+        avatar.style.marginRight = '8px';
+        avatar.style.overflow = 'hidden';
+        avatar.style.flexShrink = '0';
+
+        if (member && member.avatar_url) {
+            // Use actual avatar image
+            const img = document.createElement('img');
+            img.src = member.avatar_url;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            avatar.appendChild(img);
         } else {
-            // For named assignees, add their username as a filter
-            // We need to get the username based on the display name
-            const username = this.getAssigneeUsername(baseName);
-            nameLink.href = window.location.pathname + '?milestone_title=Started&assignee_username=' + username;
-            nameLink.textContent = name;
+            // Create placeholder with initials
+            avatar.style.backgroundColor = '#e0e0e0';
+            avatar.style.display = 'flex';
+            avatar.style.alignItems = 'center';
+            avatar.style.justifyContent = 'center';
+            avatar.style.fontSize = '10px';
+            avatar.style.fontWeight = 'bold';
+            avatar.style.color = '#666';
+
+            // Get initials from name
+            const initials = name.split(' ')
+                .map(part => part.charAt(0))
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
+
+            avatar.textContent = initials || '?';
         }
 
+        nameCell.appendChild(avatar);
+
+        // Create user name container
+        const nameContainer = document.createElement('div');
+        nameContainer.style.overflow = 'hidden';
+        nameContainer.style.textOverflow = 'ellipsis';
+
+        // Make assignee name clickable - link to user's issues
+        const nameLink = document.createElement('a');
+
+        // Create appropriate link based on username if available
+        if (member && member.username) {
+            // Link to user's issues in current milestone
+            nameLink.href = window.location.pathname +
+                `?milestone_title=Started&assignee_username=${member.username}`;
+        } else {
+            // Fall back to milestone view if no username
+            nameLink.href = window.location.pathname + '?milestone_title=Started';
+        }
+
+        nameLink.textContent = name;
         nameLink.style.color = '#1f75cb';
         nameLink.style.textDecoration = 'none';
         nameLink.style.cursor = 'pointer';
+        nameLink.style.display = 'block';
+        nameLink.style.overflow = 'hidden';
+        nameLink.style.textOverflow = 'ellipsis';
+        nameLink.style.whiteSpace = 'nowrap';
+
         nameLink.addEventListener('mouseenter', () => {
             nameLink.style.textDecoration = 'underline';
         });
         nameLink.addEventListener('mouseleave', () => {
             nameLink.style.textDecoration = 'none';
         });
-        nameCell.appendChild(nameLink);
-        nameCell.style.padding = '5px 0';
+
+        nameContainer.appendChild(nameLink);
+        nameCell.appendChild(nameContainer);
 
         const timeCell = document.createElement('td');
         timeCell.textContent = `${hours}`;
         timeCell.style.textAlign = 'right';
-        timeCell.style.padding = '5px 0';
+        timeCell.style.padding = '8px 0';
 
         const distributionCell = document.createElement('td');
         distributionCell.style.textAlign = 'right';
-        distributionCell.style.padding = '5px 0 5px 15px';
+        distributionCell.style.padding = '8px 0 8px 15px';
         distributionCell.style.color = '#666';
         distributionCell.style.fontSize = '12px';
 
         if (!isPotential && boardNames.length > 0 && boardAssigneeData) {
+            // For current assignees, show their board distribution
             const distributionValues = boardNames.map(boardName => {
                 const boardAssignees = boardAssigneeData[boardName] || {};
-                const assigneeInBoard = boardAssignees[baseName] || { timeEstimate: 0 };
+                const assigneeInBoard = boardAssignees[name] || { timeEstimate: 0 };
                 const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
                 return Math.round(hoursFloat); // Round to integer
             });
@@ -5472,8 +5711,46 @@ window.SummaryView = class SummaryView {
             }).join('/');
 
             distributionCell.innerHTML = distributionText;
+        } else if (historyStats && historyStats.fromHistory) {
+            // For potential assignees with history stats
+
+            if (historyStats.distribution && Array.isArray(historyStats.distribution)) {
+                // Use the full distribution data if available
+                const distributionText = historyStats.distribution.map((hours, index) => {
+                    let spanHTML = `<span style="`;
+                    if (hours === 0) {
+                        spanHTML += `color:#aaa;`; // Grey for zero values
+                    }
+                    if (index === historyStats.distribution.length - 1 && hours > 0) {
+                        spanHTML += `color:#28a745;`; // Green for last board with hours
+                    }
+
+                    spanHTML += `">${hours}h</span>`;
+                    return spanHTML;
+                }).join('/');
+
+                // Add ? at the end to indicate it's historical
+                distributionCell.innerHTML = distributionText + '?';
+            } else {
+                // Fallback to simpler style if we don't have distribution data
+                const closedHours = historyStats.closedHours || 0;
+                const totalHours = historyStats.totalHours || 0;
+
+                // If we have boardNames, try to match the format
+                if (boardNames && boardNames.length > 0) {
+                    // Create empty placeholders for all but the last board
+                    const placeholders = Array(boardNames.length - 1).fill('<span style="color:#aaa;">0h</span>');
+
+                    // Add the historical data at the end
+                    distributionCell.innerHTML = placeholders.join('/') +
+                        `/<span style="color:#28a745;">${totalHours}h?</span>`;
+                } else {
+                    // Simple format
+                    distributionCell.innerHTML = `<span style="color:#28a745;">${totalHours}h?</span>`;
+                }
+            }
         } else {
-            // For potential assignees with no current work
+            // For potential assignees with no current work and no history
             const emptyText = boardNames.map(() => {
                 return `<span style="color:#aaa;">0h</span>`;
             }).join('/');
@@ -5597,11 +5874,13 @@ window.SummaryView = class SummaryView {
     
     async fetchMembers() {
         try {
-            // Initialize with whitelist members first (as a fallback)
+            // Initialize with whitelist members as these are likely relevant
             const whitelistedAssignees = this.getWhitelistedAssignees();
+            let allMembers = [];
+
             if (whitelistedAssignees && whitelistedAssignees.length > 0) {
-                this.membersList = [...whitelistedAssignees];
-                console.log(`Loaded ${this.membersList.length} members from whitelist as fallback`);
+                allMembers = [...whitelistedAssignees];
+                console.log(`Loaded ${allMembers.length} members from whitelist as initial set`);
             }
 
             // Try to get gitlab API
@@ -5609,18 +5888,20 @@ window.SummaryView = class SummaryView {
                 this.gitlabApi = window.gitlabApi;
                 if (!this.gitlabApi) {
                     console.warn('GitLab API not available for fetching members, using whitelist only');
-                    return this.membersList;
+                    this.membersList = allMembers;
+                    return allMembers;
                 }
             }
 
             // Get fetch path for GitLab API
-            const pathInfo = getPathFromUrl?.();
-            if (!pathInfo) {
+            const pathInfo = getPathFromUrl?.() || {};
+            if (!pathInfo || !pathInfo.type || !pathInfo.encodedPath) {
                 console.warn('Could not determine project/group path, using whitelist only');
-                return this.membersList;
+                this.membersList = allMembers;
+                return allMembers;
             }
 
-            // Determine the correct endpoint
+            // Determine the correct endpoint for this project/group
             let endpoint;
             if (pathInfo.type === 'project') {
                 endpoint = `projects/${pathInfo.encodedPath}/members`;
@@ -5628,7 +5909,8 @@ window.SummaryView = class SummaryView {
                 endpoint = `groups/${pathInfo.encodedPath}/members`;
             } else {
                 console.warn('Unsupported path type, using whitelist only:', pathInfo.type);
-                return this.membersList;
+                this.membersList = allMembers;
+                return allMembers;
             }
 
             // Use cached API call to avoid redundant requests
@@ -5640,48 +5922,134 @@ window.SummaryView = class SummaryView {
 
             if (!Array.isArray(members)) {
                 console.warn('API did not return an array of members, using whitelist only');
-                return this.membersList;
+                this.membersList = allMembers;
+                return allMembers;
             }
 
-            // Convert API response to our member format
-            const apiMembers = members.map(member => ({
-                id: member.id,
-                name: member.name,
-                username: member.username,
-                avatar_url: member.avatar_url
-            }));
+            // Add project/group members
+            allMembers.push(...members);
 
-            // Merge whitelist and API members, preferring API data
+            // Convert API responses to our member format and remove duplicates
             const memberMap = new Map();
 
-            // First add all API members
-            apiMembers.forEach(member => {
-                if (member.username) {
-                    memberMap.set(member.username.toLowerCase(), member);
+            allMembers.forEach(member => {
+                if (!member || !member.username) return;
+
+                const key = member.username.toLowerCase();
+
+                // If we already have this member, keep the one with more information
+                if (memberMap.has(key)) {
+                    // Prefer entries with stats, or with complete data
+                    const existing = memberMap.get(key);
+                    if (!existing.id || (member.id && existing.name === undefined && member.name)) {
+                        memberMap.set(key, {
+                            id: member.id,
+                            name: member.name || existing.name,
+                            username: member.username,
+                            avatar_url: member.avatar_url || existing.avatar_url,
+                            // Keep stats if they exist
+                            stats: existing.stats
+                        });
+                    }
+                } else {
+                    // New member, add them
+                    memberMap.set(key, {
+                        id: member.id,
+                        name: member.name,
+                        username: member.username,
+                        avatar_url: member.avatar_url
+                    });
                 }
             });
 
-            // Then add whitelist members if not already in the map
-            whitelistedAssignees.forEach(member => {
-                if (member.username && !memberMap.has(member.username.toLowerCase())) {
-                    memberMap.set(member.username.toLowerCase(), member);
+            // Include history assignees for their stats
+            const historyAssignees = this.getHistoryAssignees();
+            historyAssignees.forEach(assignee => {
+                if (!assignee || !assignee.username) return;
+
+                const key = assignee.username.toLowerCase();
+
+                if (memberMap.has(key)) {
+                    // Update existing member with stats
+                    const existing = memberMap.get(key);
+                    memberMap.set(key, {
+                        ...existing,
+                        stats: assignee.stats
+                    });
+                } else {
+                    // Only add history assignees that were in the whitelist
+                    // (these are likely relevant to the current board)
+                    const isWhitelisted = whitelistedAssignees.some(wa =>
+                        wa.username && wa.username.toLowerCase() === key);
+
+                    if (isWhitelisted) {
+                        memberMap.set(key, assignee);
+                    }
                 }
             });
 
             // Convert map back to array
             this.membersList = Array.from(memberMap.values());
 
-            console.log(`Successfully fetched ${this.membersList.length} members for username lookup`);
+            console.log(`Successfully fetched ${this.membersList.length} members with access to this board`);
             return this.membersList;
         } catch (error) {
-            console.error('Error fetching members for username lookup:', error);
+            console.error('Error fetching members:', error);
             // If we have a fallback list from whitelist, return it
-            if (this.membersList && this.membersList.length > 0) {
-                console.log(`Using ${this.membersList.length} members from whitelist after API error`);
-                return this.membersList;
+            if (allMembers && allMembers.length > 0) {
+                console.log(`Using ${allMembers.length} members from whitelist after API error`);
+                this.membersList = allMembers;
+                return allMembers;
             }
+            this.membersList = [];
             return [];
         }
+    }
+
+    
+    isHistoricalAssigneeRelevant(assignee, filterUsername) {
+        if (!assignee || !filterUsername) return false;
+
+        // Normalize for case-insensitive comparison
+        const normalizedFilter = filterUsername.toLowerCase();
+
+        // Check username
+        if (assignee.username && assignee.username.toLowerCase() === normalizedFilter) {
+            return true;
+        }
+
+        // Check name (the assignee might have their username in their display name)
+        if (assignee.name) {
+            const name = assignee.name.toLowerCase();
+            if (name === normalizedFilter) return true;
+
+            // Also check if the username is part of their display name
+            if (name.includes(normalizedFilter)) return true;
+        }
+
+        return false;
+    }
+
+    
+    findMemberByName(name) {
+        if (!name || !this.membersList) return null;
+
+        const lowerName = name.toLowerCase();
+        return this.membersList.find(member => {
+            if (!member) return false;
+
+            // Check by name
+            if (member.name && member.name.toLowerCase() === lowerName) {
+                return true;
+            }
+
+            // Check by username
+            if (member.username && member.username.toLowerCase() === lowerName) {
+                return true;
+            }
+
+            return false;
+        }) || null;
     }
 }
 
@@ -6955,6 +7323,7 @@ window.SprintManagementView = class SprintManagementView {
                 closedHours: this.sprintState.closedHours,
                 extraHoursClosed: this.sprintState.extraHoursClosed || 0,
                 userPerformance: this.sprintState.userPerformance || {},
+                userDistributions: this.sprintState.userDistributions || {}, // Add this
                 timestamp: this.sprintState.timestamp,
                 completedAt: new Date().toISOString()
             };
