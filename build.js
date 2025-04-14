@@ -30,6 +30,8 @@ try {
 }
 
 // Configuration
+// build.js - update CONFIG.fileOrder array
+
 const CONFIG = {
     sourceDir: './lib',
     mainFile: './main.js',
@@ -44,14 +46,13 @@ const CONFIG = {
         'api/APIUtils.js',
         'api/GitLabAPI.js',
         'core/DataProcessor.js',
-        // Removed 'core/History.js'
+        'core/HistoryManager.js', // Add new HistoryManager
 
         // Storage modules
         'storage/LocalStorage.js',
         'storage/SettingsStorage.js',
 
         // UI components in dependency order
-        'ui/components/Dropdown.js',
         'ui/components/Notification.js',
         'ui/components/CommandShortcut.js',
         'ui/components/SelectionDisplay.js',
@@ -70,6 +71,7 @@ const CONFIG = {
         'ui/views/BoardsView.js',
         'ui/views/SprintManagementView.js',
         'ui/views/BulkCommentsView.js',
+        'ui/views/StatsView.js', // Add new StatsView
 
         // Main UI
         'ui/UIManager.js',
@@ -86,17 +88,20 @@ const CONFIG = {
         { name: 'uiManager', pattern: /const\s+uiManager\s*=\s*new\s+UIManager\(\);/g,
             replacement: 'window.uiManager = window.uiManager || new UIManager();' },
         { name: 'uiManager', pattern: /var\s+uiManager\s*=\s*new\s+UIManager\(\);/g,
-            replacement: 'window.uiManager = window.uiManager || new UIManager();' }
+            replacement: 'window.uiManager = window.uiManager || new UIManager();' },
+        { name: 'historyManager', pattern: /const\s+historyManager\s*=\s*new\s+HistoryManager\(\);/g,
+            replacement: 'window.historyManager = window.historyManager || new HistoryManager();' } // Add HistoryManager
     ],
 
     // Keywords to preserve during minification
+
     keywordsToPreserve: [
         'gitlabApi', 'uiManager', 'GitLabAPI', 'UIManager', 'TabManager',
         'SummaryView', 'BoardsView', 'CommandManager', 'BulkCommentsView',
         'IssueSelector', 'CommandShortcut', 'updateSummary',
         'LabelManager', 'SettingsManager', 'SelectionDisplay', 'getPathFromUrl',
-        'getLabelWhitelist', 'processBoards', 'formatHours'
-        // Removed 'renderHistory', 'saveHistoryEntry'
+        'getLabelWhitelist', 'processBoards', 'formatHours', 'historyManager',
+        'HistoryManager', 'StatsView' // Add these new keywords
     ],
 
     // Ignore patterns for file scanning
@@ -172,6 +177,7 @@ function processFileContent(filePath, alreadyIncluded) {
         content = content.replace(/export\s+function\s+([A-Za-z0-9_]+)/g,
             'window.$1 = function $1');
 
+
         // Handle export const/let/var
         content = content.replace(/export\s+(const|let|var)\s+([A-Za-z0-9_]+)\s*=/g,
             'window.$2 =');
@@ -192,7 +198,6 @@ function processFileContent(filePath, alreadyIncluded) {
         CONFIG.variablesToFix.forEach(variable => {
             content = content.replace(variable.pattern, variable.replacement);
         });
-
         // Add filename as comment
         return `\n// File: ${path.relative(process.cwd(), filePath)}\n${content}\n`;
 

@@ -201,6 +201,8 @@ window.GitLabAPI = class GitLabAPI {
         if (data && ['POST', 'PUT', 'PATCH'].includes(method)) {
             fetchOptions.body = JSON.stringify(data);
         }
+
+
         return fetch(url, fetchOptions)
             .then(response => {
                 if (!response.ok) {
@@ -228,13 +230,49 @@ window.GitLabAPI = class GitLabAPI {
     getCurrentUser() {
         return this.callGitLabApi('user');
     }
+    // Add to GitLabAPI class
+    callGitLabApiWithCache(endpoint, options = {}, cacheDuration = 60000) { // 1 hour cache by default
+        const cacheKey = `gitlab_api_cache_${endpoint}_${JSON.stringify(options)}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            try {
+                const { data, timestamp } = JSON.parse(cachedData);
+                const now = Date.now();
+
+                // Check if cache is still valid
+                if (now - timestamp < cacheDuration) {
+                    return Promise.resolve(data);
+                }
+            } catch (e) {
+                console.warn('Error parsing cached data:', e);
+            }
+        }
+
+        // No valid cache, make the actual API call
+        return this.callGitLabApi(endpoint, options).then(data => {
+            // Cache the result
+            localStorage.setItem(cacheKey, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+
+            return data;
+        });
+    }
+
 }
 
+
+
 window.GitLabAPI = GitLabAPI;
+
+window.gitlabApi = window.gitlabApi || new GitLabAPI();
 
 // File: lib/core/DataProcessor.js
 
 
+// lib/core/DataProcessor.js - processBoards function
 window.processBoards = function processBoards() {
     const assigneeTimeMap = {};
     const boardData = {};
@@ -369,6 +407,23 @@ window.processBoards = function processBoards() {
         uiManager.issueSelector.applyOverflowFixes()
     });
 
+    try {
+        if (window.historyManager) {
+            window.historyManager.saveHistoryEntry({
+                assigneeTimeMap,
+                boardData,
+                boardAssigneeData,
+                totalEstimate,
+                cardsProcessed,
+                cardsWithTime,
+                currentMilestone,
+                closedBoardCards
+            });
+        }
+    } catch (e) {
+        console.error('Error saving history data:', e);
+    }
+
     return {
         assigneeTimeMap,
         boardData,
@@ -379,6 +434,112 @@ window.processBoards = function processBoards() {
         currentMilestone,
         closedBoardCards
     };
+}
+
+// File: lib/core/HistoryManager.js
+
+window.HistoryManager = class HistoryManager {
+    constructor() {
+        this.historyData = {};
+    }
+
+    
+    getBoardKey() {
+        try {
+            const url = window.location.href;
+            // Split at /boards/ and take everything after
+            const splitAtBoards = url.split('/boards/');
+            if (splitAtBoards.length < 2) {
+                return 'unknown-board';
+            }
+
+            // Return everything after /boards/ as the key
+            return splitAtBoards[1];
+        } catch (error) {
+            console.error('Error generating board key:', error);
+            return 'unknown-board';
+        }
+    }
+
+    
+    saveHistoryEntry(data) {
+        try {
+            const boardKey = this.getBoardKey();
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+            // Load existing history
+            const history = this.loadHistory();
+
+            // Initialize board history if needed
+            if (!history[boardKey]) {
+                history[boardKey] = {};
+            }
+
+            // Update or create today's entry
+            history[boardKey][today] = {
+                ...data,
+                timestamp: new Date().toISOString()
+            };
+
+            // Save back to localStorage
+            localStorage.setItem('gitLabHelperHistory', JSON.stringify(history));
+
+            return true;
+        } catch (error) {
+            console.error('Error saving history entry:', error);
+            return false;
+        }
+    }
+
+    
+    loadHistory() {
+        try {
+            const historyData = localStorage.getItem('gitLabHelperHistory');
+            if (!historyData) {
+                return {};
+            }
+            return JSON.parse(historyData);
+        } catch (error) {
+            console.error('Error loading history data:', error);
+            return {};
+        }
+    }
+
+    
+    getCurrentBoardHistory() {
+        const boardKey = this.getBoardKey();
+        const history = this.loadHistory();
+        return history[boardKey] || {};
+    }
+
+    
+    clearAllHistory() {
+        try {
+            localStorage.removeItem('gitLabHelperHistory');
+            return true;
+        } catch (error) {
+            console.error('Error clearing history:', error);
+            return false;
+        }
+    }
+
+    
+    clearCurrentBoardHistory() {
+        try {
+            const boardKey = this.getBoardKey();
+            const history = this.loadHistory();
+
+            if (history[boardKey]) {
+                delete history[boardKey];
+                localStorage.setItem('gitLabHelperHistory', JSON.stringify(history));
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error clearing board history:', error);
+            return false;
+        }
+    }
 }
 
 // File: lib/storage/LocalStorage.js
@@ -2005,10 +2166,10 @@ window.TabManager = class TabManager {
         this.createTab('boards', 'Boards', this.currentTab === 'boards');
         this.createTab('bulkcomments', 'Issues', this.currentTab === 'bulkcomments');
         this.createTab('sprintmanagement', 'Sprint', this.currentTab === 'sprintmanagement');
+        this.createTab('stats', 'Stats', this.currentTab === 'stats'); // Add Stats tab
         parentElement.appendChild(this.tabContainer);
         this.createContentAreas(parentElement);
     }
-
     
     createTab(id, label, isActive = false) {
         const tab = document.createElement('div');
@@ -2084,9 +2245,25 @@ window.TabManager = class TabManager {
         if (this.uiManager && this.uiManager.addLoadingScreen) {
             this.uiManager.addLoadingScreen(sprintManagementContent, 'sprintmanagement-tab', 'Loading sprint management tools...');
         }
+
+        // Add the Stats content area
+        const statsContent = document.createElement('div');
+        statsContent.id = 'stats-content';
+        statsContent.style.display = this.currentTab === 'stats' ? 'block' : 'none';
+        statsContent.style.position = 'relative';
+        statsContent.style.height = '530px';
+        statsContent.style.overflowY = 'auto';
+        statsContent.style.maxHeight = '60vh';
+        parentElement.appendChild(statsContent);
+        this.contentAreas['stats'] = statsContent;
+        if (this.uiManager && this.uiManager.addLoadingScreen) {
+            this.uiManager.addLoadingScreen(statsContent, 'stats-tab', 'Loading statistics...');
+        }
     }
 
     
+    // lib/ui/managers/TabManager.js - switchToTab function
+
     switchToTab(tabId) {
         Object.keys(this.tabs).forEach(id => {
             this.tabs[id].style.borderBottom = 'none';
@@ -2098,7 +2275,6 @@ window.TabManager = class TabManager {
         this.contentAreas[tabId].style.display = 'block';
         this.currentTab = tabId;
         try {
-
             saveLastActiveTab(tabId);
         } catch(e) {
             console.warn('Error saving tab selection:', e);
@@ -2115,6 +2291,13 @@ window.TabManager = class TabManager {
                 this.uiManager.removeLoadingScreen('sprintmanagement-tab');
             }
         }
+        if (tabId === 'stats' && this.uiManager.statsView) {
+            this.uiManager.statsView.render();
+            if (this.uiManager && this.uiManager.removeLoadingScreen) {
+                this.uiManager.removeLoadingScreen('stats-tab');
+            }
+        }
+
         uiManager.issueSelector.applyOverflowFixes()
     }
 }
@@ -2831,9 +3014,11 @@ window.LabelManager = class LabelManager {
                 return this.addFallbackLabels();
             }
             try {
-                const labels = await this.gitlabApi.callGitLabApi(pathInfo.apiUrl, {
+                // Use the cached version for labels
+                const labels = await this.gitlabApi.callGitLabApiWithCache(pathInfo.apiUrl, {
                     params: { per_page: 100 }
                 });
+
                 if (!Array.isArray(labels)) {
                     console.warn('API did not return an array of labels, using fallback');
                     this.isLoading = false;
@@ -3066,33 +3251,6 @@ window.AssigneeManager = class AssigneeManager {
             return user;
         } catch (error) {
             console.error('Error fetching current user:', error);
-            throw error;
-        }
-    }
-    
-    async fetchGroupMembers(groupId) {
-        if (!this.gitlabApi) {
-            throw new Error('GitLab API instance not provided');
-        }
-
-        if (!groupId) {
-            throw new Error('Group ID is required');
-        }
-
-        try {
-            const members = await this.gitlabApi.callGitLabApi(
-                `groups/${encodeURIComponent(groupId)}/members`,
-                {params: {per_page: 100}}
-            );
-            this.currentUsers = members.map(member => ({
-                id: member.id,
-                name: member.name,
-                username: member.username,
-                avatar_url: member.avatar_url
-            }));
-            return this.currentUsers;
-        } catch (error) {
-            console.error(`Error fetching members for group ${groupId}:`, error);
             throw error;
         }
     }
@@ -3409,7 +3567,6 @@ window.MilestoneManager = class MilestoneManager {
 }
 
 // File: lib/ui/managers/SettingsManager.js
-
 window.SettingsManager = class SettingsManager {
     
     constructor(options = {}) {
@@ -3441,7 +3598,7 @@ window.SettingsManager = class SettingsManager {
         modalOverlay.style.justifyContent = 'center';
         modalOverlay.style.alignItems = 'center';
         modalOverlay.style.cursor = 'pointer';
-
+        this.currentModal = modalOverlay;
         const modalContent = document.createElement('div');
         modalContent.style.backgroundColor = 'white';
         modalContent.style.borderRadius = '6px';
@@ -3534,14 +3691,11 @@ window.SettingsManager = class SettingsManager {
         };
         const closeModalButton = document.createElement('button');
         closeModalButton.textContent = 'Close';
-        closeModalButton.style.padding = '8px 16px';
-        closeModalButton.style.backgroundColor = '#28a745';
-        closeModalButton.style.color = 'white';
-        closeModalButton.style.border = 'none';
-        closeModalButton.style.borderRadius = '4px';
-        closeModalButton.style.cursor = 'pointer';
         closeModalButton.onclick = () => {
-            modalOverlay.remove();
+            if (this.currentModal) {
+                this.currentModal.remove();
+                this.currentModal = null;
+            }
         };
 
         buttonContainer.appendChild(resetButton);
@@ -4497,6 +4651,8 @@ window.SettingsManager = class SettingsManager {
     }
 
     
+    // lib/ui/managers/SettingsManager.js - createGeneralSettings function
+
     createGeneralSettings(container) {
         const generalSection = document.createElement('div');
 
@@ -4604,6 +4760,122 @@ window.SettingsManager = class SettingsManager {
 
         generalSection.appendChild(shortcutSection);
 
+        // Data Reset Section
+        const resetSection = document.createElement('div');
+        resetSection.style.marginTop = '20px';
+        resetSection.style.padding = '15px';
+        resetSection.style.backgroundColor = '#fff0f0'; // Light red background
+        resetSection.style.borderRadius = '4px';
+        resetSection.style.border = '1px solid #ffcccc';
+
+        const resetTitle = document.createElement('h5');
+        resetTitle.textContent = 'Data Management';
+        resetTitle.style.marginTop = '0';
+        resetTitle.style.marginBottom = '10px';
+        resetTitle.style.fontSize = '16px';
+        resetTitle.style.color = '#dc3545'; // Red text
+
+        const resetDescription = document.createElement('p');
+        resetDescription.textContent = 'Reset various data stored by GitLab Sprint Helper. Warning: These actions cannot be undone!';
+        resetDescription.style.marginBottom = '15px';
+        resetDescription.style.fontSize = '14px';
+        resetDescription.style.color = '#666';
+
+        const resetButtonsContainer = document.createElement('div');
+        resetButtonsContainer.style.display = 'flex';
+        resetButtonsContainer.style.gap = '10px';
+        resetButtonsContainer.style.flexWrap = 'wrap';
+
+// Data Reset Section in SettingsManager.js (createGeneralSettings function)
+
+// Reset All Data Button
+        const resetAllButton = document.createElement('button');
+        resetAllButton.textContent = 'Reset All Data';
+        resetAllButton.style.backgroundColor = '#dc3545';
+        resetAllButton.style.color = 'white';
+        resetAllButton.style.border = 'none';
+        resetAllButton.style.borderRadius = '4px';
+        resetAllButton.style.padding = '8px 16px';
+        resetAllButton.style.cursor = 'pointer';
+        resetAllButton.style.fontWeight = 'bold';
+        resetAllButton.addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset ALL data? This will remove all settings, history, and sprint data. This action cannot be undone!')) {
+                this.resetAllSettings();
+                // Additionally clear history
+                if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
+                    window.historyManager.clearAllHistory();
+                }
+                // Clear sprint state
+                localStorage.removeItem('gitLabHelperSprintState');
+                // Clear sprint history
+                localStorage.removeItem('gitLabHelperSprintHistory');
+
+                this.notification.success('All data has been reset');
+
+                // Find and close the modal if it exists
+                if (this.currentModal) {
+                    this.currentModal.remove();
+                    this.currentModal = null;
+                }
+            }
+        });
+
+// Reset History Button
+        const resetHistoryButton = document.createElement('button');
+        resetHistoryButton.textContent = 'Reset History';
+        resetHistoryButton.style.backgroundColor = '#dc3545';
+        resetHistoryButton.style.color = 'white';
+        resetHistoryButton.style.border = 'none';
+        resetHistoryButton.style.borderRadius = '4px';
+        resetHistoryButton.style.padding = '8px 16px';
+        resetHistoryButton.style.cursor = 'pointer';
+        resetHistoryButton.style.fontWeight = 'bold';
+        resetHistoryButton.addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset all history data? This action cannot be undone!')) {
+                if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
+                    window.historyManager.clearAllHistory();
+                    this.notification.success('History data has been reset');
+                } else {
+                    this.notification.error('History manager not available');
+                }
+            }
+        });
+
+// Reset Current Sprint Button
+        const resetSprintButton = document.createElement('button');
+        resetSprintButton.textContent = 'Reset Current Sprint';
+        resetSprintButton.style.backgroundColor = '#dc3545';
+        resetSprintButton.style.color = 'white';
+        resetSprintButton.style.border = 'none';
+        resetSprintButton.style.borderRadius = '4px';
+        resetSprintButton.style.padding = '8px 16px';
+        resetSprintButton.style.cursor = 'pointer';
+        resetSprintButton.style.fontWeight = 'bold';
+        resetSprintButton.addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset the current sprint data? This action cannot be undone!')) {
+                localStorage.removeItem('gitLabHelperSprintState');
+                this.notification.success('Current sprint data has been reset');
+
+                // Refresh the sprint tab if it's active
+                if (window.uiManager &&
+                    window.uiManager.tabManager &&
+                    window.uiManager.tabManager.currentTab === 'sprintmanagement' &&
+                    window.uiManager.sprintManagementView) {
+                    window.uiManager.sprintManagementView.render();
+                }
+            }
+        });
+
+        resetButtonsContainer.appendChild(resetAllButton);
+        resetButtonsContainer.appendChild(resetHistoryButton);
+        resetButtonsContainer.appendChild(resetSprintButton);
+
+        resetSection.appendChild(resetTitle);
+        resetSection.appendChild(resetDescription);
+        resetSection.appendChild(resetButtonsContainer);
+
+        generalSection.appendChild(resetSection);
+
         container.appendChild(generalSection);
     }
 
@@ -4614,7 +4886,14 @@ window.SummaryView = class SummaryView {
     
     constructor(uiManager) {
         this.uiManager = uiManager;
+        this.membersList = []; // Add this line to store members
+
+        // Try to get members from various sources
+        if (this.gitlabApi) {
+            this.fetchMembers();
+        }
     }
+
     
     addCopySummaryButton(container, assigneeTimeMap, totalTickets) {
         // Initialize notification if not already available
@@ -4730,10 +5009,23 @@ window.SummaryView = class SummaryView {
     // Modified render method in SummaryView.js
 // This is how you should update the existing render method
 
+    
     render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
         const summaryContent = document.getElementById('assignee-time-summary-content');
 
         if (!summaryContent) return;
+
+        // If we don't have members list yet, try to fetch them
+        if (!this.membersList.length && this.gitlabApi) {
+            this.fetchMembers().then(() => {
+                // Refresh the view if we now have member data
+                if (this.membersList.length) {
+                    // We don't need to re-render as the links will already be created,
+                    // but for future enhancements this could be useful
+                }
+            });
+        }
+
         summaryContent.innerHTML = '';
         this.uiManager.updateBoardStats({
             totalCards: cardsProcessed,
@@ -4842,6 +5134,8 @@ window.SummaryView = class SummaryView {
     }
 
     
+    // lib/ui/views/SummaryView.js - renderDataTableWithDistribution method
+
     renderDataTableWithDistribution(container, assigneeTimeMap, totalHours, boardData, boardAssigneeData) {
         const table = document.createElement('table');
         table.style.width = '100%';
@@ -4852,7 +5146,20 @@ window.SummaryView = class SummaryView {
         totalRow.style.fontWeight = 'bold';
 
         const totalLabelCell = document.createElement('td');
-        totalLabelCell.textContent = 'Total';
+        // Make Total clickable
+        const totalLink = document.createElement('a');
+        totalLink.textContent = 'Total';
+        totalLink.href = window.location.pathname + '?milestone_title=Started'; // Show all with current milestone
+        totalLink.style.color = '#1f75cb';
+        totalLink.style.textDecoration = 'none';
+        totalLink.style.cursor = 'pointer';
+        totalLink.addEventListener('mouseenter', () => {
+            totalLink.style.textDecoration = 'underline';
+        });
+        totalLink.addEventListener('mouseleave', () => {
+            totalLink.style.textDecoration = 'none';
+        });
+        totalLabelCell.appendChild(totalLink);
         totalLabelCell.style.padding = '5px 0';
 
         const totalValueCell = document.createElement('td');
@@ -4900,7 +5207,32 @@ window.SummaryView = class SummaryView {
             row.style.borderBottom = '1px solid #eee';
 
             const nameCell = document.createElement('td');
-            nameCell.textContent = name;
+            // Make assignee name clickable
+            const nameLink = document.createElement('a');
+
+            // Handle 'Unassigned' differently
+            if (name === 'Unassigned') {
+                // For Unassigned, we'll link to the board with no assignee filter
+                nameLink.href = window.location.pathname + '?milestone_title=Started';
+                nameLink.textContent = name;
+            } else {
+                // For named assignees, add their username as a filter
+                // We need to get the username based on the display name
+                const username = this.getAssigneeUsername(name);
+                nameLink.href = window.location.pathname + '?milestone_title=Started&assignee_username=' + username;
+                nameLink.textContent = name;
+            }
+
+            nameLink.style.color = '#1f75cb';
+            nameLink.style.textDecoration = 'none';
+            nameLink.style.cursor = 'pointer';
+            nameLink.addEventListener('mouseenter', () => {
+                nameLink.style.textDecoration = 'underline';
+            });
+            nameLink.addEventListener('mouseleave', () => {
+                nameLink.style.textDecoration = 'none';
+            });
+            nameCell.appendChild(nameLink);
             nameCell.style.padding = '5px 0';
 
             const timeCell = document.createElement('td');
@@ -4943,6 +5275,102 @@ window.SummaryView = class SummaryView {
 
         container.appendChild(table);
     }
+    loadMembersList() {
+        this.membersList =  this.uiManager.assigneeManager.fetchCurrentUser();
+    }
+    
+    getAssigneeUsername(displayName) {
+        // If we have members from the API, check them first (most accurate)
+        if (this.membersList && this.membersList.length > 0) {
+            const member = this.membersList.find(m => m.name === displayName);
+            if (member && member.username) {
+                return member.username;
+            }
+        }
+
+        // If members list is empty or the name wasn't found, try to fetch members
+        if (!this.membersList.length) {
+            // We'll need to rely on fallbacks since fetchMembers is async
+            console.log('Member list not available, using fallback methods for username lookup');
+        }
+
+        // Try to find the username in the assignee whitelist if not found in members
+        if (this.uiManager && this.uiManager.assigneeManager) {
+            const whitelist = this.uiManager.assigneeManager.getAssigneeWhitelist();
+            if (whitelist && whitelist.length) {
+                const assignee = whitelist.find(a => a.name === displayName);
+                if (assignee && assignee.username) {
+                    return assignee.username;
+                }
+            }
+        }
+
+        // Check if the name itself is a valid username (sometimes this happens)
+        if (displayName && displayName.indexOf(' ') === -1 && /^[a-z0-9._-]+$/i.test(displayName)) {
+            return displayName.toLowerCase();
+        }
+
+        // If we still don't have a username, sanitize the display name as a fallback
+        // Remove spaces and special characters to create a username-like string
+        return displayName.toLowerCase()
+            .replace(/\s+/g, '.')
+            .replace(/[^a-z0-9._-]/g, '');
+    }
+
+    
+    async fetchMembers() {
+        try {
+            if (!this.gitlabApi) {
+                this.gitlabApi = window.gitlabApi;
+                if (!this.gitlabApi) {
+                    console.warn('GitLab API not available for fetching members');
+                    return [];
+                }
+            }
+
+            const pathInfo = getPathFromUrl();
+            if (!pathInfo) {
+                console.warn('Could not determine project/group path');
+                return [];
+            }
+
+            let endpoint;
+            if (pathInfo.type === 'project') {
+                endpoint = `projects/${pathInfo.encodedPath}/members`;
+            } else if (pathInfo.type === 'group') {
+                endpoint = `groups/${pathInfo.encodedPath}/members`;
+            } else {
+                console.warn('Unsupported path type:', pathInfo.type);
+                return [];
+            }
+
+            // Use cached API call to avoid redundant requests
+            const members = await this.gitlabApi.callGitLabApiWithCache(
+                endpoint,
+                {params: {per_page: 100}}
+            );
+
+            if (!Array.isArray(members)) {
+                console.warn('API did not return an array of members');
+                return [];
+            }
+
+            this.membersList = members.map(member => ({
+                id: member.id,
+                name: member.name,
+                username: member.username,
+                avatar_url: member.avatar_url
+            }));
+
+            console.log(`Fetched ${this.membersList.length} members for username lookup`);
+            return this.membersList;
+        } catch (error) {
+            console.error('Error fetching members for username lookup:', error);
+            return [];
+        }
+    }
+
+    
 }
 
 // File: lib/ui/views/BoardsView.js
@@ -5118,6 +5546,8 @@ window.BoardsView = class BoardsView {
 
 // File: lib/ui/views/SprintManagementView.js
 
+
+
 window.SprintManagementView = class SprintManagementView {
     
     constructor(uiManager) {
@@ -5213,7 +5643,9 @@ window.SprintManagementView = class SprintManagementView {
         stepsContainer.style.borderRadius = '6px';
         stepsContainer.style.border = '1px solid #dee2e6';
         stepsContainer.style.margin = '10px 10px 0';
-        // Step 1: End Sprint Button
+        // lib/ui/views/SprintManagementView.js - renderStepsContainer function (replace it)
+
+// Step 1: End Sprint Button
         this.createStepButton(
             stepsContainer,
             '1. End Sprint',
@@ -5222,7 +5654,7 @@ window.SprintManagementView = class SprintManagementView {
             !this.sprintState.endSprint  // Only enabled if step not completed
         );
 
-        // Step 2: Prepare for Next Sprint Button (renamed from Set Sprint Survivors)
+// Step 2: Prepare for Next Sprint Button (renamed from Set Sprint Survivors)
         this.createStepButton(
             stepsContainer,
             '2. Ready for next Sprint',
@@ -5231,7 +5663,7 @@ window.SprintManagementView = class SprintManagementView {
             this.sprintState.endSprint && !this.sprintState.preparedForNext  // Only enabled if step 1 is done but step 2 is not
         );
 
-        // Step 4: Copy Sprint Data Button
+// Step 3: Copy Sprint Data Button (changed from 4 to 3)
         this.createStepButton(
             stepsContainer,
             '3. Copy Sprint Data Summary',
@@ -5240,7 +5672,7 @@ window.SprintManagementView = class SprintManagementView {
             this.sprintState.preparedForNext  // Only enabled if steps 1 and 2 are done
         );
 
-        // Step 3: Copy Closed Issues Button
+// Step 4: Copy Closed Issues Button (changed from 3 to 4)
         this.createStepButton(
             stepsContainer,
             '4. Copy Closed Issue Names',
@@ -5249,28 +5681,15 @@ window.SprintManagementView = class SprintManagementView {
             this.sprintState.preparedForNext  // Only enabled if steps 1 and 2 are done
         );
 
-// Utility buttons
+// Utility buttons - only keep Edit Data, remove reset
         const utilityContainer = document.createElement('div');
         utilityContainer.style.display = 'flex';
-        utilityContainer.style.justifyContent = 'space-between';
+        utilityContainer.style.justifyContent = 'flex-end'; // Changed to flex-end since we only have one button
         utilityContainer.style.marginTop = '10px';
-
-// Reset Sprint Button (always enabled)
-        const resetButton = document.createElement('button');
-        resetButton.textContent = '5. Reset Sprint';
-        resetButton.className = 'reset-sprint-button';
-        resetButton.style.padding = '10px 16px';
-        resetButton.style.backgroundColor = '#dc3545';
-        resetButton.style.color = 'white';
-        resetButton.style.border = 'none';
-        resetButton.style.borderRadius = '4px';
-        resetButton.style.cursor = 'pointer';
-        resetButton.style.fontWeight = 'bold';
-        resetButton.addEventListener('click', () => this.resetSprint());
 
 // Edit Data Button (only enabled if step 1 is done)
         const editButton = document.createElement('button');
-        editButton.textContent = '6. Edit Data';
+        editButton.textContent = 'Edit Data'; // Removed the "6." prefix
         editButton.className = 'edit-sprint-data-button';
         editButton.style.padding = '10px 16px';
 
@@ -5289,7 +5708,6 @@ window.SprintManagementView = class SprintManagementView {
             editButton.addEventListener('click', () => this.editSprintData());
         }
 
-        utilityContainer.appendChild(resetButton);
         utilityContainer.appendChild(editButton);
         stepsContainer.appendChild(utilityContainer);
 
@@ -5826,38 +6244,6 @@ window.SprintManagementView = class SprintManagementView {
         }
     }
 
-// Method to reset the sprint state
-    resetSprint() {
-        if (confirm('Are you sure you want to reset all sprint data? This cannot be undone.')) {
-            // Archive the sprint first if it was ended but not prepared
-            if (this.sprintState.endSprint && !this.sprintState.preparedForNext) {
-                this.archiveCompletedSprint();
-            }
-
-            // Get the current sprint ID if it exists
-            const currentSprintId = this.sprintState.id;
-
-            // Reset the state
-            this.sprintState = {
-                endSprint: false,
-                preparedForNext: false,  // Renamed from survivorsSet
-                currentMilestone: null,
-                userPerformance: {}
-            };
-
-            // If we had an ID, remove that sprint from history
-            if (currentSprintId && this.sprintHistory.length > 0) {
-                this.sprintHistory = this.sprintHistory.filter(sprint => sprint.id !== currentSprintId);
-                this.saveSprintHistory();
-            }
-
-            this.saveSprintState();
-            this.notification.info('Sprint data has been reset.');
-            this.render();
-        }
-    }
-
-// Method to edit sprint data manually
     editSprintData() {
         try {
             const formHTML = `
@@ -6520,6 +6906,7 @@ window.BulkCommentsView = class BulkCommentsView {
             position: 'bottom-right',
             duration: 3000
         });
+        this.fetchedMembers = [];
         if (uiManager && uiManager.labelManager) {
             this.labelManager = uiManager.labelManager;
         } else if (typeof LabelManager === 'function') {
@@ -6844,6 +7231,9 @@ window.BulkCommentsView = class BulkCommentsView {
 
 
     
+
+// lib/ui/views/BulkCommentsView.js - fetchGroupMembers method
+
     async fetchGroupMembers() {
         try {
             if (!this.gitlabApi) {
@@ -6860,12 +7250,12 @@ window.BulkCommentsView = class BulkCommentsView {
             }
             let members;
             if (pathInfo.type === 'project') {
-                members = await this.gitlabApi.callGitLabApi(
+                members = await this.gitlabApi.callGitLabApiWithCache(
                     `projects/${pathInfo.encodedPath}/members`,
                     {params: {per_page: 100}}
                 );
             } else if (pathInfo.type === 'group') {
-                members = await this.gitlabApi.callGitLabApi(
+                members = await this.gitlabApi.callGitLabApiWithCache(
                     `groups/${pathInfo.encodedPath}/members`,
                     {params: {per_page: 100}}
                 );
@@ -6877,12 +7267,16 @@ window.BulkCommentsView = class BulkCommentsView {
                 console.warn('API did not return an array of members');
                 return [];
             }
-            return members.map(member => ({
+
+            // Store the fetched members in a class property so other components can access it
+            this.fetchedMembers = members.map(member => ({
                 id: member.id,
                 name: member.name,
                 username: member.username,
                 avatar_url: member.avatar_url
             }));
+
+            return this.fetchedMembers;
         } catch (error) {
             console.error('Error fetching group members:', error);
             return [];
@@ -7652,7 +8046,73 @@ window.BulkCommentsView = class BulkCommentsView {
     }
 }
 
+// File: lib/ui/views/StatsView.js
+
+window.StatsView = class StatsView {
+    
+    constructor(uiManager) {
+        this.uiManager = uiManager;
+        this.notification = null;
+        try {
+            // Import Notification if available
+            if (typeof Notification === 'function') {
+                this.notification = new Notification({
+                    position: 'bottom-right',
+                    duration: 3000
+                });
+            }
+        } catch (e) {
+            console.error('Error initializing notification:', e);
+        }
+    }
+
+    
+    render() {
+        const statsContent = document.getElementById('stats-content');
+        if (!statsContent) return;
+
+        statsContent.innerHTML = '';
+
+        // Create a coming soon message
+        const comingSoonContainer = document.createElement('div');
+        comingSoonContainer.style.display = 'flex';
+        comingSoonContainer.style.flexDirection = 'column';
+        comingSoonContainer.style.alignItems = 'center';
+        comingSoonContainer.style.justifyContent = 'center';
+        comingSoonContainer.style.height = '100%';
+        comingSoonContainer.style.padding = '40px 20px';
+        comingSoonContainer.style.textAlign = 'center';
+
+        const soonIcon = document.createElement('div');
+        soonIcon.innerHTML = '🔍';
+        soonIcon.style.fontSize = '48px';
+        soonIcon.style.marginBottom = '20px';
+
+        const soonTitle = document.createElement('h3');
+        soonTitle.textContent = 'Statistics Coming Soon';
+        soonTitle.style.marginBottom = '15px';
+        soonTitle.style.color = '#1f75cb';
+
+        const soonDesc = document.createElement('p');
+        soonDesc.textContent = 'Detailed team and individual performance statistics will be available here soon.';
+        soonDesc.style.color = '#666';
+        soonDesc.style.maxWidth = '500px';
+
+        comingSoonContainer.appendChild(soonIcon);
+        comingSoonContainer.appendChild(soonTitle);
+        comingSoonContainer.appendChild(soonDesc);
+
+        statsContent.appendChild(comingSoonContainer);
+
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+            this.uiManager.removeLoadingScreen('stats-tab');
+        }
+    }
+}
+
 // File: lib/ui/UIManager.js
+// lib/ui/UIManager.js - import section at the top
+
 window.UIManager = class UIManager {
     constructor() {
         this.gitlabApi = window.gitlabApi;
@@ -7669,6 +8129,7 @@ window.UIManager = class UIManager {
         this.boardsView = new BoardsView(this);
         this.bulkCommentsView = new BulkCommentsView(this);
         this.sprintManagementView = new SprintManagementView(this);
+        this.statsView = new StatsView(this); // Add with proper newline before it!
         this.issueSelector = new IssueSelector({
             uiManager: this,
             onSelectionChange: (selectedIssues) => {
@@ -7677,7 +8138,6 @@ window.UIManager = class UIManager {
                 }
             }
         });
-
     }
 
     
@@ -7899,7 +8359,7 @@ window.UIManager = class UIManager {
     
     updateBoardStats(stats) {
         if (!this.boardStats) return;
-        const totalCards = stats?.totalCards || a0;
+        const totalCards = stats?.totalCards || 0;
         const withTimeCards = stats?.withTimeCards || 0;
         const closedCards = stats?.closedCards || 0;
 
@@ -8142,7 +8602,6 @@ window.UIManager = class UIManager {
             // Add global keyboard listener
             document.addEventListener('keydown', this.keyboardHandler);
 
-            console.log(`Initialized keyboard shortcuts: toggle with '${this.toggleShortcut}'`);
         } catch (error) {
             console.error('Error initializing keyboard shortcuts:', error);
         }
@@ -8338,6 +8797,8 @@ setTimeout(() => {
 }, 2000); // Wait 2 seconds to ensure all elements are loaded
 
 // File: lib/index.js
+// lib/index.js - import section at the top
+
 function createUIManager(attachmentElement = document.body) {
     if (!window.gitlabApi) {
         try {
@@ -8383,6 +8844,8 @@ function createUIManager(attachmentElement = document.body) {
 let isInitialized = false;
 
 
+// lib/index.js - checkAndInit function
+
 function checkAndInit() {
     if (isInitialized) {
         return;
@@ -8392,12 +8855,32 @@ function checkAndInit() {
         waitForBoardsElement()
             .then(boardsElement => {
                 const uiManager = createUIManager(boardsElement);
+
+                // Initialize history manager
+                if (!window.historyManager) {
+                    try {
+                        window.historyManager = new HistoryManager();
+                    } catch (e) {
+                        console.error('Error initializing HistoryManager:', e);
+                    }
+                }
+
                 isInitialized = true;
                 waitForBoards();
             })
             .catch(error => {
                 console.error('Error initializing UI:', error);
                 const uiManager = createUIManager(document.body);
+
+                // Initialize history manager even if there was an error
+                if (!window.historyManager) {
+                    try {
+                        window.historyManager = new HistoryManager();
+                    } catch (e) {
+                        console.error('Error initializing HistoryManager:', e);
+                    }
+                }
+
                 isInitialized = true;
                 waitForBoards();
             });
@@ -8625,7 +9108,6 @@ try {
     console.error('Error setting up URL observer:', e);
 }
 
-window.gitlabApi = window.gitlabApi || new GitLabAPI();
 window.updateSummary = updateSummary;
 window.checkAndInit = checkAndInit;
 window.waitForBoards = waitForBoards;
