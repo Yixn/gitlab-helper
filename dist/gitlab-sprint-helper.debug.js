@@ -4367,48 +4367,6 @@ window.SummaryView = class SummaryView {
       this.uiManager.removeLoadingScreen('summary-tab');
     }
   }
-  findPotentialAssignees(currentAssigneeMap) {
-    this.potentialAssignees = [];
-    try {
-      const currentAssigneeSet = new Set();
-      if (currentAssigneeMap) {
-        Object.keys(currentAssigneeMap).forEach(name => {
-          currentAssigneeSet.add(name.toLowerCase());
-        });
-      }
-      let allPotentialAssignees = [];
-      const whitelistedAssignees = this.getWhitelistedAssignees();
-      if (whitelistedAssignees && whitelistedAssignees.length) {
-        allPotentialAssignees = [...allPotentialAssignees, ...whitelistedAssignees];
-      }
-      if (this.membersList && this.membersList.length) {
-        allPotentialAssignees = [...allPotentialAssignees, ...this.membersList];
-      }
-      const historyAssignees = this.getHistoryAssignees();
-      if (historyAssignees && historyAssignees.length) {
-        allPotentialAssignees = [...allPotentialAssignees, ...historyAssignees];
-      }
-      const potentialAssigneeMap = new Map();
-      allPotentialAssignees.forEach(assignee => {
-        if (!assignee || !assignee.name && !assignee.username) return;
-        const name = assignee.name || assignee.username;
-        if (currentAssigneeSet.has(name.toLowerCase())) return;
-        const key = name.toLowerCase();
-        if (potentialAssigneeMap.has(key)) {
-          const existing = potentialAssigneeMap.get(key);
-          if (assignee.stats && !existing.stats) {
-            potentialAssigneeMap.set(key, assignee);
-          }
-        } else {
-          potentialAssigneeMap.set(key, assignee);
-        }
-      });
-      this.potentialAssignees = Array.from(potentialAssigneeMap.values());
-    } catch (error) {
-      console.error('Error finding potential assignees:', error);
-      this.potentialAssignees = [];
-    }
-  }
   getWhitelistedAssignees() {
     let whitelist = [];
     try {
@@ -4661,7 +4619,7 @@ window.SummaryView = class SummaryView {
         const name = member.name || member.username;
         if (!name) return;
         const hours = member.stats ? `${member.stats.totalHours}h` : '0h';
-        this.addAssigneeRow(table, name, hours, boardNames, {}, true, member.boardAssigneeData);
+        this.addAssigneeRow(table, name, hours, boardNames, {}, true, member, member.boardAssigneeData);
       });
     }
     if (otherTeamMembers.length > 0) {
@@ -4689,8 +4647,10 @@ window.SummaryView = class SummaryView {
     }
     container.appendChild(table);
   }
-  addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null) {
+  addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
     if (!name) name = "Unknown User";
+
+
     const row = document.createElement('tr');
     row.style.borderBottom = '1px solid #eee';
     if (isPotential) {
@@ -4714,6 +4674,7 @@ window.SummaryView = class SummaryView {
       avatar_url = member.avatar_url;
     } else if (historyStats && historyStats.avatar_url) {
       avatar_url = historyStats.avatar_url;
+
     }
     if (avatar_url) {
       const img = document.createElement('img');
@@ -4743,7 +4704,6 @@ window.SummaryView = class SummaryView {
       username = member.username;
     } else if (historyStats && historyStats.username) {
       username = historyStats.username;
-      username += "?";
     } else {
       username = this.getUsernameFromName(name);
     }
@@ -4752,7 +4712,7 @@ window.SummaryView = class SummaryView {
     } else {
       nameLink.href = window.location.pathname + '?milestone_title=Started';
     }
-    nameLink.textContent = name;
+    nameLink.textContent = name + (Object.keys(boardAssigneeData).length == 0 ? " ?" : "");
     nameLink.title = username ? `@${username}` : name;
     nameLink.style.color = '#1f75cb';
     nameLink.style.textDecoration = 'none';
@@ -4799,9 +4759,9 @@ window.SummaryView = class SummaryView {
         return spanHTML;
       }).join('/');
       distributionCell.innerHTML = distributionText;
-    } else if (historyStats) {
+    } else if (historyboardAssigneeData) {
       const distributionValues = boardNames.map(boardName => {
-        const boardAssignees = historyStats[boardName] || {};
+        const boardAssignees = historyboardAssigneeData[boardName] || {};
         const assigneeInBoard = boardAssignees[name] || {
           timeEstimate: 0
         };
@@ -4864,34 +4824,6 @@ window.SummaryView = class SummaryView {
       console.error('Error loading members list:', error);
       this.membersList = [];
     }
-  }
-  getAssigneeUsername(displayName) {
-    if (!displayName) return '';
-    if (displayName === 'Unassigned') return 'none';
-    const cleanName = displayName.split(' (')[0].trim();
-    if (this.membersList && this.membersList.length > 0) {
-      const exactMatch = this.membersList.find(m => m.name === cleanName || m.username === cleanName);
-      if (exactMatch && exactMatch.username) {
-        return exactMatch.username;
-      }
-      const caseInsensitiveMatch = this.membersList.find(m => m.name && m.name.toLowerCase() === cleanName.toLowerCase() || m.username && m.username.toLowerCase() === cleanName.toLowerCase());
-      if (caseInsensitiveMatch && caseInsensitiveMatch.username) {
-        return caseInsensitiveMatch.username;
-      }
-    }
-    if (!this.membersList || this.membersList.length === 0) {
-      this.loadMembersList();
-      if (this.membersList && this.membersList.length > 0) {
-        const member = this.membersList.find(m => m.name === cleanName || m.username === cleanName || m.name && m.name.toLowerCase() === cleanName.toLowerCase() || m.username && m.username.toLowerCase() === cleanName.toLowerCase());
-        if (member && member.username) {
-          return member.username;
-        }
-      }
-    }
-    if (cleanName && cleanName.indexOf(' ') === -1 && /^[a-z0-9._-]+$/i.test(cleanName)) {
-      return cleanName.toLowerCase();
-    }
-    return cleanName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
   }
   async fetchMembers() {
     try {
