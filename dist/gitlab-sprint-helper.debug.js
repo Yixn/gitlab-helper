@@ -270,7 +270,6 @@ window.GitLabAPI = GitLabAPI;
 window.gitlabApi = window.gitlabApi || new GitLabAPI();
 
 // File: lib/core/DataProcessor.js
-// lib/core/DataProcessor.js - processBoards function
 window.processBoards = function processBoards() {
     const assigneeTimeMap = {};
     const boardData = {};
@@ -282,6 +281,10 @@ window.processBoards = function processBoards() {
     let closedBoardCards = 0;
     // Initialize userDistributionMap here at the top level
     const userDistributionMap = {};
+    // Create a map to store user data including usernames
+    const userDataMap = {};
+
+
 
     const boardLists = document.querySelectorAll('.board-list');
 
@@ -365,11 +368,22 @@ window.processBoards = function processBoards() {
                             } else if (props.item.assignees && props.item.assignees.length > 0) {
                                 assignees = props.item.assignees;
                             }
-
                             if (assignees.length > 0) {
                                 assignees.forEach(assignee => {
                                     const assigneeShare = timeEstimate / assignees.length;
                                     const name = assignee.name;
+                                    const username = assignee.username || '';
+                                    // Store user data with username
+                                    if (!userDataMap[name]) {
+                                        userDataMap[name] = {
+                                            name: name,
+                                            username: username,
+                                            avatar_url: assignee.avatarUrl || '',
+                                            timeEstimate: 0
+                                        };
+                                    }
+                                    userDataMap[name].timeEstimate += assigneeShare;
+
 
                                     // Initialize user distribution map if needed
                                     if (!userDistributionMap[name]) {
@@ -460,7 +474,10 @@ window.processBoards = function processBoards() {
             distribution: orderedBoards.map(board => {
                 const timeInSeconds = userDistributionMap[name][board] || 0;
                 return Math.round(formatHours(timeInSeconds));
-            })
+            }),
+            // Add username and avatar if available
+            username: userDataMap[name]?.username || '',
+            avatar_url: userDataMap[name]?.avatar_url || ''
         };
     });
 
@@ -475,7 +492,8 @@ window.processBoards = function processBoards() {
                 cardsWithTime,
                 currentMilestone,
                 closedBoardCards,
-                userDistributions: formattedUserDistributions // Add this to history
+                userDistributions: formattedUserDistributions, // Add this to history
+                userData: userDataMap // Add user data to history
             });
         }
     } catch (e) {
@@ -491,7 +509,8 @@ window.processBoards = function processBoards() {
         cardsWithTime,
         currentMilestone,
         closedBoardCards,
-        userDistributions: formattedUserDistributions // Also return it
+        userDistributions: formattedUserDistributions, // Also return it
+        userData: userDataMap // Return user data
     };
 }
 
@@ -534,15 +553,35 @@ window.HistoryManager = class HistoryManager {
                 history[boardKey] = {};
             }
 
-            // Make sure we preserve the userDistributions data
+            // Extract user data components
             const userPerformance = data.userPerformance || {};
             const userDistributions = data.userDistributions || {};
+            const userData = data.userData || {};
+            const boardAssigneeData = data.boardAssigneeData || {};
 
             // If we have both user performance and distributions, merge them
             if (Object.keys(userPerformance).length > 0 && Object.keys(userDistributions).length > 0) {
-                Object.keys(userPerformance).forEach(name => {
+                Object.entries(userPerformance).forEach(([name, performanceData]) => {
                     if (userDistributions[name]) {
                         userPerformance[name].distribution = userDistributions[name].distribution;
+
+                        // Add username and avatar if available in userDistributions
+                        if (userDistributions[name].username) {
+                            userPerformance[name].username = userDistributions[name].username;
+                        }
+                        if (userDistributions[name].avatar_url) {
+                            userPerformance[name].avatar_url = userDistributions[name].avatar_url;
+                        }
+                    }
+
+                    // Also check userData for any additional user data
+                    if (userData[name]) {
+                        if (!userPerformance[name].username && userData[name].username) {
+                            userPerformance[name].username = userData[name].username;
+                        }
+                        if (!userPerformance[name].avatar_url && userData[name].avatar_url) {
+                            userPerformance[name].avatar_url = userData[name].avatar_url;
+                        }
                     }
                 });
             }
@@ -551,7 +590,9 @@ window.HistoryManager = class HistoryManager {
             history[boardKey][today] = {
                 ...data,
                 userDistributions: userDistributions, // Ensure this is saved
-                timestamp: new Date().toISOString()
+                userData: userData, // Save the user data
+                timestamp: new Date().toISOString(),
+                boardAssigneeData: boardAssigneeData
             };
 
             // Save back to localStorage
@@ -4961,6 +5002,7 @@ window.SummaryView = class SummaryView {
         this.uiManager = uiManager;
         this.membersList = []; // Store members
         this.potentialAssignees = []; // Store potential assignees that aren't on the current board
+        this.gitlabApi = uiManager?.gitlabApi || window.gitlabApi;
 
         // Try to get members from various sources
         if (this.gitlabApi) {
@@ -5260,81 +5302,47 @@ window.SummaryView = class SummaryView {
         let historyAssignees = [];
 
         try {
-            // First try sprint history (more detailed)
-            const sprintHistoryStr = localStorage.getItem('gitLabHelperSprintHistory');
-            let foundSprintHistory = false;
-
-            if (sprintHistoryStr) {
-                const sprintHistory = JSON.parse(sprintHistoryStr);
-
-                if (Array.isArray(sprintHistory) && sprintHistory.length > 0) {
-                    // Get the most recent sprint entry
-                    const latestSprint = sprintHistory[0];
-
-                    if (latestSprint && latestSprint.userPerformance) {
-                        // Convert to array of assignees with stats
-                        historyAssignees = Object.entries(latestSprint.userPerformance).map(([name, data]) => {
-                            const historyData = {
-                                name: name,
-                                username: this.getUsernameFromName(name),
-                                stats: {
-                                    totalTickets: data.totalTickets || 0,
-                                    closedTickets: data.closedTickets || 0,
-                                    totalHours: data.totalHours || 0,
-                                    closedHours: data.closedHours || 0,
-                                    fromHistory: true
-                                }
-                            };
-
-                            // Add distribution data if available
-                            if (latestSprint.userDistributions &&
-                                latestSprint.userDistributions[name] &&
-                                latestSprint.userDistributions[name].distribution) {
-                                historyData.stats.distribution = latestSprint.userDistributions[name].distribution;
-                            }
-
-                            return historyData;
-                        });
-
-                        foundSprintHistory = true;
-                        console.log(`Found ${historyAssignees.length} assignees in sprint history`);
-                    }
-                }
-            }
-
             // If no sprint history, try general history
-            if (!foundSprintHistory) {
-                const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
 
-                if (generalHistoryStr) {
-                    const generalHistory = JSON.parse(generalHistoryStr);
+            const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
 
-                    // Find most recent history entry for current board
-                    const boardKey = this.getBoardKey();
-                    if (generalHistory[boardKey]) {
-                        const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
+            if (generalHistoryStr) {
+                const generalHistory = JSON.parse(generalHistoryStr);
 
-                        if (dates.length > 0) {
-                            const latestEntry = generalHistory[boardKey][dates[0]];
+                // Find most recent history entry for current board
+                const boardKey = "2478181?milestone_title=Started";
+                if (generalHistory[boardKey]) {
+                    const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
 
-                            if (latestEntry && latestEntry.assigneeTimeMap) {
-                                // Convert general history to assignee format
-                                const additionalAssignees = Object.entries(latestEntry.assigneeTimeMap)
-                                    .map(([name, timeEstimate]) => {
-                                        return {
-                                            name: name,
-                                            username: this.getUsernameFromName(name),
-                                            stats: {
-                                                totalHours: formatHours(timeEstimate),
-                                                closedHours: 0, // We don't know this from general history
-                                                fromHistory: true
-                                            }
-                                        };
-                                    });
+                    if (dates.length > 0) {
+                        const latestEntry = generalHistory[boardKey][dates[0]];
 
-                                console.log(`Found ${additionalAssignees.length} assignees in general history`);
-                                historyAssignees = [...historyAssignees, ...additionalAssignees];
-                            }
+                        if (latestEntry && latestEntry.assigneeTimeMap) {
+                            // Get userData from history if available
+                            const userData = latestEntry.userData || {};
+                            // Convert general history to assignee format
+                            const additionalAssignees = Object.entries(latestEntry.assigneeTimeMap)
+                                .map(([name, timeEstimate]) => {
+                                    // Get username from userData if available
+                                    const username = userData[name]?.username || this.getUsernameFromName(name);
+                                    const avatar_url = userData[name]?.avatar_url || '';
+
+                                    return {
+                                        name: name,
+                                        username: username,
+                                        avatar_url: avatar_url,
+                                        stats: {
+                                            totalHours: formatHours(timeEstimate),
+                                            closedHours: 0, // We don't know this from general history
+                                            fromHistory: true
+                                        },
+                                        userDistribution: latestEntry.userDistributions[name].distribution,
+                                        boardAssigneeData: latestEntry.boardAssigneeData
+                                    };
+                                });
+
+                            console.log(`Found ${additionalAssignees.length} assignees in general history`);
+                            historyAssignees = [...historyAssignees, ...additionalAssignees];
                         }
                     }
                 }
@@ -5496,7 +5504,7 @@ window.SummaryView = class SummaryView {
 
         if (boardNames.length > 0 && boardData) {
             const distributionValues = boardNames.map(boardName => {
-                const boardDataObj = boardData[boardName] || { timeEstimate: 0 };
+                const boardDataObj = boardData[boardName] || {timeEstimate: 0};
                 const hoursFloat = parseFloat(formatHours(boardDataObj.timeEstimate || 0));
                 return Math.round(hoursFloat); // Round to integer
             });
@@ -5528,53 +5536,111 @@ window.SummaryView = class SummaryView {
         const sortedAssignees = Object.keys(assigneeTimeMap || {}).sort((a, b) => {
             return (assigneeTimeMap[b] || 0) - (assigneeTimeMap[a] || 0);
         });
-
         sortedAssignees.forEach(name => {
             if (!name) return;
-
             const hours = formatHours(assigneeTimeMap[name] || 0);
-            this.addAssigneeRow(table, name, hours, boardNames, boardAssigneeData);
-
+            this.addAssigneeRow(table, name, `${hours}h`, boardNames, boardAssigneeData);
             // Remember this assignee is already shown
             currentAssigneeSet.add(name.toLowerCase());
         });
+// After adding current assignees, before adding other members:
 
-        // STEP 2: Find other members who have access to this board but aren't currently assigned
+// STEP 2: Get historical assignees that aren't currently shown
+        const historyAssignees = this.getHistoryAssignees();
+        const historicalMembers = [];
+
+        if (historyAssignees && historyAssignees.length > 0) {
+            historyAssignees.forEach(assignee => {
+                if (!assignee || !assignee.name) return;
+
+                // Skip if this person is already in current assignees
+                const assigneeName = assignee.name.toLowerCase();
+                if (currentAssigneeSet.has(assigneeName)) return;
+
+                // Save for inclusion in the table
+                historicalMembers.push(assignee);
+            });
+        }
+
+// STEP 3: Find other members who have access to this board but aren't currently assigned
+        const otherTeamMembers = [];
         if (this.membersList && this.membersList.length > 0) {
-            const otherMembers = this.membersList.filter(member => {
-                if (!member) return false;
+            this.membersList.forEach(member => {
+                if (!member) return;
 
                 const name = member.name || member.username;
-                if (!name) return false;
+                if (!name) return;
 
-                return !currentAssigneeSet.has(name.toLowerCase());
+                // Skip if this person is already in current assignees or historical members
+                const lowerName = name.toLowerCase();
+                if (currentAssigneeSet.has(lowerName)) return;
+                if (historicalMembers.some(h => (h.name || '').toLowerCase() === lowerName ||
+                    (h.username || '').toLowerCase() === lowerName)) {
+                    return;
+                }
+
+                // Add to other team members
+                otherTeamMembers.push(member);
+            });
+        }
+
+// STEP 4: Render historical members section if we have any
+        if (historicalMembers.length > 0) {
+            const separatorRow = document.createElement('tr');
+            const separatorCell = document.createElement('td');
+            separatorCell.colSpan = 3;
+            separatorCell.style.padding = '10px 0 5px 32px'; // Align with avatars
+            separatorCell.style.fontSize = '12px';
+            separatorCell.style.color = '#666';
+            separatorCell.style.fontStyle = 'italic';
+            separatorCell.style.borderTop = '1px solid #eee';
+            separatorCell.textContent = 'Previously Active Members:';
+            separatorRow.appendChild(separatorCell);
+            table.appendChild(separatorRow);
+            // Sort historical members by their last known hours (descending)
+            historicalMembers.sort((a, b) => {
+                const aHours = a.stats?.totalHours || 0;
+                const bHours = b.stats?.totalHours || 0;
+                return bHours - aHours;
+            });
+            historicalMembers.forEach(member => {
+                const name = member.name || member.username;
+                if (!name) return;
+
+                // Display with historical stats
+                const hours = member.stats ? `${member.stats.totalHours}h` : '0h';
+                this.addAssigneeRow(table, name, hours, boardNames, {}, true, member.boardAssigneeData);
+            });
+        }
+
+// STEP 5: Render other team members section if we have any
+        if (otherTeamMembers.length > 0) {
+            const separatorRow = document.createElement('tr');
+            const separatorCell = document.createElement('td');
+            separatorCell.colSpan = 3;
+            separatorCell.style.padding = '10px 0 5px 32px'; // Align with avatars
+            separatorCell.style.fontSize = '12px';
+            separatorCell.style.color = '#666';
+            separatorCell.style.fontStyle = 'italic';
+            separatorCell.style.borderTop = '1px solid #eee';
+            separatorCell.textContent = 'Other Team Members:';
+            separatorRow.appendChild(separatorCell);
+            table.appendChild(separatorRow);
+
+            // Sort other members alphabetically
+            otherTeamMembers.sort((a, b) => {
+                const aName = (a.name || a.username || '').toLowerCase();
+                const bName = (b.name || b.username || '').toLowerCase();
+                return aName.localeCompare(bName);
             });
 
-            if (otherMembers.length > 0) {
-                const separatorRow = document.createElement('tr');
-                const separatorCell = document.createElement('td');
-                separatorCell.colSpan = 3;
-                separatorCell.style.padding = '10px 0 5px 32px'; // Align with avatars
-                separatorCell.style.fontSize = '12px';
-                separatorCell.style.color = '#666';
-                separatorCell.style.fontStyle = 'italic';
-                separatorCell.textContent = 'Other Team Members:';
-                separatorRow.appendChild(separatorCell);
-                table.appendChild(separatorRow);
+            otherTeamMembers.forEach(member => {
+                const name = member.name || member.username;
+                if (!name) return;
 
-                // STEP 3: Add other members with board access
-                otherMembers.forEach(member => {
-                    const name = member.name || member.username;
-                    if (!name) return;
-
-                    // Display with historical data if available
-                    if (member.stats) {
-                        this.addAssigneeRow(table, name, '0h', boardNames, {}, true, member.stats);
-                    } else {
-                        this.addAssigneeRow(table, name, '0h', boardNames, {}, true);
-                    }
-                });
-            }
+                // Display with zero hours since they're not in history or current board
+                this.addAssigneeRow(table, name, '0h', boardNames, {}, true);
+            });
         }
 
         container.appendChild(table);
@@ -5609,11 +5675,18 @@ window.SummaryView = class SummaryView {
         avatar.style.marginRight = '8px';
         avatar.style.overflow = 'hidden';
         avatar.style.flexShrink = '0';
-
+        // Try to find avatar_url from member or history stats
+        let avatar_url = '';
         if (member && member.avatar_url) {
+            avatar_url = member.avatar_url;
+        } else if (historyStats && historyStats.avatar_url) {
+            avatar_url = historyStats.avatar_url;
+        }
+
+        if (avatar_url) {
             // Use actual avatar image
             const img = document.createElement('img');
-            img.src = member.avatar_url;
+            img.src = avatar_url;
             img.style.width = '100%';
             img.style.height = '100%';
             img.style.objectFit = 'cover';
@@ -5648,17 +5721,35 @@ window.SummaryView = class SummaryView {
         // Make assignee name clickable - link to user's issues
         const nameLink = document.createElement('a');
 
-        // Create appropriate link based on username if available
+        // Determine username to use for link
+        let username = '';
+
+        // If we have a member object with username, use it
         if (member && member.username) {
+            username = member.username;
+        }
+        // Otherwise check if we have history stats with username
+        else if (historyStats && historyStats.username) {
+            username = historyStats.username;
+            username += "?"
+        }
+        // Final fallback
+        else {
+            username = this.getUsernameFromName(name);
+        }
+
+        // Create appropriate link based on username
+        if (username) {
             // Link to user's issues in current milestone
             nameLink.href = window.location.pathname +
-                `?milestone_title=Started&assignee_username=${member.username}`;
+                `?milestone_title=Started&assignee_username=${username}`;
         } else {
             // Fall back to milestone view if no username
             nameLink.href = window.location.pathname + '?milestone_title=Started';
         }
 
         nameLink.textContent = name;
+        nameLink.title = username ? `@${username}` : name;
         nameLink.style.color = '#1f75cb';
         nameLink.style.textDecoration = 'none';
         nameLink.style.cursor = 'pointer';
@@ -5679,7 +5770,7 @@ window.SummaryView = class SummaryView {
 
         const timeCell = document.createElement('td');
         timeCell.textContent = `${hours}`;
-        timeCell.style.textAlign = 'right';
+        timeCell.style.textAlign = 'center';
         timeCell.style.padding = '8px 0';
 
         const distributionCell = document.createElement('td');
@@ -5692,7 +5783,7 @@ window.SummaryView = class SummaryView {
             // For current assignees, show their board distribution
             const distributionValues = boardNames.map(boardName => {
                 const boardAssignees = boardAssigneeData[boardName] || {};
-                const assigneeInBoard = boardAssignees[name] || { timeEstimate: 0 };
+                const assigneeInBoard = boardAssignees[name] || {timeEstimate: 0};
                 const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
                 return Math.round(hoursFloat); // Round to integer
             });
@@ -5711,44 +5802,30 @@ window.SummaryView = class SummaryView {
             }).join('/');
 
             distributionCell.innerHTML = distributionText;
-        } else if (historyStats && historyStats.fromHistory) {
+        } else if (historyStats) {
             // For potential assignees with history stats
 
-            if (historyStats.distribution && Array.isArray(historyStats.distribution)) {
-                // Use the full distribution data if available
-                const distributionText = historyStats.distribution.map((hours, index) => {
-                    let spanHTML = `<span style="`;
-                    if (hours === 0) {
-                        spanHTML += `color:#aaa;`; // Grey for zero values
-                    }
-                    if (index === historyStats.distribution.length - 1 && hours > 0) {
-                        spanHTML += `color:#28a745;`; // Green for last board with hours
-                    }
+            const distributionValues = boardNames.map(boardName => {
+                const boardAssignees = historyStats[boardName] || {};
+                const assigneeInBoard = boardAssignees[name] || {timeEstimate: 0};
+                const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
+                return Math.round(hoursFloat); // Round to integer
+            });
 
-                    spanHTML += `">${hours}h</span>`;
-                    return spanHTML;
-                }).join('/');
-
-                // Add ? at the end to indicate it's historical
-                distributionCell.innerHTML = distributionText + '?';
-            } else {
-                // Fallback to simpler style if we don't have distribution data
-                const closedHours = historyStats.closedHours || 0;
-                const totalHours = historyStats.totalHours || 0;
-
-                // If we have boardNames, try to match the format
-                if (boardNames && boardNames.length > 0) {
-                    // Create empty placeholders for all but the last board
-                    const placeholders = Array(boardNames.length - 1).fill('<span style="color:#aaa;">0h</span>');
-
-                    // Add the historical data at the end
-                    distributionCell.innerHTML = placeholders.join('/') +
-                        `/<span style="color:#28a745;">${totalHours}h?</span>`;
-                } else {
-                    // Simple format
-                    distributionCell.innerHTML = `<span style="color:#28a745;">${totalHours}h?</span>`;
+            const distributionText = distributionValues.map((hours, index) => {
+                let spanHTML = `<span style="`;
+                if (hours === 0) {
+                    spanHTML += `color:#aaa;`; // Grey for zero values
                 }
-            }
+                if (index === distributionValues.length - 1 && hours > 0) {
+                    spanHTML += `color:#28a745;`; // Green for last board with hours
+                }
+
+                spanHTML += `">${hours}h</span>`;
+                return spanHTML;
+            }).join('/');
+
+            distributionCell.innerHTML = distributionText;
         } else {
             // For potential assignees with no current work and no history
             const emptyText = boardNames.map(() => {
@@ -5870,6 +5947,7 @@ window.SummaryView = class SummaryView {
             .replace(/\s+/g, '.')
             .replace(/[^a-z0-9._-]/g, '');
     }
+
     async fetchMembers() {
         try {
             // Initialize with whitelist members as these are likely relevant
@@ -5962,7 +6040,7 @@ window.SummaryView = class SummaryView {
 
             // Include history assignees for their stats
             const historyAssignees = this.getHistoryAssignees();
-            debugger
+
             historyAssignees.forEach(assignee => {
                 if (!assignee || !assignee.username) return;
 
@@ -6006,49 +6084,126 @@ window.SummaryView = class SummaryView {
     }
 
     
-    isHistoricalAssigneeRelevant(assignee, filterUsername) {
-        if (!assignee || !filterUsername) return false;
-
-        // Normalize for case-insensitive comparison
-        const normalizedFilter = filterUsername.toLowerCase();
-
-        // Check username
-        if (assignee.username && assignee.username.toLowerCase() === normalizedFilter) {
-            return true;
-        }
-
-        // Check name (the assignee might have their username in their display name)
-        if (assignee.name) {
-            const name = assignee.name.toLowerCase();
-            if (name === normalizedFilter) return true;
-
-            // Also check if the username is part of their display name
-            if (name.includes(normalizedFilter)) return true;
-        }
-
-        return false;
-    }
-
     
     findMemberByName(name) {
-        if (!name || !this.membersList) return null;
+        if (!name) return null;
 
         const lowerName = name.toLowerCase();
-        return this.membersList.find(member => {
-            if (!member) return false;
 
-            // Check by name
-            if (member.name && member.name.toLowerCase() === lowerName) {
-                return true;
+        // First check the members list
+        if (this.membersList && this.membersList.length) {
+            const memberMatch = this.membersList.find(member => {
+                if (!member) return false;
+
+                // Check by name
+                if (member.name && member.name.toLowerCase() === lowerName) {
+                    return true;
+                }
+
+                // Check by username
+                if (member.username && member.username.toLowerCase() === lowerName) {
+                    return true;
+                }
+
+                return false;
+            });
+
+            if (memberMatch) return memberMatch;
+        }
+
+        // If not found in members list, check history data
+        try {
+            // Try sprint history first
+            const sprintHistoryStr = localStorage.getItem('gitLabHelperSprintHistory');
+            if (sprintHistoryStr) {
+                const sprintHistory = JSON.parse(sprintHistoryStr);
+                if (Array.isArray(sprintHistory) && sprintHistory.length > 0) {
+                    // Get the most recent sprint entry
+                    const latestSprint = sprintHistory[0];
+
+                    // Check userPerformance
+                    if (latestSprint.userPerformance && latestSprint.userPerformance[name]) {
+                        const userData = latestSprint.userPerformance[name];
+                        if (userData.username || userData.avatar_url) {
+                            return {
+                                name: name,
+                                username: userData.username || '',
+                                avatar_url: userData.avatar_url || '',
+                                fromHistory: true
+                            };
+                        }
+                    }
+
+                    // Check userDistributions
+                    if (latestSprint.userDistributions && latestSprint.userDistributions[name]) {
+                        const userData = latestSprint.userDistributions[name];
+                        if (userData.username || userData.avatar_url) {
+                            return {
+                                name: name,
+                                username: userData.username || '',
+                                avatar_url: userData.avatar_url || '',
+                                fromHistory: true
+                            };
+                        }
+                    }
+
+                    // Check userData
+                    if (latestSprint.userData && latestSprint.userData[name]) {
+                        const userData = latestSprint.userData[name];
+                        return {
+                            name: name,
+                            username: userData.username || '',
+                            avatar_url: userData.avatar_url || '',
+                            fromHistory: true
+                        };
+                    }
+                }
             }
 
-            // Check by username
-            if (member.username && member.username.toLowerCase() === lowerName) {
-                return true;
-            }
+            // If not found in sprint history, try general history
+            const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
+            if (generalHistoryStr) {
+                const generalHistory = JSON.parse(generalHistoryStr);
+                const boardKey = this.getBoardKey();
 
-            return false;
-        }) || null;
+                if (generalHistory[boardKey]) {
+                    const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
+
+                    for (const date of dates) {
+                        const entry = generalHistory[boardKey][date];
+
+                        // Check userData
+                        if (entry.userData && entry.userData[name]) {
+                            const userData = entry.userData[name];
+                            return {
+                                name: name,
+                                username: userData.username || '',
+                                avatar_url: userData.avatar_url || '',
+                                fromHistory: true
+                            };
+                        }
+
+                        // Check userDistributions
+                        if (entry.userDistributions && entry.userDistributions[name]) {
+                            const userData = entry.userDistributions[name];
+                            if (userData.username || userData.avatar_url) {
+                                return {
+                                    name: name,
+                                    username: userData.username || '',
+                                    avatar_url: userData.avatar_url || '',
+                                    fromHistory: true
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Error searching history for member:', error);
+        }
+
+        // Not found in any source
+        return null;
     }
 }
 
