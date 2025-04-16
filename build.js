@@ -49,7 +49,8 @@ const CONFIG = {
     'ui/components/CommandShortcut.js',
     'ui/components/SelectionDisplay.js',
     'ui/components/IssueSelector.js',
-    'ui/components/LinkedItemsManager.js', // Add this line
+    'ui/components/LinkedItemsManager.js',
+    'ui/components/LabelDisplayManager.js',
     'ui/managers/TabManager.js',
     'ui/managers/CommandManager.js',
     'ui/managers/LabelManager.js',
@@ -103,8 +104,9 @@ const CONFIG = {
     'historyManager',
     'HistoryManager',
     'StatsView',
-    'LinkedItemsManager', // Add this line
-    'toggleLinkedItems'    // Add this line
+    'LinkedItemsManager',
+    'toggleLinkedItems',
+    "LabelDisplayManager"
   ],
 
   // Ignore patterns for file scanning
