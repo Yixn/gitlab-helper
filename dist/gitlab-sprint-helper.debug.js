@@ -4261,27 +4261,9 @@ window.SettingsManager = class SettingsManager {
         }
       }
     });
-    const resetSprintButton = document.createElement('button');
-    resetSprintButton.textContent = 'Reset Current Sprint';
-    resetSprintButton.style.backgroundColor = '#dc3545';
-    resetSprintButton.style.color = 'white';
-    resetSprintButton.style.border = 'none';
-    resetSprintButton.style.borderRadius = '4px';
-    resetSprintButton.style.padding = '8px 16px';
-    resetSprintButton.style.cursor = 'pointer';
-    resetSprintButton.style.fontWeight = 'bold';
-    resetSprintButton.addEventListener('click', () => {
-      if (confirm('Are you sure you want to reset the current sprint data? This action cannot be undone!')) {
-        localStorage.removeItem('gitLabHelperSprintState');
-        this.notification.success('Current sprint data has been reset');
-        if (window.uiManager && window.uiManager.tabManager && window.uiManager.tabManager.currentTab === 'sprintmanagement' && window.uiManager.sprintManagementView) {
-          window.uiManager.sprintManagementView.render();
-        }
-      }
-    });
+
     resetButtonsContainer.appendChild(resetAllButton);
     resetButtonsContainer.appendChild(resetHistoryButton);
-    resetButtonsContainer.appendChild(resetSprintButton);
     resetSection.appendChild(resetTitle);
     resetSection.appendChild(resetDescription);
     resetSection.appendChild(resetButtonsContainer);
@@ -5819,6 +5801,35 @@ window.SprintManagementView = class SprintManagementView {
       this.notification.error('Failed to end sprint: ' + error.message);
     }
   }
+
+  deleteCurrentSprint() {
+    try {
+      // If there's a matching history entry for this sprint, remove it
+      if (this.sprintState.id && this.sprintHistory && this.sprintHistory.length > 0) {
+        const historyIndex = this.sprintHistory.findIndex(sprint => sprint.id === this.sprintState.id);
+        if (historyIndex >= 0) {
+          this.sprintHistory.splice(historyIndex, 1);
+          this.saveSprintHistory();
+          this.notification.info("Sprint removed from history.");
+        }
+      }
+
+      // Reset sprint state
+      this.sprintState = {
+        endSprint: false,
+        preparedForNext: false,
+        currentMilestone: this.sprintState.currentMilestone, // Keep the milestone
+        userPerformance: {}
+      };
+
+      this.saveSprintState();
+      this.notification.success('Sprint data has been deleted.');
+      this.render();
+    } catch (error) {
+      console.error('Error deleting sprint data:', error);
+      this.notification.error('Failed to delete sprint data: ' + error.message);
+    }
+  }
   prepareForNextSprint() {
     try {
       const currentData = this.calculateSprintData();
@@ -5858,6 +5869,9 @@ window.SprintManagementView = class SprintManagementView {
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">Extra Closed Hours:</label>
                     <input type="number" id="edit-extra-hours" value="${this.sprintState.extraHoursClosed || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
                 </div>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                    <button id="delete-sprint-btn" style="width: 100%; padding: 8px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Delete Current Sprint Data</button>
+                </div>
             </div>
         `;
       this.showModal('Edit Sprint Data', formHTML, () => {
@@ -5888,6 +5902,27 @@ window.SprintManagementView = class SprintManagementView {
         this.notification.success('Sprint data updated successfully.');
         this.render();
       });
+
+      // Add event listener for delete button after modal is shown
+      setTimeout(() => {
+        const deleteButton = document.getElementById('delete-sprint-btn');
+        if (deleteButton) {
+          deleteButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (confirm('Are you sure you want to delete the current sprint data? This action cannot be undone.')) {
+              this.deleteCurrentSprint();
+
+              // Close the modal
+              const modalOverlay = document.querySelector('div[style*="position: fixed"][style*="z-index: 1000"]');
+              if (modalOverlay && modalOverlay.parentNode) {
+                modalOverlay.parentNode.removeChild(modalOverlay);
+              }
+            }
+          });
+        }
+      }, 100);
     } catch (error) {
       console.error('Error editing sprint data:', error);
       this.notification.error('Failed to edit sprint data: ' + error.message);
