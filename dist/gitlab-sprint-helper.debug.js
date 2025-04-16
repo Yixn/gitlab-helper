@@ -134,17 +134,13 @@ window.fetchAllBoards = async function() {
     if (!this.gitlabApi) {
       this.gitlabApi = window.gitlabApi;
     }
-
     if (!this.gitlabApi) {
       throw new Error('GitLab API not available');
     }
-
     const pathInfo = getPathFromUrl();
-
     if (!pathInfo) {
       throw new Error('Could not determine project/group path');
     }
-
     let endpoint;
     if (pathInfo.type === 'project') {
       endpoint = `projects/${pathInfo.encodedPath}/boards`;
@@ -153,18 +149,16 @@ window.fetchAllBoards = async function() {
     } else {
       throw new Error('Unsupported path type: ' + pathInfo.type);
     }
-
-    // Get all boards with pagination handling
     let allBoards = [];
     let page = 1;
     let hasMorePages = true;
-
     while (hasMorePages) {
-      const boards = await this.gitlabApi.callGitLabApi(
-          endpoint,
-          {params: {per_page: 100, page: page}}
-      );
-
+      const boards = await this.gitlabApi.callGitLabApi(endpoint, {
+        params: {
+          per_page: 100,
+          page: page
+        }
+      });
       if (boards && boards.length > 0) {
         allBoards = [...allBoards, ...boards];
         page++;
@@ -172,15 +166,10 @@ window.fetchAllBoards = async function() {
         hasMorePages = false;
       }
     }
-
-    // Extract just the names
     var boardNames = allBoards[0].lists.map(list => list.label.name);
-    boardNames.push("Closed")
-    boardNames.unshift("Open")
-
-    console.log(`Found ${boardNames.length} boards`);
+    boardNames.push("Closed");
+    boardNames.unshift("Open");
     return boardNames;
-
   } catch (error) {
     console.error('Error fetching boards:', error);
     return [];
@@ -271,10 +260,6 @@ window.GitLabAPI = class GitLabAPI {
       return data;
     });
   }
-
-
-
-
 }
 window.gitlabApi = window.gitlabApi || new GitLabAPI();
 
@@ -1886,972 +1871,1004 @@ window.IssueSelector = class IssueSelector {
 
 // File: lib/ui/components/LinkedItemsManager.js
 window.LinkedItemsManager = class LinkedItemsManager {
-    constructor(options = {}) {
-        this.initialized = false;
-        this.dropdowns = [];
-        this.cardLinks = new Map(); // Maps card IDs to their links
-        this.uiManager = options.uiManager || window.uiManager;
-
-        // Bind methods that need 'this' context
-        this.handleScroll = this.handleScroll.bind(this);
-        this.handleResize = this.handleResize.bind(this);
-        this.refreshDropdowns = this.refreshDropdowns.bind(this);
-
-        // Add event listeners
-        window.addEventListener('scroll', this.handleScroll);
-        window.addEventListener('resize', this.handleResize);
-
-        // Setup MutationObserver to detect board changes
-        this.setupMutationObserver();
-
-        // Check if feature is enabled
-        this.checkEnabled();
+  constructor(options = {}) {
+    this.initialized = false;
+    this.dropdowns = [];
+    this.cardLinks = new Map();
+    this.uiManager = options.uiManager || window.uiManager;
+    this.gitlabApi = options.gitlabApi || window.gitlabApi;
+    this.cache = {
+      issues: new Map(),
+      mergeRequests: new Map(),
+      relatedIssues: new Map()
+    };
+    this.loadCacheFromLocalStorage();
+    this.handleScroll = this.handleScroll.bind(this);
+    this.handleResize = this.handleResize.bind(this);
+    this.refreshDropdowns = this.refreshDropdowns.bind(this);
+    window.addEventListener('scroll', this.handleScroll);
+    window.addEventListener('resize', this.handleResize);
+    this.setupMutationObserver();
+    this.checkEnabled();
+  }
+  checkEnabled() {
+    try {
+      const enabled = localStorage.getItem('gitLabHelperLinkedItemsEnabled');
+      if (enabled === null) {
+        return true;
+      }
+      return enabled === 'true';
+    } catch (e) {
+      console.error('Error checking linked items enabled state:', e);
+      return true;
     }
-
-    checkEnabled() {
-        try {
-            const enabled = localStorage.getItem('gitLabHelperLinkedItemsEnabled');
-            // If no setting exists, default to enabled
-            if (enabled === null) {
-                localStorage.setItem('gitLabHelperLinkedItemsEnabled', 'true');
-                return true;
+  }
+  loadCacheFromLocalStorage() {
+    try {
+      const savedCache = localStorage.getItem('gitlabHelperLinkedItemsCache');
+      if (savedCache) {
+        const cacheData = JSON.parse(savedCache);
+        if (cacheData.timestamp && Date.now() - cacheData.timestamp < 8 * 60 * 60 * 1000) {
+          if (cacheData.issues) {
+            Object.entries(cacheData.issues).forEach(([key, items]) => {
+              this.cache.issues.set(key, items);
+            });
+          }
+          if (cacheData.mergeRequests) {
+            Object.entries(cacheData.mergeRequests).forEach(([key, items]) => {
+              this.cache.mergeRequests.set(key, items);
+            });
+          }
+          if (cacheData.relatedIssues) {
+            Object.entries(cacheData.relatedIssues).forEach(([key, items]) => {
+              this.cache.relatedIssues.set(key, items);
+            });
+          }
+        } else {
+          localStorage.removeItem('gitlabHelperLinkedItemsCache');
+        }
+      }
+    } catch (error) {
+      console.warn('Error loading cache from localStorage:', error);
+      localStorage.removeItem('gitlabHelperLinkedItemsCache');
+    }
+  }
+  saveCacheToLocalStorage() {
+    try {
+      const cacheObject = {
+        issues: {},
+        mergeRequests: {},
+        relatedIssues: {}
+      };
+      this.cache.issues.forEach((value, key) => {
+        cacheObject.issues[key] = value;
+      });
+      this.cache.mergeRequests.forEach((value, key) => {
+        cacheObject.mergeRequests[key] = value;
+      });
+      this.cache.relatedIssues.forEach((value, key) => {
+        cacheObject.relatedIssues[key] = value;
+      });
+      const cacheData = {
+        timestamp: Date.now(),
+        issues: cacheObject.issues,
+        mergeRequests: cacheObject.mergeRequests,
+        relatedIssues: cacheObject.relatedIssues
+      };
+      localStorage.setItem('gitlabHelperLinkedItemsCache', JSON.stringify(cacheData));
+    } catch (error) {
+      console.warn('Error saving cache to localStorage:', error);
+    }
+  }
+  initialize() {
+    if (!this.checkEnabled()) {
+      return;
+    }
+    if (this.initialized) {
+      return;
+    }
+    this.initialized = true;
+    this.applyOverflowFixes();
+    this.createCardDropdowns();
+    this.refreshInterval = setInterval(this.refreshDropdowns, 2000);
+    this.setupCardsMutationObserver();
+    this.cacheSaveInterval = setInterval(() => {
+      this.saveCacheToLocalStorage();
+    }, 60000);
+  }
+  applyOverflowFixes() {
+    this.originalStyles = [];
+    const ulElements = document.querySelectorAll('ul.board-list');
+    ulElements.forEach(ul => {
+      this.originalStyles.push({
+        element: ul,
+        property: 'overflow-x',
+        value: ul.style.overflowX
+      });
+      ul.style.setProperty('overflow-x', 'unset', 'important');
+      ul.style.setProperty('overflow-y', 'unset', 'important');
+    });
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    cardAreas.forEach(area => {
+      this.originalStyles.push({
+        element: area,
+        property: 'overflow',
+        value: area.style.overflow
+      });
+      this.originalStyles.push({
+        element: area,
+        property: 'position',
+        value: area.style.position
+      });
+      area.style.overflow = 'auto';
+      area.style.position = 'relative';
+    });
+    return cardAreas;
+  }
+  createCardDropdowns() {
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.parentNode) {
+        dropdown.parentNode.removeChild(dropdown);
+      }
+    });
+    this.dropdowns = [];
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    cardAreas.forEach(cardArea => {
+      try {
+        const cards = cardArea.querySelectorAll('.board-card');
+        cards.forEach((card, index) => {
+          try {
+            const dropdown = this.createPlaceholderDropdown(card, cardArea);
+            if (dropdown) {
+              this.dropdowns.push(dropdown);
+              this.fetchAndUpdateDropdown(dropdown, card);
             }
-            return enabled === 'true';
-        } catch (e) {
-            console.error('Error checking linked items enabled state:', e);
-            return true; // Default to enabled
-        }
-    }
-
-    initialize() {
-        // Check if feature is enabled
-        if (!this.checkEnabled()) {
-            console.log('LinkedItemsManager: Feature is disabled');
-            return;
-        }
-
-        if (this.initialized) {
-            return;
-        }
-
-        this.initialized = true;
-        console.log('LinkedItemsManager: Initializing...');
-
-        this.applyOverflowFixes();
-        this.createCardDropdowns();
-
-        // Setup periodic refresh to catch any new cards
-        this.refreshInterval = setInterval(this.refreshDropdowns, 5000);
-
-        console.log('LinkedItemsManager: Initialized successfully');
-    }
-
-    applyOverflowFixes() {
-        // Similar to IssueSelector's approach to ensure overlays work
-        this.originalStyles = [];
-        const ulElements = document.querySelectorAll('ul.board-list');
-        ulElements.forEach(ul => {
-            this.originalStyles.push({
-                element: ul,
-                property: 'overflow-x',
-                value: ul.style.overflowX
-            });
-            ul.style.setProperty('overflow-x', 'unset', 'important');
-            ul.style.setProperty('overflow-y', 'unset', 'important');
+          } catch (error) {
+            console.error('Error creating dropdown for card:', error);
+          }
         });
-
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        cardAreas.forEach(area => {
-            this.originalStyles.push({
-                element: area,
-                property: 'overflow',
-                value: area.style.overflow
-            });
-            this.originalStyles.push({
-                element: area,
-                property: 'position',
-                value: area.style.position
-            });
-            area.style.overflow = 'auto';
-            area.style.position = 'relative';
-        });
-
-        return cardAreas;
+      } catch (error) {
+        console.error('Error processing card area:', error);
+      }
+    });
+  }
+  async fetchAndUpdateDropdown(dropdown, card) {
+    try {
+      if (!dropdown || !card) return;
+      const issueItem = await this.getIssueItemFromCard(card);
+      if (!issueItem) return;
+      const projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
+      const issueIid = issueItem.iid ? issueItem.iid.toString().split('#').pop() : null;
+      const cacheKey = issueIid ? `${projectPath}/${issueIid}` : null;
+      if (cacheKey && this.cache.issues.has(cacheKey)) {
+        const cachedItems = this.cache.issues.get(cacheKey);
+        const cardId = dropdown.dataset.cardId;
+        this.cardLinks.set(cardId, cachedItems);
+        dropdown.isLoading = false;
+        this.updateDropdownWithLinkedItems(dropdown, cachedItems);
+        return;
+      }
+      const initialLinkedItems = [];
+      const baseUrl = window.location.origin;
+      this.addLinkedItemsFromProps(issueItem, initialLinkedItems, baseUrl, projectPath);
+      if (initialLinkedItems.length > 0) {
+        const cardId = dropdown.dataset.cardId;
+        this.cardLinks.set(cardId, initialLinkedItems);
+        dropdown.isLoading = false;
+        this.updateDropdownWithLinkedItems(dropdown, initialLinkedItems);
+      }
+      const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
+      const cardId = dropdown.dataset.cardId;
+      this.cardLinks.set(cardId, linkedItems);
+      dropdown.isLoading = false;
+      this.updateDropdownWithLinkedItems(dropdown, linkedItems);
+    } catch (error) {
+      console.error('Error fetching and updating dropdown:', error);
+      this.updateDropdownWithError(dropdown);
     }
-
-    createCardDropdowns() {
-        // Remove existing dropdowns
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.parentNode) {
-                dropdown.parentNode.removeChild(dropdown);
-            }
-        });
-
-        this.dropdowns = [];
-
-        // Find all card areas and create dropdowns for each card
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        cardAreas.forEach(cardArea => {
+  }
+  updateDropdownEmpty(dropdown) {
+    const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
+    const dropdownContent = dropdown.querySelector('.linked-items-content');
+    if (!dropdownToggle || !dropdownContent) return;
+    dropdownToggle.style.backgroundColor = '#6c757d';
+    dropdownToggle.title = 'No linked items found';
+    dropdownContent.innerHTML = '';
+    const emptyMessage = document.createElement('div');
+    emptyMessage.textContent = 'No linked items found';
+    emptyMessage.style.padding = '10px 12px';
+    emptyMessage.style.color = '#666';
+    emptyMessage.style.fontStyle = 'italic';
+    emptyMessage.style.fontSize = '13px';
+    emptyMessage.style.textAlign = 'center';
+    dropdownContent.appendChild(emptyMessage);
+    const card = dropdown.originalCard;
+    const issueItem = this.getIssueItemFromCard(card);
+    if (issueItem && issueItem.iid) {
+      const projectPath = this.extractRepositoryPath(window.location.pathname);
+      const baseUrl = window.location.origin;
+      const viewIssueItem = {
+        type: 'issue_detail',
+        title: 'View Issue Details',
+        url: `${baseUrl}/${projectPath}/-/issues/${issueItem.iid}`
+      };
+      dropdownContent.appendChild(document.createElement('hr'));
+      dropdownContent.appendChild(this.createLinkItem(viewIssueItem));
+    }
+  }
+  updateDropdownWithError(dropdown) {
+    const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
+    const dropdownContent = dropdown.querySelector('.linked-items-content');
+    if (!dropdownToggle || !dropdownContent) return;
+    dropdownToggle.style.backgroundColor = '#dc3545';
+    dropdownToggle.title = 'Error loading linked items';
+    dropdownContent.innerHTML = '';
+    const errorMessage = document.createElement('div');
+    errorMessage.textContent = 'Error loading linked items';
+    errorMessage.style.padding = '10px 12px';
+    errorMessage.style.color = '#dc3545';
+    errorMessage.style.fontStyle = 'italic';
+    errorMessage.style.fontSize = '13px';
+    errorMessage.style.textAlign = 'center';
+    dropdownContent.appendChild(errorMessage);
+  }
+  updateDropdownWithLinkedItems(dropdown, linkedItems) {
+    if (!linkedItems || linkedItems.length === 0) {
+      this.updateDropdownEmpty(dropdown);
+      return;
+    }
+    const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
+    const dropdownContent = dropdown.querySelector('.linked-items-content');
+    if (!dropdownToggle || !dropdownContent) return;
+    dropdownToggle.title = `${linkedItems.length} linked item${linkedItems.length !== 1 ? 's' : ''}`;
+    const mrCount = linkedItems.filter(item => item.type === 'merge_request').length;
+    const branchCount = linkedItems.filter(item => item.type === 'branch').length;
+    const issueCount = linkedItems.filter(item => item.type === 'issue').length;
+    if (mrCount > 0 || branchCount > 0) {
+      dropdownToggle.title = `${mrCount ? mrCount + ' MR' + (mrCount > 1 ? 's' : '') : ''}${mrCount && branchCount ? ', ' : ''}${branchCount ? branchCount + ' branch' + (branchCount > 1 ? 'es' : '') : ''}${issueCount ? (mrCount || branchCount ? ', ' : '') + issueCount + ' issue' + (issueCount > 1 ? 's' : '') : ''}`;
+    }
+    dropdownContent.innerHTML = '';
+    const groupedItems = {
+      merge_request: [],
+      branch: [],
+      issue: [],
+      other: []
+    };
+    linkedItems.forEach(item => {
+      if (groupedItems[item.type]) {
+        groupedItems[item.type].push(item);
+      } else {
+        groupedItems.other.push(item);
+      }
+    });
+    const createSectionHeader = title => {
+      const header = document.createElement('div');
+      header.style.backgroundColor = '#f8f9fa';
+      header.style.padding = '5px 12px';
+      header.style.fontSize = '11px';
+      header.style.fontWeight = 'bold';
+      header.style.color = '#6c757d';
+      header.style.textTransform = 'uppercase';
+      header.style.borderBottom = '1px solid #eee';
+      header.textContent = title;
+      return header;
+    };
+    if (groupedItems.merge_request.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Merge Requests'));
+      groupedItems.merge_request.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.branch.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Branches'));
+      groupedItems.branch.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.issue.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Related Issues'));
+      groupedItems.issue.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.other.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Actions'));
+      groupedItems.other.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+  }
+  createPlaceholderDropdown(card, cardArea) {
+    const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const dropdown = document.createElement('div');
+    dropdown.className = 'linked-items-dropdown';
+    dropdown.style.position = 'absolute';
+    dropdown.style.zIndex = '99';
+    dropdown.style.cursor = 'pointer';
+    dropdown.style.transition = 'all 0.2s ease';
+    dropdown.dataset.cardId = cardId;
+    dropdown.originalCard = card;
+    dropdown.isLoading = true;
+    this.positionDropdown(dropdown, card, cardArea);
+    const dropdownToggle = document.createElement('div');
+    dropdownToggle.className = 'linked-items-toggle';
+    dropdownToggle.style.backgroundColor = '#1f75cb';
+    dropdownToggle.style.color = 'white';
+    dropdownToggle.style.borderRadius = '50%';
+    dropdownToggle.style.width = '22px';
+    dropdownToggle.style.height = '22px';
+    dropdownToggle.style.display = 'flex';
+    dropdownToggle.style.alignItems = 'center';
+    dropdownToggle.style.justifyContent = 'center';
+    dropdownToggle.style.fontSize = '12px';
+    dropdownToggle.style.fontWeight = 'bold';
+    dropdownToggle.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+    dropdownToggle.style.border = '2px solid white';
+    dropdownToggle.title = 'Loading linked items...';
+    const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgIcon.setAttribute('role', 'img');
+    svgIcon.setAttribute('aria-hidden', 'true');
+    svgIcon.classList.add('gl-icon');
+    svgIcon.style.width = '12px';
+    svgIcon.style.height = '12px';
+    svgIcon.style.fill = 'white';
+    const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    useElement.setAttribute('href', '/assets/icons-aa2c8ddf99d22b77153ca2bb092a23889c12c597fc8b8de94b0f730eb53513f6.svg#issue-type-issue');
+    svgIcon.appendChild(useElement);
+    dropdownToggle.appendChild(svgIcon);
+    dropdownToggle.addEventListener('mouseenter', function () {
+      this.style.backgroundColor = '#0056b3';
+      this.style.transform = 'scale(1.1)';
+    });
+    dropdownToggle.addEventListener('mouseleave', function () {
+      this.style.backgroundColor = '#1f75cb';
+      this.style.transform = 'scale(1)';
+    });
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'linked-items-content';
+    dropdownContent.style.display = 'none';
+    dropdownContent.style.position = 'absolute';
+    dropdownContent.style.backgroundColor = 'white';
+    dropdownContent.style.minWidth = '200px';
+    dropdownContent.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
+    dropdownContent.style.zIndex = '100';
+    dropdownContent.style.borderRadius = '4px';
+    dropdownContent.style.border = '1px solid #ddd';
+    dropdownContent.style.left = '0';
+    dropdownContent.style.top = '30px';
+    const loadingItem = document.createElement('div');
+    loadingItem.textContent = 'Loading linked items...';
+    loadingItem.style.padding = '10px 12px';
+    loadingItem.style.color = '#666';
+    loadingItem.style.fontStyle = 'italic';
+    loadingItem.style.fontSize = '13px';
+    loadingItem.style.textAlign = 'center';
+    dropdownContent.appendChild(loadingItem);
+    dropdownToggle.addEventListener('click', e => {
+      e.stopPropagation();
+      document.querySelectorAll('.linked-items-content').forEach(content => {
+        if (content !== dropdownContent) {
+          content.style.display = 'none';
+          const parentDropdown = content.closest('.linked-items-dropdown');
+          if (parentDropdown) {
+            parentDropdown.style.zIndex = '99';
+          }
+        }
+      });
+      const isCurrentlyOpen = dropdownContent.style.display === 'block';
+      if (!isCurrentlyOpen) {
+        dropdown.style.zIndex = '100';
+        dropdownContent.style.display = 'block';
+      } else {
+        dropdown.style.zIndex = '99';
+        dropdownContent.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', () => {
+      if (dropdownContent.style.display === 'block') {
+        dropdownContent.style.display = 'none';
+        dropdown.style.zIndex = '99';
+      }
+    });
+    dropdown.appendChild(dropdownToggle);
+    dropdown.appendChild(dropdownContent);
+    cardArea.appendChild(dropdown);
+    return dropdown;
+  }
+  getIssueItemFromCard(boardCard) {
+    try {
+      if (boardCard.__vue__) {
+        if (boardCard.__vue__.$children && boardCard.__vue__.$children.length > 0) {
+          const issueComponent = boardCard.__vue__.$children.find(child => child.$props && child.$props.item);
+          if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
+            return issueComponent.$props.item;
+          }
+        }
+        if (boardCard.__vue__.$options && boardCard.__vue__.$options.children && boardCard.__vue__.$options.children.length > 0) {
+          const issueComponent = boardCard.__vue__.$options.children.find(child => child.$props && child.$props.item);
+          if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
+            return issueComponent.$props.item;
+          }
+        }
+        if (boardCard.__vue__.$props && boardCard.__vue__.$props.item) {
+          return boardCard.__vue__.$props.item;
+        }
+      }
+      const issueId = boardCard.querySelector('[data-issue-id]')?.dataset?.issueId;
+      const titleElement = boardCard.querySelector('.board-card-title');
+      if (issueId && titleElement) {
+        return {
+          iid: issueId,
+          title: titleElement.textContent.trim(),
+          referencePath: window.location.pathname.split('/boards')[0]
+        };
+      }
+    } catch (e) {
+      console.error('Error getting issue item from card:', e);
+    }
+    return null;
+  }
+  async getLinkedItemsFromIssue(issueItem) {
+    const linkedItems = [];
+    try {
+      let projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
+      const baseUrl = window.location.origin;
+      if (issueItem.iid) {
+        let issueIid = issueItem.iid;
+        if (typeof issueIid === 'string' && issueIid.includes('#')) {
+          issueIid = issueIid.split('#').pop();
+        }
+        if (projectPath.includes('#')) {
+          projectPath = projectPath.split('#')[0];
+        }
+        const cacheKey = `${projectPath}/${issueIid}`;
+        if (this.cache.issues.has(cacheKey)) {
+          return this.cache.issues.get(cacheKey);
+        }
+        this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+        const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
+        if (gitlabApi && typeof gitlabApi.callGitLabApiWithCache === 'function') {
+          try {
+            const encodedPath = encodeURIComponent(projectPath);
             try {
-                const cards = cardArea.querySelectorAll('.board-card');
-                cards.forEach((card, index) => {
-                    try {
-                        // Create a placeholder dropdown immediately for each card
-                        const dropdown = this.createPlaceholderDropdown(card, cardArea);
-                        if (dropdown) {
-                            this.dropdowns.push(dropdown);
-
-                            // Then asynchronously fetch and update with real data
-                            this.fetchAndUpdateDropdown(dropdown, card);
-                        }
-                    } catch (error) {
-                        console.error('Error creating dropdown for card:', error);
-                    }
+              const relatedMRs = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/related_merge_requests`, {}, 60000);
+              if (Array.isArray(relatedMRs) && relatedMRs.length > 0) {
+                for (let i = linkedItems.length - 1; i >= 0; i--) {
+                  if (linkedItems[i].type === 'merge_request') {
+                    linkedItems.splice(i, 1);
+                  }
+                }
+                relatedMRs.forEach(mr => {
+                  linkedItems.push({
+                    type: 'merge_request',
+                    title: mr.title || `Merge Request !${mr.iid}`,
+                    state: mr.state,
+                    url: mr.web_url || `${baseUrl}/${projectPath}/-/merge_requests/${mr.iid}`
+                  });
                 });
-            } catch (error) {
-                console.error('Error processing card area:', error);
+                this.cache.mergeRequests.set(cacheKey, [...relatedMRs]);
+              }
+            } catch (mrError) {
+              console.warn('Error fetching related merge requests:', mrError);
             }
-        });
-    }
-
-    async fetchAndUpdateDropdown(dropdown, card) {
-        try {
-            if (!dropdown || !card) return;
-
-            // Get issue data asynchronously
-            const issueItem = await this.getIssueItemFromCard(card);
-            if (!issueItem) return;
-
-            // Get linked items
-            const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
-
-            // Store links for this card
-            const cardId = dropdown.dataset.cardId;
-            this.cardLinks.set(cardId, linkedItems);
-
-            // Mark as loaded
-            dropdown.isLoading = false;
-
-            // Update the dropdown with the real data
-            this.updateDropdownWithLinkedItems(dropdown, linkedItems);
-        } catch (error) {
-            console.error('Error fetching and updating dropdown:', error);
-            // Update with error state if needed
-            this.updateDropdownWithError(dropdown);
-        }
-    }
-    updateDropdownEmpty(dropdown) {
-        const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
-        const dropdownContent = dropdown.querySelector('.linked-items-content');
-
-        if (!dropdownToggle || !dropdownContent) return;
-
-        // Update toggle appearance
-        dropdownToggle.style.backgroundColor = '#6c757d';
-        dropdownToggle.title = 'No linked items found';
-
-        // Clear the loading content
-        dropdownContent.innerHTML = '';
-
-        // Add message for no items
-        const emptyMessage = document.createElement('div');
-        emptyMessage.textContent = 'No linked items found';
-        emptyMessage.style.padding = '10px 12px';
-        emptyMessage.style.color = '#666';
-        emptyMessage.style.fontStyle = 'italic';
-        emptyMessage.style.fontSize = '13px';
-        emptyMessage.style.textAlign = 'center';
-        dropdownContent.appendChild(emptyMessage);
-
-        // Add view issue item as fallback
-        const card = dropdown.originalCard;
-        const issueItem = this.getIssueItemFromCard(card);
-
-        if (issueItem && issueItem.iid) {
-            const projectPath = this.extractRepositoryPath(window.location.pathname);
-            const baseUrl = window.location.origin;
-            const viewIssueItem = {
-                type: 'issue_detail',
-                title: 'View Issue Details',
-                url: `${baseUrl}/${projectPath}/-/issues/${issueItem.iid}`
-            };
-
-            dropdownContent.appendChild(document.createElement('hr'));
-            dropdownContent.appendChild(this.createLinkItem(viewIssueItem));
-        }
-    }
-    updateDropdownWithError(dropdown) {
-        const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
-        const dropdownContent = dropdown.querySelector('.linked-items-content');
-
-        if (!dropdownToggle || !dropdownContent) return;
-
-        // Update toggle appearance
-        dropdownToggle.style.backgroundColor = '#dc3545';
-        dropdownToggle.title = 'Error loading linked items';
-
-        // Clear the loading content
-        dropdownContent.innerHTML = '';
-
-        // Add error message
-        const errorMessage = document.createElement('div');
-        errorMessage.textContent = 'Error loading linked items';
-        errorMessage.style.padding = '10px 12px';
-        errorMessage.style.color = '#dc3545';
-        errorMessage.style.fontStyle = 'italic';
-        errorMessage.style.fontSize = '13px';
-        errorMessage.style.textAlign = 'center';
-        dropdownContent.appendChild(errorMessage);
-    }
-    updateDropdownWithLinkedItems(dropdown, linkedItems) {
-        // If no linked items found, update the button to show that
-        if (!linkedItems || linkedItems.length === 0) {
-            this.updateDropdownEmpty(dropdown);
-            return;
-        }
-
-        // Get the dropdown toggle and content elements
-        const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
-        const dropdownContent = dropdown.querySelector('.linked-items-content');
-
-        if (!dropdownToggle || !dropdownContent) return;
-
-        // Update the button appearance
-        dropdownToggle.title = `${linkedItems.length} linked item${linkedItems.length !== 1 ? 's' : ''}`;
-
-        // Count by type
-        const mrCount = linkedItems.filter(item => item.type === 'merge_request').length;
-        const branchCount = linkedItems.filter(item => item.type === 'branch').length;
-        const issueCount = linkedItems.filter(item => item.type === 'issue').length;
-
-        if (mrCount > 0 || branchCount > 0) {
-            dropdownToggle.title = `${mrCount ? mrCount + ' MR' + (mrCount > 1 ? 's' : '') : ''}${mrCount && branchCount ? ', ' : ''}${branchCount ? branchCount + ' branch' + (branchCount > 1 ? 'es' : '') : ''}${issueCount ? (mrCount || branchCount ? ', ' : '') + issueCount + ' issue' + (issueCount > 1 ? 's' : '') : ''}`;
-        }
-
-        // Clear the loading content
-        dropdownContent.innerHTML = '';
-
-        // Group items by type
-        const groupedItems = {
-            merge_request: [],
-            branch: [],
-            issue: [],
-            other: []
-        };
-
-        linkedItems.forEach(item => {
-            if (groupedItems[item.type]) {
-                groupedItems[item.type].push(item);
-            } else {
-                groupedItems.other.push(item);
+            try {
+              const relatedIssues = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/links`, {}, 60000);
+              if (Array.isArray(relatedIssues)) {
+                for (let i = linkedItems.length - 1; i >= 0; i--) {
+                  if (linkedItems[i].type === 'issue') {
+                    linkedItems.splice(i, 1);
+                  }
+                }
+                relatedIssues.forEach(related => {
+                  linkedItems.push({
+                    type: 'issue',
+                    title: related.title || `Issue #${related.iid}`,
+                    state: related.state,
+                    url: related.web_url || `${baseUrl}/${projectPath}/-/issues/${related.iid}`
+                  });
+                });
+                this.cache.relatedIssues.set(cacheKey, [...relatedIssues]);
+              }
+            } catch (linkError) {
+              console.warn('Error fetching related issues:', linkError);
             }
-        });
-
-        // Helper to create section headers
-        const createSectionHeader = (title) => {
-            const header = document.createElement('div');
-            header.style.backgroundColor = '#f8f9fa';
-            header.style.padding = '5px 12px';
-            header.style.fontSize = '11px';
-            header.style.fontWeight = 'bold';
-            header.style.color = '#6c757d';
-            header.style.textTransform = 'uppercase';
-            header.style.borderBottom = '1px solid #eee';
-            header.textContent = title;
-            return header;
-        };
-
-        // Add merge requests section
-        if (groupedItems.merge_request.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Merge Requests'));
-            groupedItems.merge_request.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
+          } catch (apiError) {
+            console.warn('Error fetching issue details via API:', apiError);
+            if (linkedItems.length === 0) {
+              this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+            }
+          }
+        } else {
+          if (linkedItems.length === 0) {
+            this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+          }
         }
-
-        // Add branches section
-        if (groupedItems.branch.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Branches'));
-            groupedItems.branch.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
+      } else {
+        this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+      }
+      if (issueItem.iid) {
+        let issueIid = issueItem.iid;
+        if (typeof issueIid === 'string' && issueIid.includes('#')) {
+          issueIid = issueIid.split('#').pop();
         }
-
-        // Add issues section
-        if (groupedItems.issue.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Related Issues'));
-            groupedItems.issue.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
+        const hasIssueLink = linkedItems.some(item => item.type === 'issue_detail');
+        if (!hasIssueLink) {
+          linkedItems.push({
+            type: 'issue_detail',
+            title: 'View Issue Details',
+            url: `${baseUrl}/${projectPath}/-/issues/${issueIid}`
+          });
         }
-
-        // Add other links
-        if (groupedItems.other.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Actions'));
-            groupedItems.other.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
+      }
+      if (issueItem.iid) {
+        const cacheKey = `${projectPath}/${issueItem.iid.toString().split('#').pop()}`;
+        this.cache.issues.set(cacheKey, [...linkedItems]);
+        if (Math.random() < 0.1) {
+          this.saveCacheToLocalStorage();
         }
+      }
+    } catch (e) {
+      console.error('Error extracting linked items:', e);
     }
-    createPlaceholderDropdown(card, cardArea) {
-        // Generate unique ID for this card
-        const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-        // Create the dropdown button
-        const dropdown = document.createElement('div');
-        dropdown.className = 'linked-items-dropdown';
-        dropdown.style.position = 'absolute';
+    return linkedItems;
+  }
+  createDropdownForCard(card, issueItem, cardArea) {
+    const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const dropdown = document.createElement('div');
+    dropdown.className = 'linked-items-dropdown';
+    dropdown.style.position = 'absolute';
+    dropdown.style.zIndex = '99';
+    dropdown.style.cursor = 'pointer';
+    dropdown.style.transition = 'all 0.2s ease';
+    dropdown.dataset.cardId = cardId;
+    dropdown.originalCard = card;
+    this.positionDropdown(dropdown, card, cardArea);
+    const linkedItems = this.getLinkedItemsFromIssue(issueItem);
+    this.cardLinks.set(cardId, linkedItems);
+    if (linkedItems.length === 0) {
+      return null;
+    }
+    const dropdownToggle = document.createElement('div');
+    dropdownToggle.className = 'linked-items-toggle';
+    dropdownToggle.style.backgroundColor = '#1f75cb';
+    dropdownToggle.style.color = 'white';
+    dropdownToggle.style.borderRadius = '50%';
+    dropdownToggle.style.width = '22px';
+    dropdownToggle.style.height = '22px';
+    dropdownToggle.style.display = 'flex';
+    dropdownToggle.style.alignItems = 'center';
+    dropdownToggle.style.justifyContent = 'center';
+    dropdownToggle.style.fontSize = '12px';
+    dropdownToggle.style.fontWeight = 'bold';
+    dropdownToggle.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+    dropdownToggle.style.border = '2px solid white';
+    dropdownToggle.title = `${linkedItems.length} linked item${linkedItems.length !== 1 ? 's' : ''}`;
+    const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgIcon.setAttribute('role', 'img');
+    svgIcon.setAttribute('aria-hidden', 'true');
+    svgIcon.classList.add('gl-icon');
+    svgIcon.style.width = '12px';
+    svgIcon.style.height = '12px';
+    svgIcon.style.fill = 'white';
+    const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    useElement.setAttribute('href', '/assets/icons-aa2c8ddf99d22b77153ca2bb092a23889c12c597fc8b8de94b0f730eb53513f6.svg#issue-type-issue');
+    svgIcon.appendChild(useElement);
+    dropdownToggle.appendChild(svgIcon);
+    const mrCount = linkedItems.filter(item => item.type === 'merge_request').length;
+    const branchCount = linkedItems.filter(item => item.type === 'branch').length;
+    const issueCount = linkedItems.filter(item => item.type === 'issue').length;
+    if (mrCount > 0 || branchCount > 0) {
+      dropdownToggle.title = `${mrCount ? mrCount + ' MR' + (mrCount > 1 ? 's' : '') : ''}${mrCount && branchCount ? ', ' : ''}${branchCount ? branchCount + ' branch' + (branchCount > 1 ? 'es' : '') : ''}${issueCount ? (mrCount || branchCount ? ', ' : '') + issueCount + ' issue' + (issueCount > 1 ? 's' : '') : ''}`;
+    }
+    dropdownToggle.addEventListener('mouseenter', function () {
+      this.style.backgroundColor = '#0056b3';
+      this.style.transform = 'scale(1.1)';
+    });
+    dropdownToggle.addEventListener('mouseleave', function () {
+      this.style.backgroundColor = '#1f75cb';
+      this.style.transform = 'scale(1)';
+    });
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'linked-items-content';
+    dropdownContent.style.display = 'none';
+    dropdownContent.style.position = 'absolute';
+    dropdownContent.style.backgroundColor = 'white';
+    dropdownContent.style.minWidth = '200px';
+    dropdownContent.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
+    dropdownContent.style.zIndex = '100';
+    dropdownContent.style.borderRadius = '4px';
+    dropdownContent.style.border = '1px solid #ddd';
+    dropdownContent.style.left = '0';
+    dropdownContent.style.top = '30px';
+    const groupedItems = {
+      merge_request: [],
+      branch: [],
+      issue: [],
+      other: []
+    };
+    linkedItems.forEach(item => {
+      if (groupedItems[item.type]) {
+        groupedItems[item.type].push(item);
+      } else {
+        groupedItems.other.push(item);
+      }
+    });
+    const createSectionHeader = title => {
+      const header = document.createElement('div');
+      header.style.backgroundColor = '#f8f9fa';
+      header.style.padding = '5px 12px';
+      header.style.fontSize = '11px';
+      header.style.fontWeight = 'bold';
+      header.style.color = '#6c757d';
+      header.style.textTransform = 'uppercase';
+      header.style.borderBottom = '1px solid #eee';
+      header.textContent = title;
+      return header;
+    };
+    if (groupedItems.merge_request.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Merge Requests'));
+      groupedItems.merge_request.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.branch.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Branches'));
+      groupedItems.branch.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.issue.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Related Issues'));
+      groupedItems.issue.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.other.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Actions'));
+      groupedItems.other.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    dropdownToggle.addEventListener('click', e => {
+      e.stopPropagation();
+      document.querySelectorAll('.linked-items-content').forEach(content => {
+        if (content !== dropdownContent) {
+          content.style.display = 'none';
+          const parentDropdown = content.closest('.linked-items-dropdown');
+          if (parentDropdown) {
+            parentDropdown.style.zIndex = '99';
+          }
+        }
+      });
+      const isCurrentlyOpen = dropdownContent.style.display === 'block';
+      if (!isCurrentlyOpen) {
+        dropdown.style.zIndex = '100';
+        dropdownContent.style.display = 'block';
+      } else {
         dropdown.style.zIndex = '99';
-        dropdown.style.cursor = 'pointer';
-        dropdown.style.transition = 'all 0.2s ease';
-        dropdown.dataset.cardId = cardId;
-        dropdown.originalCard = card;
-        dropdown.isLoading = true;
-
-        // Position the dropdown
-        this.positionDropdown(dropdown, card, cardArea);
-
-        // Create loading dropdown toggle button
-        const dropdownToggle = document.createElement('div');
-        dropdownToggle.className = 'linked-items-toggle';
-        dropdownToggle.style.backgroundColor = '#1f75cb';
-        dropdownToggle.style.color = 'white';
-        dropdownToggle.style.borderRadius = '50%';
-        dropdownToggle.style.width = '22px';
-        dropdownToggle.style.height = '22px';
-        dropdownToggle.style.display = 'flex';
-        dropdownToggle.style.alignItems = 'center';
-        dropdownToggle.style.justifyContent = 'center';
-        dropdownToggle.style.fontSize = '12px';
-        dropdownToggle.style.fontWeight = 'bold';
-        dropdownToggle.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
-        dropdownToggle.style.border = '2px solid white';
-        dropdownToggle.title = 'Loading linked items...';
-
-        // Create SVG icon
-        const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svgIcon.setAttribute('role', 'img');
-        svgIcon.setAttribute('aria-hidden', 'true');
-        svgIcon.classList.add('gl-icon');
-        svgIcon.style.width = '12px';
-        svgIcon.style.height = '12px';
-        svgIcon.style.fill = 'white';
-
-        const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        useElement.setAttribute('href', '/assets/icons-aa2c8ddf99d22b77153ca2bb092a23889c12c597fc8b8de94b0f730eb53513f6.svg#issue-type-issue');
-        svgIcon.appendChild(useElement);
-
-        dropdownToggle.appendChild(svgIcon);
-
-        // Style for hover effect
-        dropdownToggle.addEventListener('mouseenter', function() {
-            this.style.backgroundColor = '#0056b3';
-            this.style.transform = 'scale(1.1)';
-        });
-
-        dropdownToggle.addEventListener('mouseleave', function() {
-            this.style.backgroundColor = '#1f75cb';
-            this.style.transform = 'scale(1)';
-        });
-
-        // Create placeholder dropdown content
-        const dropdownContent = document.createElement('div');
-        dropdownContent.className = 'linked-items-content';
         dropdownContent.style.display = 'none';
-        dropdownContent.style.position = 'absolute';
-        dropdownContent.style.backgroundColor = 'white';
-        dropdownContent.style.minWidth = '200px';
-        dropdownContent.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
-        dropdownContent.style.zIndex = '100';
-        dropdownContent.style.borderRadius = '4px';
-        dropdownContent.style.border = '1px solid #ddd';
-        dropdownContent.style.left = '0';
-        dropdownContent.style.top = '30px';
-
-        // Add loading indicator
-        const loadingItem = document.createElement('div');
-        loadingItem.textContent = 'Loading linked items...';
-        loadingItem.style.padding = '10px 12px';
-        loadingItem.style.color = '#666';
-        loadingItem.style.fontStyle = 'italic';
-        loadingItem.style.fontSize = '13px';
-        loadingItem.style.textAlign = 'center';
-        dropdownContent.appendChild(loadingItem);
-
-        // Toggle dropdown on click
-        dropdownToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-
-            // Close all other dropdowns
-            document.querySelectorAll('.linked-items-content').forEach(content => {
-                if (content !== dropdownContent) {
-                    content.style.display = 'none';
-                }
-            });
-
-            // Toggle this dropdown
-            dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-        });
-
-        // Close dropdown when clicking elsewhere
-        document.addEventListener('click', () => {
-            dropdownContent.style.display = 'none';
-        });
-
-        // Add components to the dropdown
-        dropdown.appendChild(dropdownToggle);
-        dropdown.appendChild(dropdownContent);
-
-        // Add to the card area
-        cardArea.appendChild(dropdown);
-
-        return dropdown;
-    }
-    getIssueItemFromCard(boardCard) {
-        try {
-            if (boardCard.__vue__) {
-                if (boardCard.__vue__.$children && boardCard.__vue__.$children.length > 0) {
-                    const issueComponent = boardCard.__vue__.$children.find(child => child.$props && child.$props.item);
-                    if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
-                        return issueComponent.$props.item;
-                    }
-                }
-                if (boardCard.__vue__.$options && boardCard.__vue__.$options.children && boardCard.__vue__.$options.children.length > 0) {
-                    const issueComponent = boardCard.__vue__.$options.children.find(child => child.$props && child.$props.item);
-                    if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
-                        return issueComponent.$props.item;
-                    }
-                }
-                if (boardCard.__vue__.$props && boardCard.__vue__.$props.item) {
-                    return boardCard.__vue__.$props.item;
-                }
-            }
-            const issueId = boardCard.querySelector('[data-issue-id]')?.dataset?.issueId;
-            const titleElement = boardCard.querySelector('.board-card-title');
-            if (issueId && titleElement) {
-                return {
-                    iid: issueId,
-                    title: titleElement.textContent.trim(),
-                    referencePath: window.location.pathname.split('/boards')[0]
-                };
-            }
-        } catch (e) {
-            console.error('Error getting issue item from card:', e);
+      }
+      if (dropdownContent.style.display === 'block') {
+        const rect = dropdownContent.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+          dropdownContent.style.right = 'auto';
+          dropdownContent.style.left = `-${rect.width - dropdownToggle.offsetWidth}px`;
         }
-        return null;
-    }
-
-    getLinkedItemsFromIssue(issueItem) {
-        const linkedItems = [];
-
-        try {
-            // Extract the correct project path - fixing the URL generation issue
-            let projectPath = '';
-            if (issueItem.referencePath) {
-                // If it's already a clean path like "linkster-co/frontend"
-                if (!issueItem.referencePath.includes('/groups/')) {
-                    projectPath = issueItem.referencePath;
-                } else {
-                    // Extract from things like "/groups/linkster-co/-/boards/linkster-co/frontend"
-                    const matches = issueItem.referencePath.match(/\/boards\/(.+?)($|#|\/)/);
-                    if (matches && matches[1]) {
-                        projectPath = matches[1];
-                    } else {
-                        // Fallback to current URL parsing
-                        projectPath = window.location.pathname.split('/boards')[0].replace(/^\//, '');
-                    }
-                }
-            } else {
-                // Fallback to window URL if no referencePath
-                projectPath = window.location.pathname.split('/boards')[0].replace(/^\//, '');
-            }
-
-            // Base GitLab URL
-            const baseUrl = window.location.origin;
-
-            // Check for merge requests
-            if (issueItem.mergeRequests && issueItem.mergeRequests.nodes) {
-                issueItem.mergeRequests.nodes.forEach(mr => {
-                    // Use direct webUrl if available, otherwise construct it
-                    const mrUrl = mr.webUrl || `${baseUrl}/${projectPath}/-/merge_requests/${mr.iid}`;
-                    linkedItems.push({
-                        type: 'merge_request',
-                        title: mr.title || `Merge Request !${mr.iid}`,
-                        state: mr.state,
-                        url: mrUrl
-                    });
-                });
-            }
-
-            // Check for linked branches
-            if (issueItem.referencedBranches) {
-                issueItem.referencedBranches.forEach(branch => {
-                    const branchName = typeof branch === 'string' ? branch : branch.name;
-                    linkedItems.push({
-                        type: 'branch',
-                        title: branchName,
-                        url: `${baseUrl}/${projectPath}/-/tree/${encodeURIComponent(branchName)}`
-                    });
-                });
-            }
-
-            // Check for related issues
-            if (issueItem.relatedIssues && issueItem.relatedIssues.nodes) {
-                issueItem.relatedIssues.nodes.forEach(related => {
-                    // Use direct webUrl if available, otherwise construct it
-                    const relatedPath = related.referencePath || projectPath;
-                    const issueUrl = related.webUrl || `${baseUrl}/${relatedPath}/-/issues/${related.iid}`;
-                    linkedItems.push({
-                        type: 'issue',
-                        title: related.title || `Issue #${related.iid}`,
-                        state: related.state,
-                        url: issueUrl
-                    });
-                });
-            }
-
-            // Add link to the issue itself
-            if (issueItem.iid) {
-                linkedItems.push({
-                    type: 'issue_detail',
-                    title: 'View Issue Details',
-                    url: `${baseUrl}/${projectPath}/-/issues/${issueItem.iid}`
-                });
-            }
-        } catch (e) {
-            console.error('Error extracting linked items:', e);
-        }
-
-        return linkedItems;
-    }
-
-    createDropdownForCard(card, issueItem, cardArea) {
-        // Generate unique ID for this card
-        const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-        // Create the dropdown button
-        const dropdown = document.createElement('div');
-        dropdown.className = 'linked-items-dropdown';
-        dropdown.style.position = 'absolute';
+      }
+    });
+    document.addEventListener('click', () => {
+      if (dropdownContent.style.display === 'block') {
+        dropdownContent.style.display = 'none';
         dropdown.style.zIndex = '99';
-        dropdown.style.cursor = 'pointer';
-        dropdown.style.transition = 'all 0.2s ease';
-        dropdown.dataset.cardId = cardId;
-        dropdown.originalCard = card;
-
-        // Position the dropdown
-        this.positionDropdown(dropdown, card, cardArea);
-
-        // Get linked items
-        const linkedItems = this.getLinkedItemsFromIssue(issueItem);
-
-        // Store links for this card
-        this.cardLinks.set(cardId, linkedItems);
-
-        // If no linked items found, don't create dropdown
-        if (linkedItems.length === 0) {
-            return null;
-        }
-
-        // Create dropdown toggle button
-        const dropdownToggle = document.createElement('div');
-        dropdownToggle.className = 'linked-items-toggle';
-        dropdownToggle.style.backgroundColor = '#1f75cb';
-        dropdownToggle.style.color = 'white';
-        dropdownToggle.style.borderRadius = '50%';
-        dropdownToggle.style.width = '22px';
-        dropdownToggle.style.height = '22px';
-        dropdownToggle.style.display = 'flex';
-        dropdownToggle.style.alignItems = 'center';
-        dropdownToggle.style.justifyContent = 'center';
-        dropdownToggle.style.fontSize = '12px';
-        dropdownToggle.style.fontWeight = 'bold';
-        dropdownToggle.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
-        dropdownToggle.style.border = '2px solid white';
-        dropdownToggle.title = `${linkedItems.length} linked item${linkedItems.length !== 1 ? 's' : ''}`;
-
-// Create and add SVG icon instead of using emoji
-        const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svgIcon.setAttribute('role', 'img');
-        svgIcon.setAttribute('aria-hidden', 'true');
-        svgIcon.classList.add('gl-icon');
-        svgIcon.style.width = '12px';
-        svgIcon.style.height = '12px';
-        svgIcon.style.fill = 'white';
-
-// Create use element to reference the SVG icon
-        const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        useElement.setAttribute('href', '/assets/icons-aa2c8ddf99d22b77153ca2bb092a23889c12c597fc8b8de94b0f730eb53513f6.svg#issue-type-issue');
-        svgIcon.appendChild(useElement);
-
-// Add SVG to the dropdown toggle
-        dropdownToggle.appendChild(svgIcon);
-
-        // Count by type
-        const mrCount = linkedItems.filter(item => item.type === 'merge_request').length;
-        const branchCount = linkedItems.filter(item => item.type === 'branch').length;
-        const issueCount = linkedItems.filter(item => item.type === 'issue').length;
-
-        if (mrCount > 0 || branchCount > 0) {
-            dropdownToggle.title = `${mrCount ? mrCount + ' MR' + (mrCount > 1 ? 's' : '') : ''}${mrCount && branchCount ? ', ' : ''}${branchCount ? branchCount + ' branch' + (branchCount > 1 ? 'es' : '') : ''}${issueCount ? (mrCount || branchCount ? ', ' : '') + issueCount + ' issue' + (issueCount > 1 ? 's' : '') : ''}`;
-        }
-
-        // Style for hover effect
-        dropdownToggle.addEventListener('mouseenter', function() {
-            this.style.backgroundColor = '#0056b3';
-            this.style.transform = 'scale(1.1)';
-        });
-
-        dropdownToggle.addEventListener('mouseleave', function() {
-            this.style.backgroundColor = '#1f75cb';
-            this.style.transform = 'scale(1)';
-        });
-
-        const dropdownContent = document.createElement('div');
-        dropdownContent.className = 'linked-items-content';
-        dropdownContent.style.display = 'none';
-        dropdownContent.style.position = 'absolute';
-        dropdownContent.style.backgroundColor = 'white';
-        dropdownContent.style.minWidth = '200px';
-        dropdownContent.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
-        dropdownContent.style.zIndex = '100';
-        dropdownContent.style.borderRadius = '4px';
-        dropdownContent.style.border = '1px solid #ddd';
-        dropdownContent.style.left = '0'; // Change from 'right: 0' to 'left: 0'
-        dropdownContent.style.top = '30px';
-
-        const groupedItems = {
-            merge_request: [],
-            branch: [],
-            issue: [],
-            other: []
-        };
-
-        linkedItems.forEach(item => {
-            if (groupedItems[item.type]) {
-                groupedItems[item.type].push(item);
-            } else {
-                groupedItems.other.push(item);
-            }
-        });
-
-        // Helper to create section headers
-        const createSectionHeader = (title) => {
-            const header = document.createElement('div');
-            header.style.backgroundColor = '#f8f9fa';
-            header.style.padding = '5px 12px';
-            header.style.fontSize = '11px';
-            header.style.fontWeight = 'bold';
-            header.style.color = '#6c757d';
-            header.style.textTransform = 'uppercase';
-            header.style.borderBottom = '1px solid #eee';
-            header.textContent = title;
-            return header;
-        };
-
-        // Add merge requests section
-        if (groupedItems.merge_request.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Merge Requests'));
-            groupedItems.merge_request.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-
-        // Add branches section
-        if (groupedItems.branch.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Branches'));
-            groupedItems.branch.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-
-        // Add issues section
-        if (groupedItems.issue.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Related Issues'));
-            groupedItems.issue.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-
-        // Add other links
-        if (groupedItems.other.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Actions'));
-            groupedItems.other.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-
-        // Toggle dropdown on click
-        dropdownToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-
-            // Close all other dropdowns
-            document.querySelectorAll('.linked-items-content').forEach(content => {
-                if (content !== dropdownContent) {
-                    content.style.display = 'none';
-                }
-            });
-
-            // Toggle this dropdown
-            dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-
-            // Position the dropdown content properly
-            if (dropdownContent.style.display === 'block') {
-                // Check if dropdown would go off-screen to the right
-                const rect = dropdownContent.getBoundingClientRect();
-                if (rect.right > window.innerWidth) {
-                    dropdownContent.style.right = 'auto';
-                    dropdownContent.style.left = `-${rect.width - dropdownToggle.offsetWidth}px`;
-                }
-            }
-        });
-
-        // Close dropdown when clicking elsewhere
-        document.addEventListener('click', () => {
-            dropdownContent.style.display = 'none';
-        });
-
-        // Add components to the dropdown
-        dropdown.appendChild(dropdownToggle);
-        dropdown.appendChild(dropdownContent);
-
-        // Add to the card area
-        cardArea.appendChild(dropdown);
-
-        return dropdown;
-    }
-
-    createLinkItem(item) {
-        const link = document.createElement('a');
-        link.href = item.url;
-        link.target = '_blank';
-        link.style.padding = '8px 12px';
-        link.style.display = 'flex';
-        link.style.alignItems = 'center';
-        link.style.textDecoration = 'none';
-        link.style.color = '#333';
-        link.style.borderBottom = '1px solid #eee';
-
-        // Icon based on type
-        const icon = document.createElement('span');
-        switch(item.type) {
-            case 'merge_request':
-                icon.textContent = '🔀';
-                icon.title = 'Merge Request';
-                break;
-            case 'branch':
-                icon.textContent = '🌿';
-                icon.title = 'Branch';
-                break;
-            case 'issue':
-                icon.textContent = '📝';
-                icon.title = 'Issue';
-                break;
-            case 'issue_detail':
-                icon.textContent = '👁️';
-                icon.title = 'View Issue';
-                break;
-            default:
-                icon.textContent = '🔗';
-        }
-
-        icon.style.marginRight = '8px';
-        icon.style.fontSize = '16px';
-
-        // Title text
-        const text = document.createElement('span');
-        text.textContent = this.truncateText(item.title, 30);
-        text.style.flex = '1';
-        text.style.overflow = 'hidden';
-        text.style.textOverflow = 'ellipsis';
-        text.style.whiteSpace = 'nowrap';
-
-        // Status indicator for MRs and issues if applicable
+      }
+    });
+    dropdown.appendChild(dropdownToggle);
+    dropdown.appendChild(dropdownContent);
+    cardArea.appendChild(dropdown);
+    return dropdown;
+  }
+  createLinkItem(item) {
+    const link = document.createElement('a');
+    link.href = item.url;
+    link.target = '_blank';
+    link.style.padding = '8px 12px';
+    link.style.display = 'flex';
+    link.style.alignItems = 'center';
+    link.style.textDecoration = 'none';
+    link.style.color = '#333';
+    link.style.borderBottom = '1px solid #eee';
+    const icon = document.createElement('span');
+    switch (item.type) {
+      case 'merge_request':
+        icon.textContent = '🔀';
+        icon.title = 'Merge Request';
         if (item.state) {
-            const status = document.createElement('span');
-            status.style.borderRadius = '10px';
-            status.style.padding = '2px 6px';
-            status.style.fontSize = '10px';
-            status.style.marginLeft = '4px';
-            status.textContent = item.state;
-
-            if (item.state.toLowerCase() === 'open' || item.state.toLowerCase() === 'opened') {
-                status.style.backgroundColor = '#28a745';
-                status.style.color = 'white';
-            } else if (item.state.toLowerCase() === 'closed') {
-                status.style.backgroundColor = '#dc3545';
-                status.style.color = 'white';
-            } else if (item.state.toLowerCase() === 'merged') {
-                status.style.backgroundColor = '#6f42c1';
-                status.style.color = 'white';
+          if (item.state.toLowerCase() === 'merged') {
+            icon.style.color = '#6f42c1';
+          } else if (item.state.toLowerCase() === 'opened' || item.state.toLowerCase() === 'open') {
+            icon.style.color = '#28a745';
+          } else if (item.state.toLowerCase() === 'closed') {
+            icon.style.color = '#dc3545';
+          }
+        }
+        break;
+      case 'branch':
+        icon.textContent = '🌿';
+        icon.title = 'Branch';
+        icon.style.color = '#f9bc00';
+        break;
+      case 'issue':
+        icon.textContent = '📝';
+        icon.title = 'Issue';
+        if (item.state) {
+          if (item.state.toLowerCase() === 'closed') {
+            icon.style.color = '#dc3545';
+          } else if (item.state.toLowerCase() === 'opened' || item.state.toLowerCase() === 'open') {
+            icon.style.color = '#28a745';
+          }
+        }
+        break;
+      case 'issue_detail':
+        icon.textContent = '👁️';
+        icon.title = 'View Issue';
+        icon.style.color = '#17a2b8';
+        break;
+      default:
+        icon.textContent = '🔗';
+        icon.style.color = '#6c757d';
+    }
+    icon.style.marginRight = '8px';
+    icon.style.fontSize = '16px';
+    const text = document.createElement('span');
+    text.textContent = this.truncateText(item.title, 30);
+    text.style.flex = '1';
+    text.style.overflow = 'hidden';
+    text.style.textOverflow = 'ellipsis';
+    text.style.whiteSpace = 'nowrap';
+    if (item.state) {
+      const status = document.createElement('span');
+      status.style.borderRadius = '10px';
+      status.style.padding = '2px 6px';
+      status.style.fontSize = '10px';
+      status.style.marginLeft = '4px';
+      status.textContent = item.state;
+      if (item.state.toLowerCase() === 'open' || item.state.toLowerCase() === 'opened') {
+        status.style.backgroundColor = '#28a745';
+        status.style.color = 'white';
+      } else if (item.state.toLowerCase() === 'closed') {
+        status.style.backgroundColor = '#dc3545';
+        status.style.color = 'white';
+      } else if (item.state.toLowerCase() === 'merged') {
+        status.style.backgroundColor = '#6f42c1';
+        status.style.color = 'white';
+      }
+      link.appendChild(status);
+    }
+    link.prepend(icon);
+    link.appendChild(text);
+    link.addEventListener('mouseenter', function () {
+      this.style.backgroundColor = '#f8f9fa';
+    });
+    link.addEventListener('mouseleave', function () {
+      this.style.backgroundColor = 'white';
+    });
+    return link;
+  }
+  positionDropdown(dropdown, card, cardArea) {
+    try {
+      const cardRect = card.getBoundingClientRect();
+      const areaRect = cardArea.getBoundingClientRect();
+      const top = cardRect.top - areaRect.top + cardArea.scrollTop;
+      const left = cardRect.left - areaRect.left + cardArea.scrollLeft + 5 - 13;
+      dropdown.style.top = `${top}px`;
+      dropdown.style.left = `${left}px`;
+    } catch (e) {
+      console.error('Error positioning dropdown:', e);
+    }
+  }
+  refreshDropdowns() {
+    if (!this.initialized) {
+      return;
+    }
+    this.repositionDropdowns();
+    this.checkForNewCards();
+  }
+  repositionDropdowns() {
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.className === 'linked-items-dropdown' && dropdown.originalCard) {
+        const card = dropdown.originalCard;
+        const container = dropdown.parentNode;
+        if (card && container) {
+          this.positionDropdown(dropdown, card, container);
+        }
+      }
+    });
+  }
+  checkForNewCards() {
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    let newCardsFound = false;
+    cardAreas.forEach(cardArea => {
+      const cards = cardArea.querySelectorAll('.board-card');
+      cards.forEach(card => {
+        const cardId = card.id || '';
+        const hasDropdown = this.dropdowns.some(dropdown => dropdown.dataset.cardId === cardId || dropdown.originalCard === card);
+        if (!hasDropdown) {
+          try {
+            const dropdown = this.createPlaceholderDropdown(card, cardArea);
+            if (dropdown) {
+              this.dropdowns.push(dropdown);
+              newCardsFound = true;
+              this.fetchAndUpdateDropdown(dropdown, card);
             }
-
-            link.appendChild(status);
+          } catch (error) {
+            console.error('Error creating dropdown for new card:', error);
+          }
         }
-
-        link.prepend(icon);
-        link.appendChild(text);
-
-        // Hover effect
-        link.addEventListener('mouseenter', function() {
-            this.style.backgroundColor = '#f8f9fa';
-        });
-
-        link.addEventListener('mouseleave', function() {
-            this.style.backgroundColor = 'white';
-        });
-
-        return link;
+      });
+    });
+    return newCardsFound;
+  }
+  truncateText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  }
+  handleScroll() {
+    this.repositionDropdowns();
+  }
+  handleResize() {
+    this.repositionDropdowns();
+  }
+  setupMutationObserver() {
+    if (this.boardObserver) {
+      this.boardObserver.disconnect();
     }
-
-    positionDropdown(dropdown, card, cardArea) {
-        try {
-            const cardRect = card.getBoundingClientRect();
-            const areaRect = cardArea.getBoundingClientRect();
-
-            // Position at top left corner of the card instead of top right
-            const top = cardRect.top - areaRect.top + cardArea.scrollTop;
-            const left = cardRect.left - areaRect.left + cardArea.scrollLeft + 5 - 13; // Just add a small 5px margin
-
-            dropdown.style.top = `${top}px`;
-            dropdown.style.left = `${left}px`;
-        } catch (e) {
-            console.error('Error positioning dropdown:', e);
+    this.boardObserver = new MutationObserver(mutations => {
+      let needsUpdate = false;
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          const hasCardChanges = Array.from(mutation.addedNodes).some(node => node.classList && node.classList.contains('board-card'));
+          if (hasCardChanges) {
+            needsUpdate = true;
+          }
         }
+      });
+      if (needsUpdate && this.initialized) {
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(() => {
+          this.refreshDropdowns();
+        }, 100);
+      }
+    });
+    const boardContainers = document.querySelectorAll('.board-list, [data-testid="board-list"], .boards-list');
+    boardContainers.forEach(container => {
+      this.boardObserver.observe(container, {
+        childList: true,
+        subtree: true
+      });
+    });
+  }
+  cleanup() {
+    this.saveCacheToLocalStorage();
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.parentNode) {
+        dropdown.parentNode.removeChild(dropdown);
+      }
+    });
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
     }
-
-    refreshDropdowns() {
-        if (!this.initialized) {
-            return;
+    if (this.cacheSaveInterval) {
+      clearInterval(this.cacheSaveInterval);
+      this.cacheSaveInterval = null;
+    }
+    if (this.boardObserver) {
+      this.boardObserver.disconnect();
+      this.boardObserver = null;
+    }
+    if (this.cardsObserver) {
+      this.cardsObserver.disconnect();
+      this.cardsObserver = null;
+    }
+    this.dropdowns = [];
+    this.cardLinks.clear();
+    this.cache.issues.clear();
+    this.cache.mergeRequests.clear();
+    this.cache.relatedIssues.clear();
+    this.initialized = false;
+  }
+  setupCardsMutationObserver() {
+    if (this.cardsObserver) {
+      this.cardsObserver.disconnect();
+    }
+    this.cardsObserver = new MutationObserver(mutations => {
+      let needsCheck = false;
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          needsCheck = true;
         }
-
-        // First reposition all existing dropdowns
-        this.repositionDropdowns();
-
-        // Then check for any new cards without dropdowns
+      });
+      if (needsCheck) {
         this.checkForNewCards();
+      }
+    });
+    document.body.querySelectorAll('.boards-app, .boards-list').forEach(container => {
+      this.cardsObserver.observe(container, {
+        childList: true,
+        subtree: true
+      });
+    });
+    if (!document.querySelector('.boards-app, .boards-list')) {
+      this.cardsObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
     }
-
-    repositionDropdowns() {
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.className === 'linked-items-dropdown' && dropdown.originalCard) {
-                const card = dropdown.originalCard;
-                const container = dropdown.parentNode;
-
-                if (card && container) {
-                    this.positionDropdown(dropdown, card, container);
-                }
-            }
+  }
+  extractRepositoryPath(path) {
+    if (!path) {
+      return window.location.pathname.split('/boards')[0].replace(/^\//, '');
+    }
+    if (!path.includes('/') && !path.includes('#')) {
+      return path;
+    }
+    let cleanPath = path;
+    if (cleanPath.includes('#')) {
+      cleanPath = cleanPath.split('#')[0];
+    }
+    const boardsMatch = cleanPath.match(/\/boards\/([^\/]+\/[^\/]+)/);
+    if (boardsMatch && boardsMatch[1]) {
+      return boardsMatch[1];
+    }
+    const projectMatch = cleanPath.match(/^\/([^\/]+\/[^\/]+)/);
+    if (projectMatch && projectMatch[1]) {
+      return projectMatch[1];
+    }
+    const simpleMatch = cleanPath.match(/^\/([^\/]+\/[^\/]+)\/?$/);
+    if (simpleMatch && simpleMatch[1]) {
+      return simpleMatch[1];
+    }
+    const fallback = cleanPath.replace(/^\//, '').split('/boards')[0];
+    if (fallback.includes('/')) {
+      return fallback;
+    }
+    return window.location.pathname.split('/boards')[0].replace(/^\//, '');
+  }
+  addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath) {
+    if (issueItem.mergeRequests && issueItem.mergeRequests.nodes) {
+      issueItem.mergeRequests.nodes.forEach(mr => {
+        const mrUrl = mr.webUrl || `${baseUrl}/${projectPath}/-/merge_requests/${mr.iid}`;
+        linkedItems.push({
+          type: 'merge_request',
+          title: mr.title || `Merge Request !${mr.iid}`,
+          state: mr.state,
+          url: mrUrl
         });
+      });
     }
-
-    checkForNewCards() {
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        let newCardsFound = false;
-
-        cardAreas.forEach(cardArea => {
-            const cards = cardArea.querySelectorAll('.board-card');
-
-            cards.forEach(card => {
-                // Check if this card already has a dropdown
-                const cardId = card.id || '';
-                const hasDropdown = this.dropdowns.some(dropdown =>
-                    dropdown.dataset.cardId === cardId || dropdown.originalCard === card
-                );
-
-                if (!hasDropdown) {
-                    try {
-                        // Create a placeholder immediately
-                        const dropdown = this.createPlaceholderDropdown(card, cardArea);
-                        if (dropdown) {
-                            this.dropdowns.push(dropdown);
-                            newCardsFound = true;
-
-                            // Then fetch and update with real data
-                            this.fetchAndUpdateDropdown(dropdown, card);
-                        }
-                    } catch (error) {
-                        console.error('Error creating dropdown for new card:', error);
-                    }
-                }
-            });
+    if (issueItem.relatedIssues && issueItem.relatedIssues.nodes) {
+      issueItem.relatedIssues.nodes.forEach(related => {
+        const relatedPath = related.referencePath || projectPath;
+        const issueUrl = related.webUrl || `${baseUrl}/${relatedPath}/-/issues/${related.iid}`;
+        linkedItems.push({
+          type: 'issue',
+          title: related.title || `Issue #${related.iid}`,
+          state: related.state,
+          url: issueUrl
         });
-
-        return newCardsFound;
+      });
     }
-
-    truncateText(text, maxLength) {
-        if (!text) return '';
-        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  }
+  async preloadMergeRequests(projectPath) {
+    if (!projectPath) return;
+    try {
+      const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
+      if (!gitlabApi || typeof gitlabApi.callGitLabApiWithCache !== 'function') return;
+      const encodedPath = encodeURIComponent(projectPath);
+    } catch (error) {
+      console.warn('Error preloading merge requests:', error);
     }
-
-    handleScroll() {
-        this.repositionDropdowns();
-    }
-
-    handleResize() {
-        this.repositionDropdowns();
-    }
-
-    setupMutationObserver() {
-        if (this.boardObserver) {
-            this.boardObserver.disconnect();
-        }
-
-        this.boardObserver = new MutationObserver(mutations => {
-            let needsUpdate = false;
-
-            mutations.forEach(mutation => {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    const hasCardChanges = Array.from(mutation.addedNodes).some(node =>
-                        node.classList && node.classList.contains('board-card')
-                    );
-
-                    if (hasCardChanges) {
-                        needsUpdate = true;
-                    }
-                }
-            });
-
-            if (needsUpdate && this.initialized) {
-                clearTimeout(this.updateTimeout);
-                this.updateTimeout = setTimeout(() => {
-                    this.refreshDropdowns();
-                }, 100);
-            }
-        });
-
-        const boardContainers = document.querySelectorAll('.board-list, [data-testid="board-list"], .boards-list');
-        boardContainers.forEach(container => {
-            this.boardObserver.observe(container, {
-                childList: true,
-                subtree: true
-            });
-        });
-    }
-
-    cleanup() {
-        // Remove all dropdowns
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.parentNode) {
-                dropdown.parentNode.removeChild(dropdown);
-            }
-        });
-
-        // Clear interval
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
-
-        this.dropdowns = [];
-        this.cardLinks.clear();
-
-        this.initialized = false;
-        console.log('LinkedItemsManager: Cleaned up');
-    }
-
-
+  }
 }
 
 // File: lib/ui/managers/TabManager.js
@@ -4171,2152 +4188,1995 @@ window.MilestoneManager = class MilestoneManager {
 
 // File: lib/ui/managers/SettingsManager.js
 window.SettingsManager = class SettingsManager {
-    constructor(options = {}) {
-        this.labelManager = options.labelManager;
-        this.assigneeManager = options.assigneeManager;
-        this.gitlabApi = options.gitlabApi || window.gitlabApi;
-        this.uiManager = options.uiManager || window.uiManager;
-        this.onSettingsChanged = options.onSettingsChanged || null;
-        this.notification = new Notification({
-            position: 'bottom-right',
-            duration: 3000
+  constructor(options = {}) {
+    this.labelManager = options.labelManager;
+    this.assigneeManager = options.assigneeManager;
+    this.gitlabApi = options.gitlabApi || window.gitlabApi;
+    this.uiManager = options.uiManager || window.uiManager;
+    this.onSettingsChanged = options.onSettingsChanged || null;
+    this.notification = new Notification({
+      position: 'bottom-right',
+      duration: 3000
+    });
+    this.availableAssignees = [];
+    this.isLoadingAssignees = false;
+  }
+  openSettingsModal() {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'git-helper-settings-overlay';
+    modalOverlay.style.position = 'fixed';
+    modalOverlay.style.top = '0';
+    modalOverlay.style.left = '0';
+    modalOverlay.style.width = '100%';
+    modalOverlay.style.height = '100%';
+    modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    modalOverlay.style.zIndex = '1000';
+    modalOverlay.style.display = 'flex';
+    modalOverlay.style.justifyContent = 'center';
+    modalOverlay.style.alignItems = 'center';
+    modalOverlay.style.cursor = 'pointer';
+    this.currentModal = modalOverlay;
+    const modalContent = document.createElement('div');
+    modalContent.style.backgroundColor = 'white';
+    modalContent.style.borderRadius = '6px';
+    modalContent.style.padding = '20px';
+    modalContent.style.width = '700px';
+    modalContent.style.maxWidth = '90%';
+    modalContent.style.maxHeight = '80vh';
+    modalContent.style.overflow = 'auto';
+    modalContent.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+    const modalHeader = document.createElement('div');
+    modalHeader.style.display = 'flex';
+    modalHeader.style.justifyContent = 'space-between';
+    modalHeader.style.alignItems = 'center';
+    modalHeader.style.marginBottom = '15px';
+    modalHeader.style.borderBottom = '1px solid #eee';
+    modalHeader.style.paddingBottom = '10px';
+    const modalTitle = document.createElement('h3');
+    modalTitle.textContent = 'Settings';
+    modalTitle.style.margin = '0';
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '&times;';
+    closeButton.style.backgroundColor = 'transparent';
+    closeButton.style.border = 'none';
+    closeButton.style.fontSize = '24px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.style.padding = '0 5px';
+    closeButton.onclick = () => modalOverlay.remove();
+    modalHeader.appendChild(modalTitle);
+    modalHeader.appendChild(closeButton);
+    const contentContainer = document.createElement('div');
+    this.createCollapsibleSection(contentContainer, 'General', 'Configure application-wide settings', container => this.createGeneralSettings(container), true);
+    this.createCollapsibleSection(contentContainer, 'Assignees', 'Manage assignees for quick access in comments', container => this.createAssigneeSettings(container), false);
+    this.createCollapsibleSection(contentContainer, 'Labels', 'Manage which labels appear in the dropdown menus', container => this.createLabelWhitelistSettings(container), false);
+    this.createCollapsibleSection(contentContainer, 'Appearance', 'Customize the appearance of GitLab Sprint Helper', container => this.createAppearanceSettings(container), false);
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.marginTop = '20px';
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.justifyContent = 'space-between';
+    buttonContainer.style.alignItems = 'center';
+    buttonContainer.style.borderTop = '1px solid #eee';
+    buttonContainer.style.paddingTop = '15px';
+    const resetButton = document.createElement('button');
+    resetButton.textContent = 'Reset to Defaults';
+    resetButton.style.padding = '8px 16px';
+    resetButton.style.backgroundColor = '#6c757d';
+    resetButton.style.color = 'white';
+    resetButton.style.border = 'none';
+    resetButton.style.borderRadius = '4px';
+    resetButton.style.cursor = 'pointer';
+    resetButton.onclick = () => {
+      if (confirm('Are you sure you want to reset all settings to default values?')) {
+        this.resetAllSettings();
+        modalOverlay.remove();
+        this.notification.success('Settings reset to defaults');
+      }
+    };
+    const closeModalButton = document.createElement('button');
+    closeModalButton.textContent = 'Close';
+    closeModalButton.onclick = () => {
+      if (this.currentModal) {
+        this.currentModal.remove();
+        this.currentModal = null;
+      }
+    };
+    buttonContainer.appendChild(resetButton);
+    buttonContainer.appendChild(closeModalButton);
+    modalContent.appendChild(modalHeader);
+    modalContent.appendChild(contentContainer);
+    modalContent.appendChild(buttonContainer);
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+    modalOverlay.addEventListener('click', e => {
+      if (e.target === modalOverlay) {
+        modalOverlay.remove();
+      }
+    });
+  }
+  createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
+    startExpanded = false;
+    const section = document.createElement('div');
+    section.className = 'gitlab-helper-settings-section';
+    section.style.marginBottom = '15px';
+    section.style.border = '1px solid #ddd';
+    section.style.borderRadius = '6px';
+    section.style.overflow = 'hidden';
+    const header = document.createElement('div');
+    header.className = 'gitlab-helper-settings-header';
+    header.style.padding = '12px 15px';
+    header.style.backgroundColor = '#f8f9fa';
+    header.style.borderBottom = startExpanded ? '1px solid #ddd' : 'none';
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+    header.style.cursor = 'pointer';
+    header.style.transition = 'background-color 0.2s ease';
+    header.addEventListener('mouseenter', () => {
+      header.style.backgroundColor = '#e9ecef';
+    });
+    header.addEventListener('mouseleave', () => {
+      header.style.backgroundColor = '#f8f9fa';
+    });
+    const titleContainer = document.createElement('div');
+    const titleEl = document.createElement('h4');
+    titleEl.textContent = title;
+    titleEl.style.margin = '0';
+    titleEl.style.fontSize = '16px';
+    const descEl = document.createElement('div');
+    descEl.textContent = description;
+    descEl.style.fontSize = '13px';
+    descEl.style.color = '#6c757d';
+    descEl.style.marginTop = '4px';
+    titleContainer.appendChild(titleEl);
+    titleContainer.appendChild(descEl);
+    const toggle = document.createElement('span');
+    toggle.textContent = startExpanded ? '▼' : '▶';
+    toggle.style.fontSize = '14px';
+    toggle.style.transition = 'transform 0.3s ease';
+    header.appendChild(titleContainer);
+    header.appendChild(toggle);
+    const content = document.createElement('div');
+    content.className = 'gitlab-helper-settings-content';
+    content.style.padding = '5px';
+    content.style.display = startExpanded ? 'block' : 'none';
+    content.style.backgroundColor = 'white';
+    let contentBuilt = false;
+    header.addEventListener('click', () => {
+      const isExpanded = content.style.display === 'block';
+      content.style.display = isExpanded ? 'none' : 'block';
+      toggle.textContent = isExpanded ? '▶' : '▼';
+      header.style.borderBottom = isExpanded ? 'none' : '1px solid #ddd';
+      if (!contentBuilt && !isExpanded) {
+        contentBuilder(content);
+        contentBuilt = true;
+      }
+    });
+    section.appendChild(header);
+    section.appendChild(content);
+    container.appendChild(section);
+    return section;
+  }
+  createAssigneeSettings(container) {
+    const assigneeSection = document.createElement('div');
+    const actionsRow = document.createElement('div');
+    actionsRow.style.display = 'flex';
+    actionsRow.style.justifyContent = 'space-between';
+    actionsRow.style.marginBottom = '15px';
+    actionsRow.style.gap = '10px';
+    const searchContainer = document.createElement('div');
+    searchContainer.style.flex = '1';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search assignees...';
+    searchInput.style.width = '100%';
+    searchInput.style.padding = '8px 10px';
+    searchInput.style.borderRadius = '4px';
+    searchInput.style.border = '1px solid #ccc';
+    searchContainer.appendChild(searchInput);
+    const fetchButton = document.createElement('button');
+    fetchButton.textContent = 'Fetch GitLab Users';
+    fetchButton.style.padding = '8px 12px';
+    fetchButton.style.backgroundColor = '#1f75cb';
+    fetchButton.style.color = 'white';
+    fetchButton.style.border = 'none';
+    fetchButton.style.borderRadius = '4px';
+    fetchButton.style.cursor = 'pointer';
+    fetchButton.onclick = () => this.fetchGitLabUsers(availableListContainer);
+    actionsRow.appendChild(searchContainer);
+    actionsRow.appendChild(fetchButton);
+    assigneeSection.appendChild(actionsRow);
+    const tabsContainer = document.createElement('div');
+    tabsContainer.style.display = 'flex';
+    tabsContainer.style.borderBottom = '1px solid #dee2e6';
+    tabsContainer.style.marginBottom = '15px';
+    const tabs = [{
+      id: 'whitelisted',
+      label: 'My Assignees',
+      active: true
+    }, {
+      id: 'available',
+      label: 'Available Users',
+      active: false
+    }];
+    const tabElements = {};
+    const tabContents = {};
+    tabs.forEach(tab => {
+      const tabElement = document.createElement('div');
+      tabElement.textContent = tab.label;
+      tabElement.style.padding = '8px 15px';
+      tabElement.style.cursor = 'pointer';
+      tabElement.style.transition = 'all 0.2s ease';
+      if (tab.active) {
+        tabElement.style.borderBottom = '2px solid #1f75cb';
+        tabElement.style.fontWeight = 'bold';
+      }
+      tabElement.addEventListener('mouseenter', () => {
+        if (!tab.active) {
+          tabElement.style.backgroundColor = '#f5f5f5';
+        }
+      });
+      tabElement.addEventListener('mouseleave', () => {
+        if (!tab.active) {
+          tabElement.style.backgroundColor = '';
+        }
+      });
+      tabElement.addEventListener('click', () => {
+        tabs.forEach(t => {
+          t.active = false;
+          tabElements[t.id].style.borderBottom = 'none';
+          tabElements[t.id].style.fontWeight = 'normal';
+          tabElements[t.id].style.backgroundColor = '';
+          tabContents[t.id].style.display = 'none';
         });
-        this.availableAssignees = [];
-        this.isLoadingAssignees = false;
+        tab.active = true;
+        tabElement.style.borderBottom = '2px solid #1f75cb';
+        tabElement.style.fontWeight = 'bold';
+        tabContents[tab.id].style.display = 'block';
+        if (tab.id === 'whitelisted') {
+          this.refreshAssigneeList(assigneeListContainer);
+        } else if (tab.id === 'available') {
+          this.fetchGitLabUsers(availableListContainer);
+        }
+      });
+      tabElements[tab.id] = tabElement;
+      tabsContainer.appendChild(tabElement);
+    });
+    assigneeSection.appendChild(tabsContainer);
+    const whitelistedContent = document.createElement('div');
+    whitelistedContent.style.display = 'block';
+    const availableContent = document.createElement('div');
+    availableContent.style.display = 'none';
+    const assigneeListContainer = document.createElement('div');
+    assigneeListContainer.style.height = '300px';
+    assigneeListContainer.style.overflowY = 'auto';
+    assigneeListContainer.style.border = '1px solid #eee';
+    assigneeListContainer.style.borderRadius = '4px';
+    const createEmptyMessage = () => {
+      const emptyMessage = document.createElement('div');
+      emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
+      emptyMessage.style.padding = '15px';
+      emptyMessage.style.color = '#666';
+      emptyMessage.style.fontStyle = 'italic';
+      emptyMessage.style.textAlign = 'center';
+      return emptyMessage;
+    };
+    let assignees = [];
+    if (this.assigneeManager) {
+      assignees = this.assigneeManager.getAssigneeWhitelist();
+    } else {
+      assignees = getAssigneeWhitelist();
     }
-
-    openSettingsModal() {
-        const modalOverlay = document.createElement('div');
-        modalOverlay.id = 'git-helper-settings-overlay';
-        modalOverlay.style.position = 'fixed';
-        modalOverlay.style.top = '0';
-        modalOverlay.style.left = '0';
-        modalOverlay.style.width = '100%';
-        modalOverlay.style.height = '100%';
-        modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modalOverlay.style.zIndex = '1000';
-        modalOverlay.style.display = 'flex';
-        modalOverlay.style.justifyContent = 'center';
-        modalOverlay.style.alignItems = 'center';
-        modalOverlay.style.cursor = 'pointer';
-        this.currentModal = modalOverlay;
-        const modalContent = document.createElement('div');
-        modalContent.style.backgroundColor = 'white';
-        modalContent.style.borderRadius = '6px';
-        modalContent.style.padding = '20px';
-        modalContent.style.width = '700px';
-        modalContent.style.maxWidth = '90%';
-        modalContent.style.maxHeight = '80vh';
-        modalContent.style.overflow = 'auto';
-        modalContent.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-        const modalHeader = document.createElement('div');
-        modalHeader.style.display = 'flex';
-        modalHeader.style.justifyContent = 'space-between';
-        modalHeader.style.alignItems = 'center';
-        modalHeader.style.marginBottom = '15px';
-        modalHeader.style.borderBottom = '1px solid #eee';
-        modalHeader.style.paddingBottom = '10px';
-        const modalTitle = document.createElement('h3');
-        modalTitle.textContent = 'Settings';
-        modalTitle.style.margin = '0';
-        const closeButton = document.createElement('button');
-        closeButton.innerHTML = '&times;';
-        closeButton.style.backgroundColor = 'transparent';
-        closeButton.style.border = 'none';
-        closeButton.style.fontSize = '24px';
-        closeButton.style.cursor = 'pointer';
-        closeButton.style.padding = '0 5px';
-        closeButton.onclick = () => modalOverlay.remove();
-        modalHeader.appendChild(modalTitle);
-        modalHeader.appendChild(closeButton);
-        const contentContainer = document.createElement('div');
-        this.createCollapsibleSection(contentContainer, 'General', 'Configure application-wide settings', container => this.createGeneralSettings(container), true);
-        this.createCollapsibleSection(contentContainer, 'Assignees', 'Manage assignees for quick access in comments', container => this.createAssigneeSettings(container), false);
-        this.createCollapsibleSection(contentContainer, 'Labels', 'Manage which labels appear in the dropdown menus', container => this.createLabelWhitelistSettings(container), false);
-        this.createCollapsibleSection(contentContainer, 'Appearance', 'Customize the appearance of GitLab Sprint Helper', container => this.createAppearanceSettings(container), false);
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.marginTop = '20px';
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'space-between';
-        buttonContainer.style.alignItems = 'center';
-        buttonContainer.style.borderTop = '1px solid #eee';
-        buttonContainer.style.paddingTop = '15px';
-        const resetButton = document.createElement('button');
-        resetButton.textContent = 'Reset to Defaults';
-        resetButton.style.padding = '8px 16px';
-        resetButton.style.backgroundColor = '#6c757d';
-        resetButton.style.color = 'white';
-        resetButton.style.border = 'none';
-        resetButton.style.borderRadius = '4px';
-        resetButton.style.cursor = 'pointer';
-        resetButton.onclick = () => {
-            if (confirm('Are you sure you want to reset all settings to default values?')) {
-                this.resetAllSettings();
-                modalOverlay.remove();
-                this.notification.success('Settings reset to defaults');
-            }
-        };
-        const closeModalButton = document.createElement('button');
-        closeModalButton.textContent = 'Close';
-        closeModalButton.onclick = () => {
-            if (this.currentModal) {
-                this.currentModal.remove();
-                this.currentModal = null;
-            }
-        };
-        buttonContainer.appendChild(resetButton);
-        buttonContainer.appendChild(closeModalButton);
-        modalContent.appendChild(modalHeader);
-        modalContent.appendChild(contentContainer);
-        modalContent.appendChild(buttonContainer);
-        modalOverlay.appendChild(modalContent);
-        document.body.appendChild(modalOverlay);
-        modalOverlay.addEventListener('click', e => {
-            if (e.target === modalOverlay) {
-                modalOverlay.remove();
-            }
-        });
+    if (assignees.length > 0) {
+      assignees.forEach((assignee, index) => {
+        assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
+      });
+    } else {
+      assigneeListContainer.appendChild(createEmptyMessage());
     }
-
-    createCollapsibleSection(container, title, description, contentBuilder, startExpanded = false) {
-        startExpanded = false;
-        const section = document.createElement('div');
-        section.className = 'gitlab-helper-settings-section';
-        section.style.marginBottom = '15px';
-        section.style.border = '1px solid #ddd';
-        section.style.borderRadius = '6px';
-        section.style.overflow = 'hidden';
-        const header = document.createElement('div');
-        header.className = 'gitlab-helper-settings-header';
-        header.style.padding = '12px 15px';
-        header.style.backgroundColor = '#f8f9fa';
-        header.style.borderBottom = startExpanded ? '1px solid #ddd' : 'none';
-        header.style.display = 'flex';
-        header.style.justifyContent = 'space-between';
-        header.style.alignItems = 'center';
-        header.style.cursor = 'pointer';
-        header.style.transition = 'background-color 0.2s ease';
-        header.addEventListener('mouseenter', () => {
-            header.style.backgroundColor = '#e9ecef';
-        });
-        header.addEventListener('mouseleave', () => {
-            header.style.backgroundColor = '#f8f9fa';
-        });
-        const titleContainer = document.createElement('div');
-        const titleEl = document.createElement('h4');
-        titleEl.textContent = title;
-        titleEl.style.margin = '0';
-        titleEl.style.fontSize = '16px';
-        const descEl = document.createElement('div');
-        descEl.textContent = description;
-        descEl.style.fontSize = '13px';
-        descEl.style.color = '#6c757d';
-        descEl.style.marginTop = '4px';
-        titleContainer.appendChild(titleEl);
-        titleContainer.appendChild(descEl);
-        const toggle = document.createElement('span');
-        toggle.textContent = startExpanded ? '▼' : '▶';
-        toggle.style.fontSize = '14px';
-        toggle.style.transition = 'transform 0.3s ease';
-        header.appendChild(titleContainer);
-        header.appendChild(toggle);
-        const content = document.createElement('div');
-        content.className = 'gitlab-helper-settings-content';
-        content.style.padding = '5px';
-        content.style.display = startExpanded ? 'block' : 'none';
-        content.style.backgroundColor = 'white';
-        let contentBuilt = false;
-        header.addEventListener('click', () => {
-            const isExpanded = content.style.display === 'block';
-            content.style.display = isExpanded ? 'none' : 'block';
-            toggle.textContent = isExpanded ? '▶' : '▼';
-            header.style.borderBottom = isExpanded ? 'none' : '1px solid #ddd';
-            if (!contentBuilt && !isExpanded) {
-                contentBuilder(content);
-                contentBuilt = true;
-            }
-        });
-        section.appendChild(header);
-        section.appendChild(content);
-        container.appendChild(section);
-        return section;
-    }
-
-    createAssigneeSettings(container) {
-        const assigneeSection = document.createElement('div');
-        const actionsRow = document.createElement('div');
-        actionsRow.style.display = 'flex';
-        actionsRow.style.justifyContent = 'space-between';
-        actionsRow.style.marginBottom = '15px';
-        actionsRow.style.gap = '10px';
-        const searchContainer = document.createElement('div');
-        searchContainer.style.flex = '1';
-        const searchInput = document.createElement('input');
-        searchInput.type = 'text';
-        searchInput.placeholder = 'Search assignees...';
-        searchInput.style.width = '100%';
-        searchInput.style.padding = '8px 10px';
-        searchInput.style.borderRadius = '4px';
-        searchInput.style.border = '1px solid #ccc';
-        searchContainer.appendChild(searchInput);
-        const fetchButton = document.createElement('button');
-        fetchButton.textContent = 'Fetch GitLab Users';
-        fetchButton.style.padding = '8px 12px';
-        fetchButton.style.backgroundColor = '#1f75cb';
-        fetchButton.style.color = 'white';
-        fetchButton.style.border = 'none';
-        fetchButton.style.borderRadius = '4px';
-        fetchButton.style.cursor = 'pointer';
-        fetchButton.onclick = () => this.fetchGitLabUsers(availableListContainer);
-        actionsRow.appendChild(searchContainer);
-        actionsRow.appendChild(fetchButton);
-        assigneeSection.appendChild(actionsRow);
-        const tabsContainer = document.createElement('div');
-        tabsContainer.style.display = 'flex';
-        tabsContainer.style.borderBottom = '1px solid #dee2e6';
-        tabsContainer.style.marginBottom = '15px';
-        const tabs = [{
-            id: 'whitelisted',
-            label: 'My Assignees',
-            active: true
-        }, {
-            id: 'available',
-            label: 'Available Users',
-            active: false
-        }];
-        const tabElements = {};
-        const tabContents = {};
-        tabs.forEach(tab => {
-            const tabElement = document.createElement('div');
-            tabElement.textContent = tab.label;
-            tabElement.style.padding = '8px 15px';
-            tabElement.style.cursor = 'pointer';
-            tabElement.style.transition = 'all 0.2s ease';
-            if (tab.active) {
-                tabElement.style.borderBottom = '2px solid #1f75cb';
-                tabElement.style.fontWeight = 'bold';
-            }
-            tabElement.addEventListener('mouseenter', () => {
-                if (!tab.active) {
-                    tabElement.style.backgroundColor = '#f5f5f5';
-                }
-            });
-            tabElement.addEventListener('mouseleave', () => {
-                if (!tab.active) {
-                    tabElement.style.backgroundColor = '';
-                }
-            });
-            tabElement.addEventListener('click', () => {
-                tabs.forEach(t => {
-                    t.active = false;
-                    tabElements[t.id].style.borderBottom = 'none';
-                    tabElements[t.id].style.fontWeight = 'normal';
-                    tabElements[t.id].style.backgroundColor = '';
-                    tabContents[t.id].style.display = 'none';
-                });
-                tab.active = true;
-                tabElement.style.borderBottom = '2px solid #1f75cb';
-                tabElement.style.fontWeight = 'bold';
-                tabContents[tab.id].style.display = 'block';
-                if (tab.id === 'whitelisted') {
-                    this.refreshAssigneeList(assigneeListContainer);
-                } else if (tab.id === 'available') {
-                    this.fetchGitLabUsers(availableListContainer);
-                }
-            });
-            tabElements[tab.id] = tabElement;
-            tabsContainer.appendChild(tabElement);
-        });
-        assigneeSection.appendChild(tabsContainer);
-        const whitelistedContent = document.createElement('div');
-        whitelistedContent.style.display = 'block';
-        const availableContent = document.createElement('div');
-        availableContent.style.display = 'none';
-        const assigneeListContainer = document.createElement('div');
-        assigneeListContainer.style.height = '300px';
-        assigneeListContainer.style.overflowY = 'auto';
-        assigneeListContainer.style.border = '1px solid #eee';
-        assigneeListContainer.style.borderRadius = '4px';
-        const createEmptyMessage = () => {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
-            emptyMessage.style.padding = '15px';
-            emptyMessage.style.color = '#666';
-            emptyMessage.style.fontStyle = 'italic';
-            emptyMessage.style.textAlign = 'center';
-            return emptyMessage;
-        };
-        let assignees = [];
-        if (this.assigneeManager) {
-            assignees = this.assigneeManager.getAssigneeWhitelist();
+    whitelistedContent.appendChild(assigneeListContainer);
+    const availableListContainer = document.createElement('div');
+    availableListContainer.className = 'available-assignees-list';
+    availableListContainer.style.height = '300px';
+    availableListContainer.style.overflowY = 'auto';
+    availableListContainer.style.border = '1px solid #eee';
+    availableListContainer.style.borderRadius = '4px';
+    const availableEmptyMessage = document.createElement('div');
+    availableEmptyMessage.textContent = 'Click "Fetch GitLab Users" to load available assignees.';
+    availableEmptyMessage.style.padding = '15px';
+    availableEmptyMessage.style.color = '#666';
+    availableEmptyMessage.style.fontStyle = 'italic';
+    availableEmptyMessage.style.textAlign = 'center';
+    availableListContainer.appendChild(availableEmptyMessage);
+    availableContent.appendChild(availableListContainer);
+    tabContents['whitelisted'] = whitelistedContent;
+    tabContents['available'] = availableContent;
+    assigneeSection.appendChild(whitelistedContent);
+    assigneeSection.appendChild(availableContent);
+    searchInput.addEventListener('input', () => {
+      const searchText = searchInput.value.toLowerCase();
+      const activeTab = tabs.find(t => t.active).id;
+      const list = activeTab === 'whitelisted' ? assigneeListContainer : availableListContainer;
+      const items = list.querySelectorAll('.assignee-item');
+      items.forEach(item => {
+        const nameEl = item.querySelector('.assignee-name');
+        const usernameEl = item.querySelector('.assignee-username');
+        if (!nameEl || !usernameEl) return;
+        const name = nameEl.textContent.toLowerCase();
+        const username = usernameEl.textContent.toLowerCase();
+        if (name.includes(searchText) || username.includes(searchText)) {
+          item.style.display = '';
         } else {
-            assignees = getAssigneeWhitelist();
+          item.style.display = 'none';
         }
-        if (assignees.length > 0) {
-            assignees.forEach((assignee, index) => {
-                assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
-            });
+      });
+    });
+    container.appendChild(assigneeSection);
+  }
+  createAddAssigneeForm(listContainer, createEmptyMessage) {
+    const addForm = document.createElement('div');
+    addForm.style.marginTop = '15px';
+    addForm.style.padding = '15px';
+    addForm.style.backgroundColor = '#f8f9fa';
+    addForm.style.borderRadius = '4px';
+    const formTitle = document.createElement('h5');
+    formTitle.textContent = 'Add New Assignee';
+    formTitle.style.marginTop = '0';
+    formTitle.style.marginBottom = '10px';
+    const nameContainer = document.createElement('div');
+    nameContainer.style.marginBottom = '10px';
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = 'Display Name:';
+    nameLabel.style.display = 'block';
+    nameLabel.style.marginBottom = '5px';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'John Doe';
+    nameInput.style.width = '100%';
+    nameInput.style.padding = '6px 10px';
+    nameInput.style.borderRadius = '4px';
+    nameInput.style.border = '1px solid #ccc';
+    nameContainer.appendChild(nameLabel);
+    nameContainer.appendChild(nameInput);
+    const usernameContainer = document.createElement('div');
+    usernameContainer.style.marginBottom = '15px';
+    const usernameLabel = document.createElement('label');
+    usernameLabel.textContent = 'GitLab Username:';
+    usernameLabel.style.display = 'block';
+    usernameLabel.style.marginBottom = '5px';
+    const usernameInput = document.createElement('input');
+    usernameInput.type = 'text';
+    usernameInput.placeholder = 'username (without @)';
+    usernameInput.style.width = '100%';
+    usernameInput.style.padding = '6px 10px';
+    usernameInput.style.borderRadius = '4px';
+    usernameInput.style.border = '1px solid #ccc';
+    usernameContainer.appendChild(usernameLabel);
+    usernameContainer.appendChild(usernameInput);
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.justifyContent = 'flex-end';
+    const addButton = document.createElement('button');
+    addButton.textContent = 'Add Assignee';
+    addButton.style.padding = '6px 12px';
+    addButton.style.backgroundColor = '#28a745';
+    addButton.style.color = 'white';
+    addButton.style.border = 'none';
+    addButton.style.borderRadius = '4px';
+    addButton.style.cursor = 'pointer';
+    addButton.onclick = () => {
+      const name = nameInput.value.trim();
+      const username = usernameInput.value.trim();
+      if (!username) {
+        this.notification.error('Username is required');
+        return;
+      }
+      const newAssignee = {
+        name: name || username,
+        username: username
+      };
+      if (this.assigneeManager) {
+        this.assigneeManager.addAssignee(newAssignee);
+      } else {
+        const assignees = getAssigneeWhitelist();
+        const existingIndex = assignees.findIndex(a => a.username === username);
+        if (existingIndex >= 0) {
+          assignees[existingIndex] = newAssignee;
         } else {
-            assigneeListContainer.appendChild(createEmptyMessage());
+          assignees.push(newAssignee);
         }
-        whitelistedContent.appendChild(assigneeListContainer);
-        const availableListContainer = document.createElement('div');
-        availableListContainer.className = 'available-assignees-list';
-        availableListContainer.style.height = '300px';
-        availableListContainer.style.overflowY = 'auto';
-        availableListContainer.style.border = '1px solid #eee';
-        availableListContainer.style.borderRadius = '4px';
-        const availableEmptyMessage = document.createElement('div');
-        availableEmptyMessage.textContent = 'Click "Fetch GitLab Users" to load available assignees.';
-        availableEmptyMessage.style.padding = '15px';
-        availableEmptyMessage.style.color = '#666';
-        availableEmptyMessage.style.fontStyle = 'italic';
-        availableEmptyMessage.style.textAlign = 'center';
-        availableListContainer.appendChild(availableEmptyMessage);
-        availableContent.appendChild(availableListContainer);
-        tabContents['whitelisted'] = whitelistedContent;
-        tabContents['available'] = availableContent;
-        assigneeSection.appendChild(whitelistedContent);
-        assigneeSection.appendChild(availableContent);
-        searchInput.addEventListener('input', () => {
-            const searchText = searchInput.value.toLowerCase();
-            const activeTab = tabs.find(t => t.active).id;
-            const list = activeTab === 'whitelisted' ? assigneeListContainer : availableListContainer;
-            const items = list.querySelectorAll('.assignee-item');
-            items.forEach(item => {
-                const nameEl = item.querySelector('.assignee-name');
-                const usernameEl = item.querySelector('.assignee-username');
-                if (!nameEl || !usernameEl) return;
-                const name = nameEl.textContent.toLowerCase();
-                const username = usernameEl.textContent.toLowerCase();
-                if (name.includes(searchText) || username.includes(searchText)) {
-                    item.style.display = '';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        });
-        container.appendChild(assigneeSection);
-    }
-
-    createAddAssigneeForm(listContainer, createEmptyMessage) {
-        const addForm = document.createElement('div');
-        addForm.style.marginTop = '15px';
-        addForm.style.padding = '15px';
-        addForm.style.backgroundColor = '#f8f9fa';
-        addForm.style.borderRadius = '4px';
-        const formTitle = document.createElement('h5');
-        formTitle.textContent = 'Add New Assignee';
-        formTitle.style.marginTop = '0';
-        formTitle.style.marginBottom = '10px';
-        const nameContainer = document.createElement('div');
-        nameContainer.style.marginBottom = '10px';
-        const nameLabel = document.createElement('label');
-        nameLabel.textContent = 'Display Name:';
-        nameLabel.style.display = 'block';
-        nameLabel.style.marginBottom = '5px';
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.placeholder = 'John Doe';
-        nameInput.style.width = '100%';
-        nameInput.style.padding = '6px 10px';
-        nameInput.style.borderRadius = '4px';
-        nameInput.style.border = '1px solid #ccc';
-        nameContainer.appendChild(nameLabel);
-        nameContainer.appendChild(nameInput);
-        const usernameContainer = document.createElement('div');
-        usernameContainer.style.marginBottom = '15px';
-        const usernameLabel = document.createElement('label');
-        usernameLabel.textContent = 'GitLab Username:';
-        usernameLabel.style.display = 'block';
-        usernameLabel.style.marginBottom = '5px';
-        const usernameInput = document.createElement('input');
-        usernameInput.type = 'text';
-        usernameInput.placeholder = 'username (without @)';
-        usernameInput.style.width = '100%';
-        usernameInput.style.padding = '6px 10px';
-        usernameInput.style.borderRadius = '4px';
-        usernameInput.style.border = '1px solid #ccc';
-        usernameContainer.appendChild(usernameLabel);
-        usernameContainer.appendChild(usernameInput);
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
-        const addButton = document.createElement('button');
-        addButton.textContent = 'Add Assignee';
-        addButton.style.padding = '6px 12px';
-        addButton.style.backgroundColor = '#28a745';
-        addButton.style.color = 'white';
-        addButton.style.border = 'none';
-        addButton.style.borderRadius = '4px';
-        addButton.style.cursor = 'pointer';
-        addButton.onclick = () => {
-            const name = nameInput.value.trim();
-            const username = usernameInput.value.trim();
-            if (!username) {
-                this.notification.error('Username is required');
-                return;
-            }
-            const newAssignee = {
-                name: name || username,
-                username: username
-            };
-            if (this.assigneeManager) {
-                this.assigneeManager.addAssignee(newAssignee);
-            } else {
-                const assignees = getAssigneeWhitelist();
-                const existingIndex = assignees.findIndex(a => a.username === username);
-                if (existingIndex >= 0) {
-                    assignees[existingIndex] = newAssignee;
-                } else {
-                    assignees.push(newAssignee);
-                }
-                saveAssigneeWhitelist(assignees);
-            }
-            const emptyMessage = listContainer.querySelector('div[style*="italic"]');
-            if (emptyMessage) {
-                emptyMessage.remove();
-            }
-            const assignees = getAssigneeWhitelist();
-            listContainer.appendChild(this.createAssigneeListItem(newAssignee, assignees.length - 1, listContainer, createEmptyMessage));
-            nameInput.value = '';
-            usernameInput.value = '';
-            this.notification.success(`Added assignee: ${newAssignee.name}`);
-            if (this.onSettingsChanged) {
-                this.onSettingsChanged('assignees');
-            }
-        };
-        buttonContainer.appendChild(addButton);
-        addForm.appendChild(formTitle);
-        addForm.appendChild(nameContainer);
-        addForm.appendChild(usernameContainer);
-        addForm.appendChild(buttonContainer);
-        return addForm;
-    }
-
-    async fetchGitLabUsers(container) {
-        try {
-            if (!this.gitlabApi) {
-                this.notification.error('GitLab API not available');
-                return;
-            }
-            this.isLoadingAssignees = true;
-            container.innerHTML = '';
-            const loadingMessage = document.createElement('div');
-            loadingMessage.textContent = 'Loading users from GitLab...';
-            loadingMessage.style.padding = '15px';
-            loadingMessage.style.textAlign = 'center';
-            container.appendChild(loadingMessage);
-            try {
-                const pathInfo = getPathFromUrl();
-                if (!pathInfo) {
-                    throw new Error('Could not determine project/group path');
-                }
-                let users = [];
-                if (pathInfo.type === 'project') {
-                    users = await this.gitlabApi.callGitLabApi(`projects/${pathInfo.encodedPath}/members/all`, {
-                        params: {
-                            per_page: 100,
-                            all_available: true
-                        }
-                    });
-                } else if (pathInfo.type === 'group') {
-                    users = await this.gitlabApi.callGitLabApi(`groups/${pathInfo.encodedPath}/members/all`, {
-                        params: {
-                            per_page: 100,
-                            all_available: true
-                        }
-                    });
-                }
-                this.availableAssignees = users.map(user => ({
-                    id: user.id,
-                    name: user.name,
-                    username: user.username,
-                    avatar_url: user.avatar_url
-                }));
-                this.renderAvailableUsers(container);
-            } catch (error) {
-                console.error('Error fetching GitLab users:', error);
-                container.innerHTML = '';
-                const errorMessage = document.createElement('div');
-                errorMessage.textContent = `Error loading users: ${error.message}`;
-                errorMessage.style.padding = '15px';
-                errorMessage.style.color = '#dc3545';
-                errorMessage.style.textAlign = 'center';
-                container.appendChild(errorMessage);
-                this.notification.error('Failed to load GitLab users');
-            } finally {
-                this.isLoadingAssignees = false;
-            }
-        } catch (error) {
+        saveAssigneeWhitelist(assignees);
+      }
+      const emptyMessage = listContainer.querySelector('div[style*="italic"]');
+      if (emptyMessage) {
+        emptyMessage.remove();
+      }
+      const assignees = getAssigneeWhitelist();
+      listContainer.appendChild(this.createAssigneeListItem(newAssignee, assignees.length - 1, listContainer, createEmptyMessage));
+      nameInput.value = '';
+      usernameInput.value = '';
+      this.notification.success(`Added assignee: ${newAssignee.name}`);
+      if (this.onSettingsChanged) {
+        this.onSettingsChanged('assignees');
+      }
+    };
+    buttonContainer.appendChild(addButton);
+    addForm.appendChild(formTitle);
+    addForm.appendChild(nameContainer);
+    addForm.appendChild(usernameContainer);
+    addForm.appendChild(buttonContainer);
+    return addForm;
+  }
+  async fetchGitLabUsers(container) {
+    try {
+      if (!this.gitlabApi) {
+        this.notification.error('GitLab API not available');
+        return;
+      }
+      this.isLoadingAssignees = true;
+      container.innerHTML = '';
+      const loadingMessage = document.createElement('div');
+      loadingMessage.textContent = 'Loading users from GitLab...';
+      loadingMessage.style.padding = '15px';
+      loadingMessage.style.textAlign = 'center';
+      container.appendChild(loadingMessage);
+      try {
+        const pathInfo = getPathFromUrl();
+        if (!pathInfo) {
+          throw new Error('Could not determine project/group path');
         }
-    }
-
-    renderAvailableUsers(container) {
+        let users = [];
+        if (pathInfo.type === 'project') {
+          users = await this.gitlabApi.callGitLabApi(`projects/${pathInfo.encodedPath}/members/all`, {
+            params: {
+              per_page: 100,
+              all_available: true
+            }
+          });
+        } else if (pathInfo.type === 'group') {
+          users = await this.gitlabApi.callGitLabApi(`groups/${pathInfo.encodedPath}/members/all`, {
+            params: {
+              per_page: 100,
+              all_available: true
+            }
+          });
+        }
+        this.availableAssignees = users.map(user => ({
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatar_url: user.avatar_url
+        }));
+        this.renderAvailableUsers(container);
+      } catch (error) {
+        console.error('Error fetching GitLab users:', error);
         container.innerHTML = '';
-        const whitelist = getAssigneeWhitelist();
-        const whitelistUsernames = whitelist.map(a => a.username.toLowerCase());
-        if (this.availableAssignees.length === 0) {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.textContent = 'No users found. Try fetching again.';
-            emptyMessage.style.padding = '15px';
-            emptyMessage.style.color = '#666';
-            emptyMessage.style.fontStyle = 'italic';
-            emptyMessage.style.textAlign = 'center';
-            container.appendChild(emptyMessage);
-            return;
-        }
-        this.availableAssignees.sort((a, b) => a.name.localeCompare(b.name));
-        this.availableAssignees.forEach(user => {
-            const isWhitelisted = whitelistUsernames.includes(user.username.toLowerCase());
-            const userItem = document.createElement('div');
-            userItem.className = 'assignee-item';
-            userItem.style.display = 'flex';
-            userItem.style.justifyContent = 'space-between';
-            userItem.style.alignItems = 'center';
-            userItem.style.padding = '10px 15px';
-            userItem.style.borderBottom = '1px solid #eee';
-            userItem.style.backgroundColor = isWhitelisted ? 'rgba(40, 167, 69, 0.05)' : '';
-            const userInfo = document.createElement('div');
-            userInfo.style.display = 'flex';
-            userInfo.style.alignItems = 'center';
-            if (user.avatar_url) {
-                const avatar = document.createElement('img');
-                avatar.src = user.avatar_url;
-                avatar.style.width = '30px';
-                avatar.style.height = '30px';
-                avatar.style.borderRadius = '50%';
-                avatar.style.marginRight = '10px';
-                userInfo.appendChild(avatar);
-            } else {
-                const avatarPlaceholder = document.createElement('div');
-                avatarPlaceholder.style.width = '30px';
-                avatarPlaceholder.style.height = '30px';
-                avatarPlaceholder.style.borderRadius = '50%';
-                avatarPlaceholder.style.backgroundColor = '#e0e0e0';
-                avatarPlaceholder.style.display = 'flex';
-                avatarPlaceholder.style.alignItems = 'center';
-                avatarPlaceholder.style.justifyContent = 'center';
-                avatarPlaceholder.style.marginRight = '10px';
-                avatarPlaceholder.style.fontWeight = 'bold';
-                avatarPlaceholder.style.color = '#666';
-                const name = user.name || user.username;
-                const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
-                avatarPlaceholder.textContent = initials;
-                userInfo.appendChild(avatarPlaceholder);
-            }
-            const userDetails = document.createElement('div');
-            const userName = document.createElement('div');
-            userName.className = 'assignee-name';
-            userName.textContent = user.name;
-            userName.style.fontWeight = 'bold';
-            const userUsername = document.createElement('div');
-            userUsername.className = 'assignee-username';
-            userUsername.textContent = `@${user.username}`;
-            userUsername.style.fontSize = '12px';
-            userUsername.style.color = '#666';
-            userDetails.appendChild(userName);
-            userDetails.appendChild(userUsername);
-            userInfo.appendChild(userDetails);
-            const actionButton = document.createElement('button');
-            if (isWhitelisted) {
-                actionButton.textContent = 'Added ✓';
-                actionButton.style.backgroundColor = '#e9ecef';
-                actionButton.style.color = '#28a745';
-                actionButton.style.cursor = 'default';
-            } else {
-                actionButton.textContent = 'Add';
-                actionButton.style.backgroundColor = '#28a745';
-                actionButton.style.color = 'white';
-                actionButton.style.cursor = 'pointer';
-                actionButton.addEventListener('click', () => {
-                    const assignee = {
-                        name: user.name,
-                        username: user.username
-                    };
-                    if (this.assigneeManager) {
-                        this.assigneeManager.addAssignee(assignee);
-                    } else {
-                        const whitelist = getAssigneeWhitelist();
-                        whitelist.push(assignee);
-                        saveAssigneeWhitelist(whitelist);
-                    }
-                    actionButton.textContent = 'Added ✓';
-                    actionButton.style.backgroundColor = '#e9ecef';
-                    actionButton.style.color = '#28a745';
-                    actionButton.style.cursor = 'default';
-                    userItem.style.backgroundColor = 'rgba(40, 167, 69, 0.05)';
-                    this.notification.success(`Added ${user.name} to assignees`);
-                    if (typeof this.onSettingsChanged === 'function') {
-                        this.onSettingsChanged('assignees');
-                    }
-                    this.refreshWhitelistedTab();
-                });
-            }
-            actionButton.style.padding = '5px 10px';
-            actionButton.style.border = 'none';
-            actionButton.style.borderRadius = '4px';
-            actionButton.style.fontSize = '12px';
-            userItem.appendChild(userInfo);
-            userItem.appendChild(actionButton);
-            container.appendChild(userItem);
-        });
+        const errorMessage = document.createElement('div');
+        errorMessage.textContent = `Error loading users: ${error.message}`;
+        errorMessage.style.padding = '15px';
+        errorMessage.style.color = '#dc3545';
+        errorMessage.style.textAlign = 'center';
+        container.appendChild(errorMessage);
+        this.notification.error('Failed to load GitLab users');
+      } finally {
+        this.isLoadingAssignees = false;
+      }
+    } catch (error) {}
+  }
+  renderAvailableUsers(container) {
+    container.innerHTML = '';
+    const whitelist = getAssigneeWhitelist();
+    const whitelistUsernames = whitelist.map(a => a.username.toLowerCase());
+    if (this.availableAssignees.length === 0) {
+      const emptyMessage = document.createElement('div');
+      emptyMessage.textContent = 'No users found. Try fetching again.';
+      emptyMessage.style.padding = '15px';
+      emptyMessage.style.color = '#666';
+      emptyMessage.style.fontStyle = 'italic';
+      emptyMessage.style.textAlign = 'center';
+      container.appendChild(emptyMessage);
+      return;
     }
-
-    refreshWhitelistedTab() {
-        const whitelistedContent = document.querySelector('div[style*="display: block"]');
-        if (!whitelistedContent) return;
-        const assigneeListContainer = whitelistedContent.querySelector('div[style*="overflowY: auto"]');
-        if (!assigneeListContainer) return;
-        const createEmptyMessage = () => {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
-            emptyMessage.style.padding = '15px';
-            emptyMessage.style.color = '#666';
-            emptyMessage.style.fontStyle = 'italic';
-            emptyMessage.style.textAlign = 'center';
-            return emptyMessage;
-        };
-        assigneeListContainer.innerHTML = '';
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.textContent = 'Refreshing assignees...';
-        loadingIndicator.style.padding = '15px';
-        loadingIndicator.style.textAlign = 'center';
-        loadingIndicator.style.color = '#666';
-        assigneeListContainer.appendChild(loadingIndicator);
-        setTimeout(() => {
-            let assignees = [];
-            if (this.assigneeManager) {
-                assignees = this.assigneeManager.getAssigneeWhitelist();
-            } else {
-                assignees = getAssigneeWhitelist();
-            }
-            assigneeListContainer.innerHTML = '';
-            if (assignees.length > 0) {
-                assignees.forEach((assignee, index) => {
-                    assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
-                });
-            } else {
-                assigneeListContainer.appendChild(createEmptyMessage());
-            }
-        }, 300);
-    }
-
-    createAssigneeListItem(assignee, index, listContainer, createEmptyMessage) {
-        const item = document.createElement('div');
-        item.className = 'assignee-item';
-        item.style.display = 'flex';
-        item.style.justifyContent = 'space-between';
-        item.style.alignItems = 'center';
-        item.style.padding = '10px 15px';
-        item.style.borderBottom = '1px solid #eee';
-        const info = document.createElement('div');
-        info.style.display = 'flex';
-        info.style.alignItems = 'center';
-        const avatar = document.createElement('div');
+    this.availableAssignees.sort((a, b) => a.name.localeCompare(b.name));
+    this.availableAssignees.forEach(user => {
+      const isWhitelisted = whitelistUsernames.includes(user.username.toLowerCase());
+      const userItem = document.createElement('div');
+      userItem.className = 'assignee-item';
+      userItem.style.display = 'flex';
+      userItem.style.justifyContent = 'space-between';
+      userItem.style.alignItems = 'center';
+      userItem.style.padding = '10px 15px';
+      userItem.style.borderBottom = '1px solid #eee';
+      userItem.style.backgroundColor = isWhitelisted ? 'rgba(40, 167, 69, 0.05)' : '';
+      const userInfo = document.createElement('div');
+      userInfo.style.display = 'flex';
+      userInfo.style.alignItems = 'center';
+      if (user.avatar_url) {
+        const avatar = document.createElement('img');
+        avatar.src = user.avatar_url;
         avatar.style.width = '30px';
         avatar.style.height = '30px';
         avatar.style.borderRadius = '50%';
-        avatar.style.backgroundColor = '#e0e0e0';
-        avatar.style.display = 'flex';
-        avatar.style.alignItems = 'center';
-        avatar.style.justifyContent = 'center';
         avatar.style.marginRight = '10px';
-        avatar.style.fontWeight = 'bold';
-        avatar.style.color = '#666';
-        const name = assignee.name || assignee.username;
+        userInfo.appendChild(avatar);
+      } else {
+        const avatarPlaceholder = document.createElement('div');
+        avatarPlaceholder.style.width = '30px';
+        avatarPlaceholder.style.height = '30px';
+        avatarPlaceholder.style.borderRadius = '50%';
+        avatarPlaceholder.style.backgroundColor = '#e0e0e0';
+        avatarPlaceholder.style.display = 'flex';
+        avatarPlaceholder.style.alignItems = 'center';
+        avatarPlaceholder.style.justifyContent = 'center';
+        avatarPlaceholder.style.marginRight = '10px';
+        avatarPlaceholder.style.fontWeight = 'bold';
+        avatarPlaceholder.style.color = '#666';
+        const name = user.name || user.username;
         const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
-        avatar.textContent = initials;
-        info.appendChild(avatar);
-        const nameContainer = document.createElement('div');
-        const displayName = document.createElement('div');
-        displayName.className = 'assignee-name';
-        displayName.textContent = assignee.name || assignee.username;
-        displayName.style.fontWeight = 'bold';
-        const username = document.createElement('div');
-        username.className = 'assignee-username';
-        username.textContent = `@${assignee.username}`;
-        username.style.fontSize = '12px';
-        username.style.color = '#666';
-        nameContainer.appendChild(displayName);
-        nameContainer.appendChild(username);
-        info.appendChild(nameContainer);
-        const buttons = document.createElement('div');
-        const removeButton = document.createElement('button');
-        removeButton.textContent = 'Remove';
-        removeButton.style.padding = '5px 10px';
-        removeButton.style.backgroundColor = '#dc3545';
-        removeButton.style.color = 'white';
-        removeButton.style.border = 'none';
-        removeButton.style.borderRadius = '4px';
-        removeButton.style.cursor = 'pointer';
-        removeButton.style.fontSize = '12px';
-        removeButton.onclick = () => {
-            let assignees = [];
-            if (this.assigneeManager) {
-                this.assigneeManager.removeAssignee(assignee.username);
-                assignees = this.assigneeManager.getAssigneeWhitelist();
-            } else {
-                assignees = getAssigneeWhitelist();
-                const filteredAssignees = assignees.filter(a => a.username.toLowerCase() !== assignee.username.toLowerCase());
-                saveAssigneeWhitelist(filteredAssignees);
-                assignees = filteredAssignees;
-            }
-            item.remove();
-            if (assignees.length === 0) {
-                listContainer.appendChild(createEmptyMessage());
-            }
-            this.notification.info(`Removed assignee: ${assignee.name || assignee.username}`);
-            if (this.onSettingsChanged) {
-                this.onSettingsChanged('assignees');
-            }
-        };
-        buttons.appendChild(removeButton);
-        item.appendChild(info);
-        item.appendChild(buttons);
-        return item;
-    }
-
-    createLabelWhitelistSettings(container) {
-        const whitelistSection = document.createElement('div');
-        whitelistSection.style.marginBottom = '20px';
-        const whitelistTitle = document.createElement('h4');
-        whitelistTitle.textContent = 'Label Whitelist';
-        whitelistTitle.style.marginBottom = '10px';
-        const whitelistDescription = document.createElement('p');
-        whitelistDescription.textContent = 'Select which labels should appear in the dropdown. The system will show any label that contains these terms.';
-        whitelistDescription.style.marginBottom = '15px';
-        whitelistDescription.style.fontSize = '14px';
-        whitelistDescription.style.color = '#666';
-        whitelistSection.appendChild(whitelistTitle);
-        whitelistSection.appendChild(whitelistDescription);
-        const loadingMessage = document.createElement('div');
-        loadingMessage.id = 'whitelist-loading-message';
-        loadingMessage.textContent = 'Loading all labels from GitLab...';
-        loadingMessage.style.fontStyle = 'italic';
-        loadingMessage.style.color = '#666';
-        whitelistSection.appendChild(loadingMessage);
-        const whitelistContainer = document.createElement('div');
-        whitelistContainer.id = 'whitelist-container';
-        whitelistContainer.style.display = 'flex';
-        whitelistContainer.style.flexWrap = 'wrap';
-        whitelistContainer.style.gap = '10px';
-        whitelistContainer.style.marginTop = '15px';
-        whitelistContainer.style.height = '300px';
-        whitelistContainer.style.overflowY = 'auto';
-        whitelistContainer.style.border = '1px solid #eee';
-        whitelistContainer.style.borderRadius = '4px';
-        whitelistContainer.style.padding = '10px';
-        whitelistSection.appendChild(whitelistContainer);
-        const currentWhitelist = getLabelWhitelist();
-        const safeWhitelist = Array.isArray(currentWhitelist) ? currentWhitelist : [];
-        const fetchAndDisplayAllLabels = async () => {
-            try {
-                if (!this.gitlabApi) {
-                    throw new Error('GitLab API not available');
-                }
-                const pathInfo = getPathFromUrl();
-                if (!pathInfo || !pathInfo.apiUrl) {
-                    throw new Error('Could not determine project/group path');
-                }
-                const allLabels = await this.gitlabApi.callGitLabApi(pathInfo.apiUrl, {
-                    params: {
-                        per_page: 100
-                    }
-                });
-                displayLabels(allLabels);
-            } catch (error) {
-                console.error('Error fetching ALL labels:', error);
-                loadingMessage.textContent = 'Error loading labels. ' + error.message;
-                loadingMessage.style.color = '#dc3545';
-            }
-        };
-        const displayLabels = labels => {
-            loadingMessage.remove();
-            if (!labels || labels.length === 0) {
-                const noLabelsMessage = document.createElement('div');
-                noLabelsMessage.textContent = 'No labels found in this project.';
-                noLabelsMessage.style.width = '100%';
-                noLabelsMessage.style.textAlign = 'center';
-                noLabelsMessage.style.marginBottom = '15px';
-                noLabelsMessage.style.color = '#666';
-                whitelistContainer.appendChild(noLabelsMessage);
-                return;
-            }
-            labels.sort((a, b) => a.name.localeCompare(b.name));
-            const seenLabels = new Set();
-            labels.forEach(label => {
-                if (seenLabels.has(label.name.toLowerCase())) return;
-                seenLabels.add(label.name.toLowerCase());
-                const checkboxContainer = document.createElement('div');
-                checkboxContainer.style.display = 'flex';
-                checkboxContainer.style.alignItems = 'center';
-                checkboxContainer.style.marginBottom = '10px';
-                checkboxContainer.style.width = 'calc(33.33% - 10px)';
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.id = `label-${label.name}`;
-                checkbox.dataset.label = label.name.toLowerCase();
-                checkbox.style.marginRight = '8px';
-                const isWhitelisted = safeWhitelist.some(term => label.name.toLowerCase().includes(term.toLowerCase()));
-                checkbox.checked = isWhitelisted;
-                const labelElement = this.createGitLabStyleLabel(label);
-                labelElement.style.cursor = 'pointer';
-                labelElement.onclick = () => {
-                    checkbox.checked = !checkbox.checked;
-                    this.autoSaveWhitelist(whitelistContainer);
-                };
-                checkbox.addEventListener('change', () => {
-                    this.autoSaveWhitelist(whitelistContainer);
-                });
-                checkboxContainer.appendChild(checkbox);
-                checkboxContainer.appendChild(labelElement);
-                whitelistContainer.appendChild(checkboxContainer);
-            });
-        };
-        fetchAndDisplayAllLabels();
-        container.appendChild(whitelistSection);
-    }
-
-    refreshAssigneeList(container) {
-        if (!container) return;
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.textContent = 'Refreshing assignees...';
-        loadingIndicator.style.padding = '15px';
-        loadingIndicator.style.textAlign = 'center';
-        loadingIndicator.style.color = '#666';
-        container.innerHTML = '';
-        container.appendChild(loadingIndicator);
-        const createEmptyMessage = () => {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
-            emptyMessage.style.padding = '15px';
-            emptyMessage.style.color = '#666';
-            emptyMessage.style.fontStyle = 'italic';
-            emptyMessage.style.textAlign = 'center';
-            return emptyMessage;
-        };
-        setTimeout(() => {
-            let assignees = [];
-            if (this.assigneeManager) {
-                assignees = this.assigneeManager.getAssigneeWhitelist();
-            } else {
-                assignees = getAssigneeWhitelist();
-            }
-            container.innerHTML = '';
-            if (assignees.length > 0) {
-                assignees.forEach((assignee, index) => {
-                    container.appendChild(this.createAssigneeListItem(assignee, index, container, createEmptyMessage));
-                });
-            } else {
-                container.appendChild(createEmptyMessage());
-            }
-        }, 300);
-    }
-
-    createAppearanceSettings(container) {
-        const appearanceSection = document.createElement('div');
-        const title = document.createElement('h4');
-        title.textContent = 'Appearance Settings';
-        title.style.marginBottom = '10px';
-        const description = document.createElement('p');
-        description.textContent = 'Customize the appearance of the GitLab Sprint Helper.';
-        description.style.marginBottom = '15px';
-        description.style.fontSize = '14px';
-        description.style.color = '#666';
-        appearanceSection.appendChild(title);
-        appearanceSection.appendChild(description);
-        const comingSoon = document.createElement('div');
-        comingSoon.style.padding = '20px';
-        comingSoon.style.textAlign = 'center';
-        comingSoon.style.backgroundColor = '#f8f9fa';
-        comingSoon.style.borderRadius = '4px';
-        comingSoon.style.color = '#666';
-        comingSoon.textContent = 'Appearance settings coming soon!';
-        appearanceSection.appendChild(comingSoon);
-        container.appendChild(appearanceSection);
-    }
-
-    createGitLabStyleLabel(label) {
-        const labelElement = document.createElement('span');
-        labelElement.textContent = label.name;
-        const bgColor = label.color || generateColorFromString(label.name);
-        const textColor = getContrastColor(bgColor);
-        labelElement.style.backgroundColor = bgColor;
-        labelElement.style.color = textColor;
-        labelElement.style.padding = '4px 8px';
-        labelElement.style.borderRadius = '100px';
-        labelElement.style.fontSize = '12px';
-        labelElement.style.fontWeight = '500';
-        labelElement.style.display = 'inline-block';
-        labelElement.style.margin = '2px';
-        labelElement.style.maxWidth = '100%';
-        labelElement.style.overflow = 'hidden';
-        labelElement.style.textOverflow = 'ellipsis';
-        labelElement.style.whiteSpace = 'nowrap';
-        return labelElement;
-    }
-
-    resetLabelWhitelist() {
-        resetLabelWhitelist();
-        if (this.labelManager) {
-            this.labelManager.resetToDefaultWhitelist();
+        avatarPlaceholder.textContent = initials;
+        userInfo.appendChild(avatarPlaceholder);
+      }
+      const userDetails = document.createElement('div');
+      const userName = document.createElement('div');
+      userName.className = 'assignee-name';
+      userName.textContent = user.name;
+      userName.style.fontWeight = 'bold';
+      const userUsername = document.createElement('div');
+      userUsername.className = 'assignee-username';
+      userUsername.textContent = `@${user.username}`;
+      userUsername.style.fontSize = '12px';
+      userUsername.style.color = '#666';
+      userDetails.appendChild(userName);
+      userDetails.appendChild(userUsername);
+      userInfo.appendChild(userDetails);
+      const actionButton = document.createElement('button');
+      if (isWhitelisted) {
+        actionButton.textContent = 'Added ✓';
+        actionButton.style.backgroundColor = '#e9ecef';
+        actionButton.style.color = '#28a745';
+        actionButton.style.cursor = 'default';
+      } else {
+        actionButton.textContent = 'Add';
+        actionButton.style.backgroundColor = '#28a745';
+        actionButton.style.color = 'white';
+        actionButton.style.cursor = 'pointer';
+        actionButton.addEventListener('click', () => {
+          const assignee = {
+            name: user.name,
+            username: user.username
+          };
+          if (this.assigneeManager) {
+            this.assigneeManager.addAssignee(assignee);
+          } else {
+            const whitelist = getAssigneeWhitelist();
+            whitelist.push(assignee);
+            saveAssigneeWhitelist(whitelist);
+          }
+          actionButton.textContent = 'Added ✓';
+          actionButton.style.backgroundColor = '#e9ecef';
+          actionButton.style.color = '#28a745';
+          actionButton.style.cursor = 'default';
+          userItem.style.backgroundColor = 'rgba(40, 167, 69, 0.05)';
+          this.notification.success(`Added ${user.name} to assignees`);
+          if (typeof this.onSettingsChanged === 'function') {
+            this.onSettingsChanged('assignees');
+          }
+          this.refreshWhitelistedTab();
+        });
+      }
+      actionButton.style.padding = '5px 10px';
+      actionButton.style.border = 'none';
+      actionButton.style.borderRadius = '4px';
+      actionButton.style.fontSize = '12px';
+      userItem.appendChild(userInfo);
+      userItem.appendChild(actionButton);
+      container.appendChild(userItem);
+    });
+  }
+  refreshWhitelistedTab() {
+    const whitelistedContent = document.querySelector('div[style*="display: block"]');
+    if (!whitelistedContent) return;
+    const assigneeListContainer = whitelistedContent.querySelector('div[style*="overflowY: auto"]');
+    if (!assigneeListContainer) return;
+    const createEmptyMessage = () => {
+      const emptyMessage = document.createElement('div');
+      emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
+      emptyMessage.style.padding = '15px';
+      emptyMessage.style.color = '#666';
+      emptyMessage.style.fontStyle = 'italic';
+      emptyMessage.style.textAlign = 'center';
+      return emptyMessage;
+    };
+    assigneeListContainer.innerHTML = '';
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.textContent = 'Refreshing assignees...';
+    loadingIndicator.style.padding = '15px';
+    loadingIndicator.style.textAlign = 'center';
+    loadingIndicator.style.color = '#666';
+    assigneeListContainer.appendChild(loadingIndicator);
+    setTimeout(() => {
+      let assignees = [];
+      if (this.assigneeManager) {
+        assignees = this.assigneeManager.getAssigneeWhitelist();
+      } else {
+        assignees = getAssigneeWhitelist();
+      }
+      assigneeListContainer.innerHTML = '';
+      if (assignees.length > 0) {
+        assignees.forEach((assignee, index) => {
+          assigneeListContainer.appendChild(this.createAssigneeListItem(assignee, index, assigneeListContainer, createEmptyMessage));
+        });
+      } else {
+        assigneeListContainer.appendChild(createEmptyMessage());
+      }
+    }, 300);
+  }
+  createAssigneeListItem(assignee, index, listContainer, createEmptyMessage) {
+    const item = document.createElement('div');
+    item.className = 'assignee-item';
+    item.style.display = 'flex';
+    item.style.justifyContent = 'space-between';
+    item.style.alignItems = 'center';
+    item.style.padding = '10px 15px';
+    item.style.borderBottom = '1px solid #eee';
+    const info = document.createElement('div');
+    info.style.display = 'flex';
+    info.style.alignItems = 'center';
+    const avatar = document.createElement('div');
+    avatar.style.width = '30px';
+    avatar.style.height = '30px';
+    avatar.style.borderRadius = '50%';
+    avatar.style.backgroundColor = '#e0e0e0';
+    avatar.style.display = 'flex';
+    avatar.style.alignItems = 'center';
+    avatar.style.justifyContent = 'center';
+    avatar.style.marginRight = '10px';
+    avatar.style.fontWeight = 'bold';
+    avatar.style.color = '#666';
+    const name = assignee.name || assignee.username;
+    const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
+    avatar.textContent = initials;
+    info.appendChild(avatar);
+    const nameContainer = document.createElement('div');
+    const displayName = document.createElement('div');
+    displayName.className = 'assignee-name';
+    displayName.textContent = assignee.name || assignee.username;
+    displayName.style.fontWeight = 'bold';
+    const username = document.createElement('div');
+    username.className = 'assignee-username';
+    username.textContent = `@${assignee.username}`;
+    username.style.fontSize = '12px';
+    username.style.color = '#666';
+    nameContainer.appendChild(displayName);
+    nameContainer.appendChild(username);
+    info.appendChild(nameContainer);
+    const buttons = document.createElement('div');
+    const removeButton = document.createElement('button');
+    removeButton.textContent = 'Remove';
+    removeButton.style.padding = '5px 10px';
+    removeButton.style.backgroundColor = '#dc3545';
+    removeButton.style.color = 'white';
+    removeButton.style.border = 'none';
+    removeButton.style.borderRadius = '4px';
+    removeButton.style.cursor = 'pointer';
+    removeButton.style.fontSize = '12px';
+    removeButton.onclick = () => {
+      let assignees = [];
+      if (this.assigneeManager) {
+        this.assigneeManager.removeAssignee(assignee.username);
+        assignees = this.assigneeManager.getAssigneeWhitelist();
+      } else {
+        assignees = getAssigneeWhitelist();
+        const filteredAssignees = assignees.filter(a => a.username.toLowerCase() !== assignee.username.toLowerCase());
+        saveAssigneeWhitelist(filteredAssignees);
+        assignees = filteredAssignees;
+      }
+      item.remove();
+      if (assignees.length === 0) {
+        listContainer.appendChild(createEmptyMessage());
+      }
+      this.notification.info(`Removed assignee: ${assignee.name || assignee.username}`);
+      if (this.onSettingsChanged) {
+        this.onSettingsChanged('assignees');
+      }
+    };
+    buttons.appendChild(removeButton);
+    item.appendChild(info);
+    item.appendChild(buttons);
+    return item;
+  }
+  createLabelWhitelistSettings(container) {
+    const whitelistSection = document.createElement('div');
+    whitelistSection.style.marginBottom = '20px';
+    const whitelistTitle = document.createElement('h4');
+    whitelistTitle.textContent = 'Label Whitelist';
+    whitelistTitle.style.marginBottom = '10px';
+    const whitelistDescription = document.createElement('p');
+    whitelistDescription.textContent = 'Select which labels should appear in the dropdown. The system will show any label that contains these terms.';
+    whitelistDescription.style.marginBottom = '15px';
+    whitelistDescription.style.fontSize = '14px';
+    whitelistDescription.style.color = '#666';
+    whitelistSection.appendChild(whitelistTitle);
+    whitelistSection.appendChild(whitelistDescription);
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'whitelist-loading-message';
+    loadingMessage.textContent = 'Loading all labels from GitLab...';
+    loadingMessage.style.fontStyle = 'italic';
+    loadingMessage.style.color = '#666';
+    whitelistSection.appendChild(loadingMessage);
+    const whitelistContainer = document.createElement('div');
+    whitelistContainer.id = 'whitelist-container';
+    whitelistContainer.style.display = 'flex';
+    whitelistContainer.style.flexWrap = 'wrap';
+    whitelistContainer.style.gap = '10px';
+    whitelistContainer.style.marginTop = '15px';
+    whitelistContainer.style.height = '300px';
+    whitelistContainer.style.overflowY = 'auto';
+    whitelistContainer.style.border = '1px solid #eee';
+    whitelistContainer.style.borderRadius = '4px';
+    whitelistContainer.style.padding = '10px';
+    whitelistSection.appendChild(whitelistContainer);
+    const currentWhitelist = getLabelWhitelist();
+    const safeWhitelist = Array.isArray(currentWhitelist) ? currentWhitelist : [];
+    const fetchAndDisplayAllLabels = async () => {
+      try {
+        if (!this.gitlabApi) {
+          throw new Error('GitLab API not available');
         }
-        if (this.onSettingsChanged) {
-            this.onSettingsChanged('labels');
+        const pathInfo = getPathFromUrl();
+        if (!pathInfo || !pathInfo.apiUrl) {
+          throw new Error('Could not determine project/group path');
         }
+        const allLabels = await this.gitlabApi.callGitLabApi(pathInfo.apiUrl, {
+          params: {
+            per_page: 100
+          }
+        });
+        displayLabels(allLabels);
+      } catch (error) {
+        console.error('Error fetching ALL labels:', error);
+        loadingMessage.textContent = 'Error loading labels. ' + error.message;
+        loadingMessage.style.color = '#dc3545';
+      }
+    };
+    const displayLabels = labels => {
+      loadingMessage.remove();
+      if (!labels || labels.length === 0) {
+        const noLabelsMessage = document.createElement('div');
+        noLabelsMessage.textContent = 'No labels found in this project.';
+        noLabelsMessage.style.width = '100%';
+        noLabelsMessage.style.textAlign = 'center';
+        noLabelsMessage.style.marginBottom = '15px';
+        noLabelsMessage.style.color = '#666';
+        whitelistContainer.appendChild(noLabelsMessage);
+        return;
+      }
+      labels.sort((a, b) => a.name.localeCompare(b.name));
+      const seenLabels = new Set();
+      labels.forEach(label => {
+        if (seenLabels.has(label.name.toLowerCase())) return;
+        seenLabels.add(label.name.toLowerCase());
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.style.display = 'flex';
+        checkboxContainer.style.alignItems = 'center';
+        checkboxContainer.style.marginBottom = '10px';
+        checkboxContainer.style.width = 'calc(33.33% - 10px)';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `label-${label.name}`;
+        checkbox.dataset.label = label.name.toLowerCase();
+        checkbox.style.marginRight = '8px';
+        const isWhitelisted = safeWhitelist.some(term => label.name.toLowerCase().includes(term.toLowerCase()));
+        checkbox.checked = isWhitelisted;
+        const labelElement = this.createGitLabStyleLabel(label);
+        labelElement.style.cursor = 'pointer';
+        labelElement.onclick = () => {
+          checkbox.checked = !checkbox.checked;
+          this.autoSaveWhitelist(whitelistContainer);
+        };
+        checkbox.addEventListener('change', () => {
+          this.autoSaveWhitelist(whitelistContainer);
+        });
+        checkboxContainer.appendChild(checkbox);
+        checkboxContainer.appendChild(labelElement);
+        whitelistContainer.appendChild(checkboxContainer);
+      });
+    };
+    fetchAndDisplayAllLabels();
+    container.appendChild(whitelistSection);
+  }
+  refreshAssigneeList(container) {
+    if (!container) return;
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.textContent = 'Refreshing assignees...';
+    loadingIndicator.style.padding = '15px';
+    loadingIndicator.style.textAlign = 'center';
+    loadingIndicator.style.color = '#666';
+    container.innerHTML = '';
+    container.appendChild(loadingIndicator);
+    const createEmptyMessage = () => {
+      const emptyMessage = document.createElement('div');
+      emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
+      emptyMessage.style.padding = '15px';
+      emptyMessage.style.color = '#666';
+      emptyMessage.style.fontStyle = 'italic';
+      emptyMessage.style.textAlign = 'center';
+      return emptyMessage;
+    };
+    setTimeout(() => {
+      let assignees = [];
+      if (this.assigneeManager) {
+        assignees = this.assigneeManager.getAssigneeWhitelist();
+      } else {
+        assignees = getAssigneeWhitelist();
+      }
+      container.innerHTML = '';
+      if (assignees.length > 0) {
+        assignees.forEach((assignee, index) => {
+          container.appendChild(this.createAssigneeListItem(assignee, index, container, createEmptyMessage));
+        });
+      } else {
+        container.appendChild(createEmptyMessage());
+      }
+    }, 300);
+  }
+  createGitLabStyleLabel(label) {
+    const labelElement = document.createElement('span');
+    labelElement.textContent = label.name;
+    const bgColor = label.color || generateColorFromString(label.name);
+    const textColor = getContrastColor(bgColor);
+    labelElement.style.backgroundColor = bgColor;
+    labelElement.style.color = textColor;
+    labelElement.style.padding = '4px 8px';
+    labelElement.style.borderRadius = '100px';
+    labelElement.style.fontSize = '12px';
+    labelElement.style.fontWeight = '500';
+    labelElement.style.display = 'inline-block';
+    labelElement.style.margin = '2px';
+    labelElement.style.maxWidth = '100%';
+    labelElement.style.overflow = 'hidden';
+    labelElement.style.textOverflow = 'ellipsis';
+    labelElement.style.whiteSpace = 'nowrap';
+    return labelElement;
+  }
+  resetLabelWhitelist() {
+    resetLabelWhitelist();
+    if (this.labelManager) {
+      this.labelManager.resetToDefaultWhitelist();
     }
-
-    resetAllSettings() {
-        this.resetLabelWhitelist();
-        saveAssigneeWhitelist([]);
-        const defaultShortcut = DEFAULT_SETTINGS.toggleShortcut;
-        saveToggleShortcut(defaultShortcut);
+    if (this.onSettingsChanged) {
+      this.onSettingsChanged('labels');
+    }
+  }
+  resetAllSettings() {
+    this.resetLabelWhitelist();
+    saveAssigneeWhitelist([]);
+    const defaultShortcut = DEFAULT_SETTINGS.toggleShortcut;
+    saveToggleShortcut(defaultShortcut);
+    if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
+      window.uiManager.updateKeyboardShortcut(defaultShortcut);
+    } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
+      this.uiManager.updateKeyboardShortcut(defaultShortcut);
+    }
+    if (this.onSettingsChanged) {
+      this.onSettingsChanged('all');
+    }
+  }
+  autoSaveWhitelist(container) {
+    const newWhitelist = [];
+    const addedTerms = new Set();
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+      if (checkbox.checked) {
+        const term = checkbox.dataset.label.toLowerCase();
+        if (!addedTerms.has(term)) {
+          newWhitelist.push(term);
+          addedTerms.add(term);
+        }
+      }
+    });
+    saveLabelWhitelist(newWhitelist);
+    if (this.labelManager) {
+      this.labelManager.saveWhitelist(newWhitelist);
+    }
+    if (this.notification) {
+      this.notification.success(`Label whitelist updated`);
+    }
+    if (this.onSettingsChanged) {
+      this.onSettingsChanged('labels');
+    }
+  }
+  createGeneralSettings(container) {
+    const generalSection = document.createElement('div');
+    const title = document.createElement('h4');
+    title.textContent = 'General Settings';
+    title.style.marginBottom = '10px';
+    const description = document.createElement('p');
+    description.textContent = 'Configure general behavior of the GitLab Sprint Helper.';
+    description.style.marginBottom = '15px';
+    description.style.fontSize = '14px';
+    description.style.color = '#666';
+    generalSection.appendChild(title);
+    generalSection.appendChild(description);
+    const shortcutSection = document.createElement('div');
+    shortcutSection.style.marginBottom = '20px';
+    shortcutSection.style.padding = '15px';
+    shortcutSection.style.backgroundColor = '#f8f9fa';
+    shortcutSection.style.borderRadius = '4px';
+    const shortcutTitle = document.createElement('h5');
+    shortcutTitle.textContent = 'Toggle Visibility Shortcut';
+    shortcutTitle.style.marginTop = '0';
+    shortcutTitle.style.marginBottom = '10px';
+    shortcutTitle.style.fontSize = '16px';
+    const shortcutDescription = document.createElement('p');
+    shortcutDescription.textContent = 'Set a keyboard shortcut to toggle the visibility of GitLab Sprint Helper. The shortcut will only work when not typing in an input field.';
+    shortcutDescription.style.marginBottom = '15px';
+    shortcutDescription.style.fontSize = '14px';
+    shortcutDescription.style.color = '#666';
+    const shortcutInputContainer = document.createElement('div');
+    shortcutInputContainer.style.display = 'flex';
+    shortcutInputContainer.style.alignItems = 'center';
+    shortcutInputContainer.style.gap = '10px';
+    const shortcutLabel = document.createElement('label');
+    shortcutLabel.textContent = 'Shortcut Key:';
+    shortcutLabel.style.fontWeight = 'bold';
+    shortcutLabel.style.minWidth = '100px';
+    const shortcutInput = document.createElement('input');
+    shortcutInput.type = 'text';
+    shortcutInput.maxLength = 1;
+    shortcutInput.style.padding = '8px';
+    shortcutInput.style.width = '60px';
+    shortcutInput.style.textAlign = 'center';
+    shortcutInput.style.fontSize = '16px';
+    shortcutInput.style.border = '1px solid #ccc';
+    shortcutInput.style.borderRadius = '4px';
+    const currentShortcut = getToggleShortcut();
+    shortcutInput.value = currentShortcut;
+    const shortcutPreview = document.createElement('div');
+    shortcutPreview.style.marginLeft = '10px';
+    shortcutPreview.style.color = '#666';
+    shortcutPreview.textContent = `Current: Press '${currentShortcut}' to toggle`;
+    shortcutInput.addEventListener('input', () => {
+      if (shortcutInput.value.length === 0) return;
+      const newShortcut = shortcutInput.value.charAt(0).toLowerCase();
+      if (newShortcut) {
+        saveToggleShortcut(newShortcut);
+        shortcutPreview.textContent = `Current: Press '${newShortcut}' to toggle`;
+        this.notification.success(`Shortcut changed to '${newShortcut}'`);
         if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
-            window.uiManager.updateKeyboardShortcut(defaultShortcut);
+          window.uiManager.updateKeyboardShortcut(newShortcut);
         } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
-            this.uiManager.updateKeyboardShortcut(defaultShortcut);
+          this.uiManager.updateKeyboardShortcut(newShortcut);
         }
         if (this.onSettingsChanged) {
-            this.onSettingsChanged('all');
+          this.onSettingsChanged('general');
         }
+      }
+    });
+    shortcutInput.addEventListener('keyup', () => {
+      shortcutInput.value = shortcutInput.value.toLowerCase();
+    });
+    shortcutInputContainer.appendChild(shortcutLabel);
+    shortcutInputContainer.appendChild(shortcutInput);
+    shortcutInputContainer.appendChild(shortcutPreview);
+    shortcutSection.appendChild(shortcutTitle);
+    shortcutSection.appendChild(shortcutDescription);
+    shortcutSection.appendChild(shortcutInputContainer);
+    generalSection.appendChild(shortcutSection);
+    const resetSection = document.createElement('div');
+    resetSection.style.marginTop = '20px';
+    resetSection.style.padding = '15px';
+    resetSection.style.backgroundColor = '#fff0f0';
+    resetSection.style.borderRadius = '4px';
+    resetSection.style.border = '1px solid #ffcccc';
+    const resetTitle = document.createElement('h5');
+    resetTitle.textContent = 'Data Management';
+    resetTitle.style.marginTop = '0';
+    resetTitle.style.marginBottom = '10px';
+    resetTitle.style.fontSize = '16px';
+    resetTitle.style.color = '#dc3545';
+    const resetDescription = document.createElement('p');
+    resetDescription.textContent = 'Reset various data stored by GitLab Sprint Helper. Warning: These actions cannot be undone!';
+    resetDescription.style.marginBottom = '15px';
+    resetDescription.style.fontSize = '14px';
+    resetDescription.style.color = '#666';
+    const resetButtonsContainer = document.createElement('div');
+    resetButtonsContainer.style.display = 'flex';
+    resetButtonsContainer.style.gap = '10px';
+    resetButtonsContainer.style.flexWrap = 'wrap';
+    const resetAllButton = document.createElement('button');
+    resetAllButton.textContent = 'Reset All Data';
+    resetAllButton.style.backgroundColor = '#dc3545';
+    resetAllButton.style.color = 'white';
+    resetAllButton.style.border = 'none';
+    resetAllButton.style.borderRadius = '4px';
+    resetAllButton.style.padding = '8px 16px';
+    resetAllButton.style.cursor = 'pointer';
+    resetAllButton.style.fontWeight = 'bold';
+    resetAllButton.addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset ALL data? This will remove all settings, history, and sprint data. This action cannot be undone!')) {
+        this.resetAllSettings();
+        if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
+          window.historyManager.clearAllHistory();
+        }
+        localStorage.removeItem('gitLabHelperSprintState');
+        localStorage.removeItem('gitLabHelperSprintHistory');
+        this.notification.success('All data has been reset');
+        if (this.currentModal) {
+          this.currentModal.remove();
+          this.currentModal = null;
+        }
+      }
+    });
+    const resetHistoryButton = document.createElement('button');
+    resetHistoryButton.textContent = 'Reset History';
+    resetHistoryButton.style.backgroundColor = '#dc3545';
+    resetHistoryButton.style.color = 'white';
+    resetHistoryButton.style.border = 'none';
+    resetHistoryButton.style.borderRadius = '4px';
+    resetHistoryButton.style.padding = '8px 16px';
+    resetHistoryButton.style.cursor = 'pointer';
+    resetHistoryButton.style.fontWeight = 'bold';
+    resetHistoryButton.addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset all history data? This action cannot be undone!')) {
+        if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
+          window.historyManager.clearAllHistory();
+          this.notification.success('History data has been reset');
+        } else {
+          this.notification.error('History manager not available');
+        }
+      }
+    });
+    resetButtonsContainer.appendChild(resetAllButton);
+    resetButtonsContainer.appendChild(resetHistoryButton);
+    resetSection.appendChild(resetTitle);
+    resetSection.appendChild(resetDescription);
+    resetSection.appendChild(resetButtonsContainer);
+    generalSection.appendChild(resetSection);
+    container.appendChild(generalSection);
+  }
+  createAppearanceSettings(container) {
+    const appearanceSection = document.createElement('div');
+    const title = document.createElement('h4');
+    title.textContent = 'Appearance Settings';
+    title.style.marginBottom = '10px';
+    const description = document.createElement('p');
+    description.textContent = 'Customize the appearance of the GitLab Sprint Helper.';
+    description.style.marginBottom = '15px';
+    description.style.fontSize = '14px';
+    description.style.color = '#666';
+    appearanceSection.appendChild(title);
+    appearanceSection.appendChild(description);
+    const linkedItemsSection = document.createElement('div');
+    linkedItemsSection.style.marginBottom = '20px';
+    linkedItemsSection.style.padding = '15px';
+    linkedItemsSection.style.backgroundColor = '#f8f9fa';
+    linkedItemsSection.style.borderRadius = '4px';
+    const linkedItemsTitle = document.createElement('h5');
+    linkedItemsTitle.textContent = 'Linked Items Feature';
+    linkedItemsTitle.style.marginTop = '0';
+    linkedItemsTitle.style.marginBottom = '10px';
+    linkedItemsTitle.style.fontSize = '16px';
+    const linkedItemsDescription = document.createElement('p');
+    linkedItemsDescription.textContent = 'Show linked items button on cards to quickly access branches, merge requests, and other related items.';
+    linkedItemsDescription.style.marginBottom = '15px';
+    linkedItemsDescription.style.fontSize = '14px';
+    linkedItemsDescription.style.color = '#666';
+    const toggleContainer = document.createElement('div');
+    toggleContainer.style.display = 'flex';
+    toggleContainer.style.alignItems = 'center';
+    toggleContainer.style.justifyContent = 'space-between';
+    const toggleLabel = document.createElement('label');
+    toggleLabel.textContent = 'Enable Linked Items';
+    toggleLabel.style.fontWeight = 'bold';
+    const toggleSwitch = document.createElement('div');
+    toggleSwitch.style.position = 'relative';
+    toggleSwitch.style.display = 'inline-block';
+    toggleSwitch.style.width = '50px';
+    toggleSwitch.style.height = '24px';
+    const toggleCheckbox = document.createElement('input');
+    toggleCheckbox.type = 'checkbox';
+    toggleCheckbox.style.opacity = '0';
+    toggleCheckbox.style.width = '0';
+    toggleCheckbox.style.height = '0';
+    try {
+      const linkedItemsEnabled = localStorage.getItem('gitLabHelperLinkedItemsEnabled');
+      toggleCheckbox.checked = linkedItemsEnabled === null || linkedItemsEnabled === 'true';
+    } catch (e) {
+      console.error('Error loading linked items state:', e);
+      toggleCheckbox.checked = true;
     }
-
-    autoSaveWhitelist(container) {
-        const newWhitelist = [];
-        const addedTerms = new Set();
-        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(checkbox => {
-            if (checkbox.checked) {
-                const term = checkbox.dataset.label.toLowerCase();
-                if (!addedTerms.has(term)) {
-                    newWhitelist.push(term);
-                    addedTerms.add(term);
-                }
-            }
-        });
-        saveLabelWhitelist(newWhitelist);
-        if (this.labelManager) {
-            this.labelManager.saveWhitelist(newWhitelist);
+    const toggleSlider = document.createElement('span');
+    toggleSlider.style.position = 'absolute';
+    toggleSlider.style.cursor = 'pointer';
+    toggleSlider.style.top = '0';
+    toggleSlider.style.left = '0';
+    toggleSlider.style.right = '0';
+    toggleSlider.style.bottom = '0';
+    toggleSlider.style.backgroundColor = toggleCheckbox.checked ? '#1f75cb' : '#ccc';
+    toggleSlider.style.transition = '.4s';
+    toggleSlider.style.borderRadius = '34px';
+    const toggleKnob = document.createElement('span');
+    toggleKnob.style.position = 'absolute';
+    toggleKnob.style.content = '""';
+    toggleKnob.style.height = '16px';
+    toggleKnob.style.width = '16px';
+    toggleKnob.style.left = toggleCheckbox.checked ? '30px' : '4px';
+    toggleKnob.style.bottom = '4px';
+    toggleKnob.style.backgroundColor = 'white';
+    toggleKnob.style.transition = '.4s';
+    toggleKnob.style.borderRadius = '50%';
+    toggleSlider.appendChild(toggleKnob);
+    toggleSwitch.appendChild(toggleCheckbox);
+    toggleSwitch.appendChild(toggleSlider);
+    toggleCheckbox.addEventListener('change', () => {
+      toggleSlider.style.backgroundColor = toggleCheckbox.checked ? '#1f75cb' : '#ccc';
+      toggleKnob.style.left = toggleCheckbox.checked ? '30px' : '4px';
+      localStorage.setItem('gitLabHelperLinkedItemsEnabled', toggleCheckbox.checked);
+      if (window.toggleLinkedItems) {
+        window.toggleLinkedItems();
+      }
+      if (this.notification) {
+        if (toggleCheckbox.checked) {
+          this.notification.success('Linked Items feature enabled');
+        } else {
+          this.notification.info('Linked Items feature disabled');
         }
-        if (this.notification) {
-            this.notification.success(`Label whitelist updated`);
-        }
-        if (this.onSettingsChanged) {
-            this.onSettingsChanged('labels');
-        }
-    }
-
-    createGeneralSettings(container) {
-        const generalSection = document.createElement('div');
-        const title = document.createElement('h4');
-        title.textContent = 'General Settings';
-        title.style.marginBottom = '10px';
-        const description = document.createElement('p');
-        description.textContent = 'Configure general behavior of the GitLab Sprint Helper.';
-        description.style.marginBottom = '15px';
-        description.style.fontSize = '14px';
-        description.style.color = '#666';
-        generalSection.appendChild(title);
-        generalSection.appendChild(description);
-
-        const shortcutSection = document.createElement('div');
-        shortcutSection.style.marginBottom = '20px';
-        shortcutSection.style.padding = '15px';
-        shortcutSection.style.backgroundColor = '#f8f9fa';
-        shortcutSection.style.borderRadius = '4px';
-        const shortcutTitle = document.createElement('h5');
-        shortcutTitle.textContent = 'Toggle Visibility Shortcut';
-        shortcutTitle.style.marginTop = '0';
-        shortcutTitle.style.marginBottom = '10px';
-        shortcutTitle.style.fontSize = '16px';
-        const shortcutDescription = document.createElement('p');
-        shortcutDescription.textContent = 'Set a keyboard shortcut to toggle the visibility of GitLab Sprint Helper. The shortcut will only work when not typing in an input field.';
-        shortcutDescription.style.marginBottom = '15px';
-        shortcutDescription.style.fontSize = '14px';
-        shortcutDescription.style.color = '#666';
-        const shortcutInputContainer = document.createElement('div');
-        shortcutInputContainer.style.display = 'flex';
-        shortcutInputContainer.style.alignItems = 'center';
-        shortcutInputContainer.style.gap = '10px';
-        const shortcutLabel = document.createElement('label');
-        shortcutLabel.textContent = 'Shortcut Key:';
-        shortcutLabel.style.fontWeight = 'bold';
-        shortcutLabel.style.minWidth = '100px';
-        const shortcutInput = document.createElement('input');
-        shortcutInput.type = 'text';
-        shortcutInput.maxLength = 1;
-        shortcutInput.style.padding = '8px';
-        shortcutInput.style.width = '60px';
-        shortcutInput.style.textAlign = 'center';
-        shortcutInput.style.fontSize = '16px';
-        shortcutInput.style.border = '1px solid #ccc';
-        shortcutInput.style.borderRadius = '4px';
-        const currentShortcut = getToggleShortcut();
-        shortcutInput.value = currentShortcut;
-        const shortcutPreview = document.createElement('div');
-        shortcutPreview.style.marginLeft = '10px';
-        shortcutPreview.style.color = '#666';
-        shortcutPreview.textContent = `Current: Press '${currentShortcut}' to toggle`;
-        shortcutInput.addEventListener('input', () => {
-            if (shortcutInput.value.length === 0) return;
-            const newShortcut = shortcutInput.value.charAt(0).toLowerCase();
-            if (newShortcut) {
-                saveToggleShortcut(newShortcut);
-                shortcutPreview.textContent = `Current: Press '${newShortcut}' to toggle`;
-                this.notification.success(`Shortcut changed to '${newShortcut}'`);
-                if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
-                    window.uiManager.updateKeyboardShortcut(newShortcut);
-                } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
-                    this.uiManager.updateKeyboardShortcut(newShortcut);
-                }
-                if (this.onSettingsChanged) {
-                    this.onSettingsChanged('general');
-                }
-            }
-        });
-        shortcutInput.addEventListener('keyup', () => {
-            shortcutInput.value = shortcutInput.value.toLowerCase();
-        });
-        shortcutInputContainer.appendChild(shortcutLabel);
-        shortcutInputContainer.appendChild(shortcutInput);
-        shortcutInputContainer.appendChild(shortcutPreview);
-        shortcutSection.appendChild(shortcutTitle);
-        shortcutSection.appendChild(shortcutDescription);
-        shortcutSection.appendChild(shortcutInputContainer);
-        generalSection.appendChild(shortcutSection);
-
-        // Add LinkedItems feature toggle
-        const linkedItemsSection = document.createElement('div');
-        linkedItemsSection.style.marginBottom = '20px';
-        linkedItemsSection.style.padding = '15px';
-        linkedItemsSection.style.backgroundColor = '#f8f9fa';
-        linkedItemsSection.style.borderRadius = '4px';
-
-        const linkedItemsTitle = document.createElement('h5');
-        linkedItemsTitle.textContent = 'Linked Items Feature';
-        linkedItemsTitle.style.marginTop = '0';
-        linkedItemsTitle.style.marginBottom = '10px';
-        linkedItemsTitle.style.fontSize = '16px';
-
-        const linkedItemsDescription = document.createElement('p');
-        linkedItemsDescription.textContent = 'Show linked items button on cards to quickly access branches, merge requests, and other related items.';
-        linkedItemsDescription.style.marginBottom = '15px';
-        linkedItemsDescription.style.fontSize = '14px';
-        linkedItemsDescription.style.color = '#666';
-
-        const toggleContainer = document.createElement('div');
-        toggleContainer.style.display = 'flex';
-        toggleContainer.style.alignItems = 'center';
-        toggleContainer.style.justifyContent = 'space-between';
-
-        const toggleLabel = document.createElement('label');
-        toggleLabel.textContent = 'Enable Linked Items';
-        toggleLabel.style.fontWeight = 'bold';
-
-        const toggleSwitch = document.createElement('div');
-        toggleSwitch.style.position = 'relative';
-        toggleSwitch.style.display = 'inline-block';
-        toggleSwitch.style.width = '50px';
-        toggleSwitch.style.height = '24px';
-
-        const toggleCheckbox = document.createElement('input');
-        toggleCheckbox.type = 'checkbox';
-        toggleCheckbox.style.opacity = '0';
-        toggleCheckbox.style.width = '0';
-        toggleCheckbox.style.height = '0';
-
-        // Load saved state
-        try {
-            const linkedItemsEnabled = localStorage.getItem('gitLabHelperLinkedItemsEnabled');
-            toggleCheckbox.checked = linkedItemsEnabled === 'true';
-        } catch (e) {
-            console.error('Error loading linked items state:', e);
-            toggleCheckbox.checked = true; // Default to enabled
-        }
-
-        const toggleSlider = document.createElement('span');
-        toggleSlider.style.position = 'absolute';
-        toggleSlider.style.cursor = 'pointer';
-        toggleSlider.style.top = '0';
-        toggleSlider.style.left = '0';
-        toggleSlider.style.right = '0';
-        toggleSlider.style.bottom = '0';
-        toggleSlider.style.backgroundColor = toggleCheckbox.checked ? '#1f75cb' : '#ccc';
-        toggleSlider.style.transition = '.4s';
-        toggleSlider.style.borderRadius = '34px';
-
-        const toggleKnob = document.createElement('span');
-        toggleKnob.style.position = 'absolute';
-        toggleKnob.style.content = '""';
-        toggleKnob.style.height = '16px';
-        toggleKnob.style.width = '16px';
-        toggleKnob.style.left = toggleCheckbox.checked ? '30px' : '4px';
-        toggleKnob.style.bottom = '4px';
-        toggleKnob.style.backgroundColor = 'white';
-        toggleKnob.style.transition = '.4s';
-        toggleKnob.style.borderRadius = '50%';
-
-        toggleSlider.appendChild(toggleKnob);
-        toggleSwitch.appendChild(toggleCheckbox);
-        toggleSwitch.appendChild(toggleSlider);
-
-        toggleCheckbox.addEventListener('change', function () {
-            toggleSlider.style.backgroundColor = this.checked ? '#1f75cb' : '#ccc';
-            toggleKnob.style.left = this.checked ? '30px' : '4px';
-
-            // Save setting
-            localStorage.setItem('gitLabHelperLinkedItemsEnabled', this.checked);
-
-            // Toggle feature
-            if (window.toggleLinkedItems) {
-                window.toggleLinkedItems();
-            }
-
-            // Show notification
-            if (this.checked) {
-                this.notification?.success('Linked Items feature enabled');
-            } else {
-                this.notification?.info('Linked Items feature disabled');
-            }
-        });
-
-        toggleContainer.appendChild(toggleLabel);
-        toggleContainer.appendChild(toggleSwitch);
-
-        linkedItemsSection.appendChild(linkedItemsTitle);
-        linkedItemsSection.appendChild(linkedItemsDescription);
-        linkedItemsSection.appendChild(toggleContainer);
-
-        generalSection.appendChild(linkedItemsSection);
-
-        const resetSection = document.createElement('div');
-        resetSection.style.marginTop = '20px';
-        resetSection.style.padding = '15px';
-        resetSection.style.backgroundColor = '#fff0f0';
-        resetSection.style.borderRadius = '4px';
-        resetSection.style.border = '1px solid #ffcccc';
-        const resetTitle = document.createElement('h5');
-        resetTitle.textContent = 'Data Management';
-        resetTitle.style.marginTop = '0';
-        resetTitle.style.marginBottom = '10px';
-        resetTitle.style.fontSize = '16px';
-        resetTitle.style.color = '#dc3545';
-        const resetDescription = document.createElement('p');
-        resetDescription.textContent = 'Reset various data stored by GitLab Sprint Helper. Warning: These actions cannot be undone!';
-        resetDescription.style.marginBottom = '15px';
-        resetDescription.style.fontSize = '14px';
-        resetDescription.style.color = '#666';
-        const resetButtonsContainer = document.createElement('div');
-        resetButtonsContainer.style.display = 'flex';
-        resetButtonsContainer.style.gap = '10px';
-        resetButtonsContainer.style.flexWrap = 'wrap';
-        const resetAllButton = document.createElement('button');
-        resetAllButton.textContent = 'Reset All Data';
-        resetAllButton.style.backgroundColor = '#dc3545';
-        resetAllButton.style.color = 'white';
-        resetAllButton.style.border = 'none';
-        resetAllButton.style.borderRadius = '4px';
-        resetAllButton.style.padding = '8px 16px';
-        resetAllButton.style.cursor = 'pointer';
-        resetAllButton.style.fontWeight = 'bold';
-        resetAllButton.addEventListener('click', () => {
-            if (confirm('Are you sure you want to reset ALL data? This will remove all settings, history, and sprint data. This action cannot be undone!')) {
-                this.resetAllSettings();
-                if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
-                    window.historyManager.clearAllHistory();
-                }
-                localStorage.removeItem('gitLabHelperSprintState');
-                localStorage.removeItem('gitLabHelperSprintHistory');
-                this.notification.success('All data has been reset');
-                if (this.currentModal) {
-                    this.currentModal.remove();
-                    this.currentModal = null;
-                }
-            }
-        });
-        const resetHistoryButton = document.createElement('button');
-        resetHistoryButton.textContent = 'Reset History';
-        resetHistoryButton.style.backgroundColor = '#dc3545';
-        resetHistoryButton.style.color = 'white';
-        resetHistoryButton.style.border = 'none';
-        resetHistoryButton.style.borderRadius = '4px';
-        resetHistoryButton.style.padding = '8px 16px';
-        resetHistoryButton.style.cursor = 'pointer';
-        resetHistoryButton.style.fontWeight = 'bold';
-        resetHistoryButton.addEventListener('click', () => {
-            if (confirm('Are you sure you want to reset all history data? This action cannot be undone!')) {
-                if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
-                    window.historyManager.clearAllHistory();
-                    this.notification.success('History data has been reset');
-                } else {
-                    this.notification.error('History manager not available');
-                }
-            }
-        });
-
-        resetButtonsContainer.appendChild(resetAllButton);
-        resetButtonsContainer.appendChild(resetHistoryButton);
-        resetSection.appendChild(resetTitle);
-        resetSection.appendChild(resetDescription);
-        resetSection.appendChild(resetButtonsContainer);
-        generalSection.appendChild(resetSection);
-        container.appendChild(generalSection);
-    }
+      }
+    });
+    toggleContainer.appendChild(toggleLabel);
+    toggleContainer.appendChild(toggleSwitch);
+    linkedItemsSection.appendChild(linkedItemsTitle);
+    linkedItemsSection.appendChild(linkedItemsDescription);
+    linkedItemsSection.appendChild(toggleContainer);
+    appearanceSection.appendChild(linkedItemsSection);
+    container.appendChild(appearanceSection);
+  }
 }
 
 // File: lib/ui/views/SummaryView.js
 window.SummaryView = class SummaryView {
-    constructor(uiManager) {
-        this.uiManager = uiManager;
-        this.membersList = [];
-        this.potentialAssignees = [];
-        this.gitlabApi = uiManager?.gitlabApi || window.gitlabApi;
-        if (this.gitlabApi) {
-            this.fetchMembers();
-        }
-        // Add a rendering lock
-        this.isRendering = false;
-        this.pendingRender = false;
+  constructor(uiManager) {
+    this.uiManager = uiManager;
+    this.membersList = [];
+    this.potentialAssignees = [];
+    this.gitlabApi = uiManager?.gitlabApi || window.gitlabApi;
+    if (this.gitlabApi) {
+      this.fetchMembers();
     }
-
-    addCopySummaryButton(container, assigneeTimeMap, totalTickets) {
-        if (!this.notification) {
-            try {
-                if (typeof Notification === 'function') {
-                    this.notification = new Notification({
-                        position: 'bottom-right',
-                        duration: 3000
-                    });
-                }
-            } catch (e) {
-                console.error('Error initializing notification:', e);
-            }
+    this.isRendering = false;
+    this.pendingRender = false;
+  }
+  addCopySummaryButton(container, assigneeTimeMap, totalTickets) {
+    if (!this.notification) {
+      try {
+        if (typeof Notification === 'function') {
+          this.notification = new Notification({
+            position: 'bottom-right',
+            duration: 3000
+          });
         }
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.marginTop = '15px';
-        buttonContainer.style.textAlign = 'center';
-        const copyButton = document.createElement('button');
-        copyButton.textContent = 'Copy Summary Data';
-        copyButton.style.padding = '8px 16px';
-        copyButton.style.backgroundColor = '#1f75cb';
-        copyButton.style.color = 'white';
-        copyButton.style.border = 'none';
-        copyButton.style.borderRadius = '4px';
-        copyButton.className = 'copySummaryBtn';
-        copyButton.style.cursor = 'pointer';
-        copyButton.style.fontWeight = 'bold';
-        copyButton.style.transition = 'background-color 0.2s ease';
-        copyButton.addEventListener('mouseenter', () => {
-            copyButton.style.backgroundColor = '#1a63ac';
-        });
-        copyButton.addEventListener('mouseleave', () => {
-            copyButton.style.backgroundColor = '#1f75cb';
-        });
-        copyButton.onclick = () => {
-            try {
-                let formattedData = '';
-                const sortedAssignees = Object.keys(assigneeTimeMap).sort((a, b) => {
-                    return assigneeTimeMap[b] - assigneeTimeMap[a];
-                });
-                sortedAssignees.forEach(name => {
-                    const hours = assigneeTimeMap[name] / 3600;
-                    formattedData += `${name}\t${hours}\n`;
-                });
-                formattedData += `Issues\t${totalTickets}`;
-                navigator.clipboard.writeText(formattedData).then(() => {
-                    if (this.notification) {
-                        this.notification.success('Summary data copied to clipboard');
-                    } else if (this.uiManager && this.uiManager.notification) {
-                        this.uiManager.notification.success('Summary data copied to clipboard');
-                    } else {
-                    }
-                }).catch(err => {
-                    console.error('Failed to copy data:', err);
-                    if (this.notification) {
-                        this.notification.error('Failed to copy data to clipboard');
-                    } else if (this.uiManager && this.uiManager.notification) {
-                        this.uiManager.notification.error('Failed to copy data to clipboard');
-                    } else {
-                        console.error('Failed to copy data to clipboard');
-                    }
-                });
-                const originalText = copyButton.textContent;
-                copyButton.textContent = '✓ Copied!';
-                copyButton.style.backgroundColor = '#28a745';
-                setTimeout(() => {
-                    copyButton.textContent = originalText;
-                    copyButton.style.backgroundColor = '#1f75cb';
-                }, 1500);
-            } catch (error) {
-                console.error('Error formatting or copying data:', error);
-                if (this.notification) {
-                    this.notification.error('Error preparing data for clipboard');
-                } else if (this.uiManager && this.uiManager.notification) {
-                    this.uiManager.notification.error('Error preparing data for clipboard');
-                } else {
-                    console.error('Error preparing data for clipboard');
-                }
-            }
-        };
-        buttonContainer.appendChild(copyButton);
-        container.appendChild(buttonContainer);
+      } catch (e) {
+        console.error('Error initializing notification:', e);
+      }
     }
-
-    async render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
-        // If already rendering, set pendingRender flag and return
-        if (this.isRendering) {
-            this.pendingRender = true;
-            return;
-        }
-
-        try {
-            this.isRendering = true;
-
-            const summaryContent = document.getElementById('assignee-time-summary-content');
-            if (!summaryContent) return;
-
-            if (!this.membersList || this.membersList.length === 0) {
-                summaryContent.innerHTML = '<div style="text-align: center; padding: 20px;">Loading team members...</div>';
-                try {
-                    await this.fetchMembers();
-                } catch (error) {
-                    console.error('Error fetching members:', error);
-                }
-            }
-
-            summaryContent.innerHTML = '';
-            if (this.uiManager) {
-                this.uiManager.updateBoardStats({
-                    totalCards: cardsProcessed,
-                    withTimeCards: cardsWithTime,
-                    closedCards: this.getClosedBoardCount()
-                });
-            }
-
-            if (cardsWithTime === 0) {
-                this.renderNoDataMessage(summaryContent);
-                if (this.uiManager && this.uiManager.removeLoadingScreen) {
-                    this.uiManager.removeLoadingScreen('summary-tab');
-                }
-                return;
-            }
-
-            const totalHours = formatHours(totalEstimate);
-            let doneHours = 0;
-            for (const boardName in boardData) {
-                const lowerBoardName = boardName.toLowerCase();
-                if (lowerBoardName.includes('done') || lowerBoardName.includes('closed') ||
-                    lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
-                    doneHours += boardData[boardName].timeEstimate || 0;
-                }
-            }
-            const doneHoursFormatted = formatHours(doneHours);
-
-            if (this.uiManager) {
-                this.uiManager.updateHeader(`Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`);
-            }
-
-            if (currentMilestone) {
-                this.renderMilestoneInfo(summaryContent, currentMilestone);
-            }
-
-            let that = this;
-            await this.renderDataTableWithDistribution(
-                summaryContent,
-                assigneeTimeMap,
-                totalHours,
-                boardData,
-                boardAssigneeData
-            );
-
-            that.addCopySummaryButton(summaryContent, assigneeTimeMap, cardsWithTime);
-            if (that.uiManager && that.uiManager.removeLoadingScreen) {
-                that.uiManager.removeLoadingScreen('summary-tab');
-            }
-        } finally {
-            // Release the rendering lock
-            this.isRendering = false;
-
-            // If there's a pending render, trigger it after a short delay
-            if (this.pendingRender) {
-                this.pendingRender = false;
-            }
-        }
-    }
-
-    getWhitelistedAssignees() {
-        let whitelist = [];
-        try {
-            if (this.uiManager && this.uiManager.assigneeManager && typeof this.uiManager.assigneeManager.getAssigneeWhitelist === 'function') {
-                whitelist = this.uiManager.assigneeManager.getAssigneeWhitelist();
-            } else if (typeof getAssigneeWhitelist === 'function') {
-                whitelist = getAssigneeWhitelist();
-            } else {
-                try {
-                    const storedValue = localStorage.getItem('gitLabHelperAssigneeWhitelist');
-                    if (storedValue) {
-                        whitelist = JSON.parse(storedValue);
-                    }
-                } catch (e) {
-                    console.warn('Error reading assignee whitelist from localStorage:', e);
-                }
-            }
-        } catch (error) {
-            console.error('Error getting whitelist:', error);
-        }
-        return Array.isArray(whitelist) ? whitelist : [];
-    }
-
-    getHistoryAssignees() {
-        let historyAssignees = [];
-        try {
-            const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
-            if (generalHistoryStr) {
-                const generalHistory = JSON.parse(generalHistoryStr);
-                const boardKey = "2478181?milestone_title=Started";
-                if (generalHistory[boardKey]) {
-                    const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
-                    if (dates.length > 0) {
-                        const latestEntry = generalHistory[boardKey][dates[0]];
-                        if (latestEntry && latestEntry.assigneeTimeMap) {
-                            const userData = latestEntry.userData || {};
-                            const additionalAssignees = Object.entries(latestEntry.assigneeTimeMap).map(([name, timeEstimate]) => {
-                                const username = userData[name]?.username || this.getUsernameFromName(name);
-                                const avatar_url = userData[name]?.avatar_url || '';
-                                return {
-                                    name: name,
-                                    username: username,
-                                    avatar_url: avatar_url,
-                                    stats: {
-                                        totalHours: formatHours(timeEstimate),
-                                        closedHours: 0,
-                                        fromHistory: true
-                                    },
-                                    userDistribution: latestEntry.userDistributions[name].distribution,
-                                    boardAssigneeData: latestEntry.boardAssigneeData
-                                };
-                            });
-                            historyAssignees = [...historyAssignees, ...additionalAssignees];
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error getting history assignees:', error);
-        }
-        return historyAssignees;
-    }
-
-    getBoardKey() {
-        try {
-            const url = window.location.href;
-            const splitAtBoards = url.split('/boards/');
-            if (splitAtBoards.length < 2) {
-                return 'unknown-board';
-            }
-            return splitAtBoards[1];
-        } catch (error) {
-            console.error('Error generating board key:', error);
-            return 'unknown-board';
-        }
-    }
-
-    getUsernameFromName(name) {
-        if (!name) return '';
-        if (this.membersList && this.membersList.length) {
-            const match = this.membersList.find(m => m.name === name);
-            if (match && match.username) {
-                return match.username;
-            }
-        }
-        if (!name.includes(' ')) {
-            return name.toLowerCase();
-        }
-        return name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
-    }
-
-    getClosedBoardCount() {
-        let closedCount = 0;
-        const boardLists = document.querySelectorAll('.board-list');
-        boardLists.forEach(boardList => {
-            let boardTitle = '';
-            try {
-                if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
-                    const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
-                    if (boardComponent && boardComponent.$props.list.title) {
-                        boardTitle = boardComponent.$props.list.title.toLowerCase();
-                    }
-                }
-                if (!boardTitle) {
-                    const boardHeader = boardList.querySelector('.board-title-text');
-                    if (boardHeader) {
-                        boardTitle = boardHeader.textContent.trim().toLowerCase();
-                    }
-                }
-            } catch (e) {
-                console.error('Error getting board title:', e);
-                const boardHeader = boardList.querySelector('.board-title-text');
-                if (boardHeader) {
-                    boardTitle = boardHeader.textContent.trim().toLowerCase();
-                }
-            }
-            if (boardTitle.includes('done') || boardTitle.includes('closed') || boardTitle.includes('complete') || boardTitle.includes('finished')) {
-                const cards = boardList.querySelectorAll('.board-card');
-                closedCount += cards.length;
-            }
-        });
-        return closedCount;
-    }
-
-    renderNoDataMessage(container) {
-        const noDataMsg = document.createElement('p');
-        noDataMsg.textContent = 'No time estimate data found. Make sure the board is fully loaded and try again.';
-        noDataMsg.style.color = '#666';
-        container.appendChild(noDataMsg);
-        const tipMsg = document.createElement('p');
-        tipMsg.style.fontSize = '12px';
-        tipMsg.style.fontStyle = 'italic';
-        tipMsg.innerHTML = 'Tip: Try scrolling through all cards to ensure they are loaded before clicking Recalculate.';
-        container.appendChild(tipMsg);
-        this.uiManager.updateHeader('Summary 0.0h');
-    }
-
-    renderMilestoneInfo(container, milestoneName) {
-        const milestoneInfo = document.createElement('div');
-        milestoneInfo.style.marginBottom = '10px';
-        milestoneInfo.style.fontSize = '13px';
-        milestoneInfo.style.color = '#555';
-        milestoneInfo.textContent = `Current Milestone: ${milestoneName}`;
-        container.appendChild(milestoneInfo);
-    }
-
-    async renderDataTableWithDistribution(container, assigneeTimeMap, totalHours, boardData, boardAssigneeData) {
-        const table = document.createElement('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        table.style.tableLayout = 'fixed'; // Ensure table layout is fixed to maintain column widths
-
-        // Show loading indicator
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.textContent = 'Loading board configuration...';
-        loadingIndicator.style.padding = '15px';
-        loadingIndicator.style.textAlign = 'center';
-        loadingIndicator.style.color = '#666';
-        container.appendChild(loadingIndicator);
-
-        // Fetch board names
-        const fetchedBoardNames = await fetchAllBoards();
-        try {
-            // Replace loading indicator with table
-            if (loadingIndicator.parentNode === container) {
-                container.removeChild(loadingIndicator);
-            }
-        }catch(e){
-
-        }
-
-        try {
-            const existingTable = container.querySelector('table');
-            if (existingTable) {
-                container.removeChild(existingTable);
-        }
-        }catch(e){
-
-        }
-
-        try {
-            const copySummaryBtn = container.querySelector('.copySummaryBtn');
-            if (copySummaryBtn) {
-                $(copySummaryBtn).remove()
-        }
-        }catch(e){
-
-        }
-
-        container.appendChild(table);
-
-        // Use fetched board names if available, otherwise fallback to Object.keys
-        const boardNames = fetchedBoardNames && fetchedBoardNames.length > 0
-            ? fetchedBoardNames
-            : Object.keys(boardData || {});
-
-        // Continue with the rest of your existing function using the boardNames array
-
-        // Set table layout to fixed to maintain column widths
-        table.style.tableLayout = 'fixed';
-
-        // Create the total row first
-        const totalRow = document.createElement('tr');
-        totalRow.style.borderBottom = '2px solid #ddd';
-        totalRow.style.fontWeight = 'bold';
-        const totalLabelCell = document.createElement('td');
-        const totalLink = document.createElement('a');
-        totalLink.textContent = 'Total';
-        totalLink.href = window.location.pathname + '?milestone_title=Started';
-        totalLink.style.color = '#1f75cb';
-        totalLink.style.textDecoration = 'none';
-        totalLink.style.cursor = 'pointer';
-        totalLink.addEventListener('mouseenter', () => {
-            totalLink.style.textDecoration = 'underline';
-        });
-        totalLink.addEventListener('mouseleave', () => {
-            totalLink.style.textDecoration = 'none';
-        });
-        totalLabelCell.appendChild(totalLink);
-        totalLabelCell.style.padding = '8px 0';
-        totalLabelCell.style.paddingLeft = '32px';
-        const totalValueCell = document.createElement('td');
-        totalValueCell.textContent = `${totalHours}h`;
-        totalValueCell.style.textAlign = 'right';
-        totalValueCell.style.padding = '8px 0';
-        const totalDistributionCell = document.createElement('td');
-        totalDistributionCell.style.textAlign = 'right';
-        totalDistributionCell.style.padding = '8px 0 8px 15px';
-        totalDistributionCell.style.color = '#666';
-        totalDistributionCell.style.fontSize = '12px';
-        if (boardNames.length > 0 && boardData) {
-            const distributionValues = boardNames.map(boardName => {
-                const boardDataObj = boardData[boardName] || {
-                    timeEstimate: 0
-                };
-                const hoursFloat = parseFloat(formatHours(boardDataObj.timeEstimate || 0));
-                return Math.round(hoursFloat);
-            });
-            const distributionText = distributionValues.map((hours, index) => {
-                let spanHTML = `<span style="`;
-                if (hours === 0) {
-                    spanHTML += `color:#aaa;`;
-                }
-                if (index === distributionValues.length - 1 && hours > 0) {
-                    spanHTML += `color:#28a745;`;
-                }
-                spanHTML += `">${hours}h</span>`;
-                return spanHTML;
-            }).join('/');
-            totalDistributionCell.innerHTML = distributionText;
-        }
-        totalRow.appendChild(totalLabelCell);
-        totalRow.appendChild(totalValueCell);
-        totalRow.appendChild(totalDistributionCell);
-        table.appendChild(totalRow);
-        const currentAssigneeSet = new Set();
-        const sortedAssignees = Object.keys(assigneeTimeMap || {}).sort((a, b) => {
-            return (assigneeTimeMap[b] || 0) - (assigneeTimeMap[a] || 0);
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.marginTop = '15px';
+    buttonContainer.style.textAlign = 'center';
+    const copyButton = document.createElement('button');
+    copyButton.textContent = 'Copy Summary Data';
+    copyButton.style.padding = '8px 16px';
+    copyButton.style.backgroundColor = '#1f75cb';
+    copyButton.style.color = 'white';
+    copyButton.style.border = 'none';
+    copyButton.style.borderRadius = '4px';
+    copyButton.className = 'copySummaryBtn';
+    copyButton.style.cursor = 'pointer';
+    copyButton.style.fontWeight = 'bold';
+    copyButton.style.transition = 'background-color 0.2s ease';
+    copyButton.addEventListener('mouseenter', () => {
+      copyButton.style.backgroundColor = '#1a63ac';
+    });
+    copyButton.addEventListener('mouseleave', () => {
+      copyButton.style.backgroundColor = '#1f75cb';
+    });
+    copyButton.onclick = () => {
+      try {
+        let formattedData = '';
+        const sortedAssignees = Object.keys(assigneeTimeMap).sort((a, b) => {
+          return assigneeTimeMap[b] - assigneeTimeMap[a];
         });
         sortedAssignees.forEach(name => {
-            if (!name) return;
-            const hours = formatHours(assigneeTimeMap[name] || 0);
-            this.addAssigneeRow(table, name, `${hours}h`, boardNames, boardAssigneeData);
-            currentAssigneeSet.add(name.toLowerCase());
+          const hours = assigneeTimeMap[name] / 3600;
+          formattedData += `${name}\t${hours}\n`;
         });
-        const historyAssignees = this.getHistoryAssignees();
-        const historicalMembers = [];
-        if (historyAssignees && historyAssignees.length > 0) {
-            historyAssignees.forEach(assignee => {
-                if (!assignee || !assignee.name) return;
-                const assigneeName = assignee.name.toLowerCase();
-                if (currentAssigneeSet.has(assigneeName)) return;
-                historicalMembers.push(assignee);
-            });
-        }
-        const otherTeamMembers = [];
-        if (this.membersList && this.membersList.length > 0) {
-            this.membersList.forEach(member => {
-                if (!member) return;
-                const name = member.name || member.username;
-                if (!name) return;
-                const lowerName = name.toLowerCase();
-                if (currentAssigneeSet.has(lowerName)) return;
-                if (historicalMembers.some(h => (h.name || '').toLowerCase() === lowerName || (h.username || '').toLowerCase() === lowerName)) {
-                    return;
-                }
-                otherTeamMembers.push(member);
-            });
-        }
-        if (historicalMembers.length > 0) {
-            const separatorRow = document.createElement('tr');
-            const separatorCell = document.createElement('td');
-            separatorCell.colSpan = 3;
-            separatorCell.style.padding = '10px 0 5px 32px';
-            separatorCell.style.fontSize = '12px';
-            separatorCell.style.color = '#666';
-            separatorCell.style.fontStyle = 'italic';
-            separatorCell.style.borderTop = '1px solid #eee';
-            separatorCell.textContent = 'Previously Active Members:';
-            separatorRow.appendChild(separatorCell);
-            table.appendChild(separatorRow);
-            historicalMembers.sort((a, b) => {
-                const aHours = a.stats?.totalHours || 0;
-                const bHours = b.stats?.totalHours || 0;
-                return bHours - aHours;
-            });
-            historicalMembers.forEach(member => {
-                const name = member.name || member.username;
-                if (!name) return;
-                const hours = member.stats ? `${member.stats.totalHours}h` : '0h';
-                this.addAssigneeRow(table, name, hours, boardNames, {}, true, member, member.boardAssigneeData);
-            });
-        }
-        if (otherTeamMembers.length > 0) {
-            const separatorRow = document.createElement('tr');
-            const separatorCell = document.createElement('td');
-            separatorCell.colSpan = 3;
-            separatorCell.style.padding = '10px 0 5px 32px';
-            separatorCell.style.fontSize = '12px';
-            separatorCell.style.color = '#666';
-            separatorCell.style.fontStyle = 'italic';
-            separatorCell.style.borderTop = '1px solid #eee';
-
-            // Create a container for the header and toggle button
-            const headerContainer = document.createElement('div');
-            headerContainer.style.display = 'flex';
-            headerContainer.style.alignItems = 'center';
-            headerContainer.style.cursor = 'pointer';
-
-            // Add the text
-            const headerText = document.createElement('span');
-            headerText.textContent = 'Other Team Members:';
-            headerContainer.appendChild(headerText);
-
-            // Add the toggle button
-            const toggleButton = document.createElement('span');
-            toggleButton.textContent = '▶'; // Right arrow (collapsed)
-            toggleButton.style.marginLeft = '5px';
-            toggleButton.style.fontSize = '10px';
-            toggleButton.style.transition = 'transform 0.3s';
-            headerContainer.appendChild(toggleButton);
-
-            // Add the header container to the cell
-            separatorCell.appendChild(headerContainer);
-            separatorRow.appendChild(separatorCell);
-            table.appendChild(separatorRow);
-
-            // Create a container for other team members that can be toggled
-            const otherMembersContainer = document.createElement('tbody');
-            otherMembersContainer.style.display = 'none'; // Start collapsed
-            otherMembersContainer.id = 'other-team-members-container';
-
-            // Add click event to toggle visibility
-            headerContainer.addEventListener('click', () => {
-                const isCollapsed = otherMembersContainer.style.display === 'none';
-                otherMembersContainer.style.display = isCollapsed ? 'table-row-group' : 'none';
-                toggleButton.textContent = isCollapsed ? '▼' : '▶'; // Down arrow (expanded) or right arrow (collapsed)
-            });
-
-            // Add other team members to the container
-            otherTeamMembers.sort((a, b) => {
-                const aName = (a.name || a.username || '').toLowerCase();
-                const bName = (b.name || b.username || '').toLowerCase();
-                return aName.localeCompare(bName);
-            });
-
-            otherTeamMembers.forEach(member => {
-                const name = member.name || member.username;
-                if (!name) return;
-                const row = document.createElement('tr');
-                this.addAssigneeRowToElement(row, name, '0h', boardNames, {}, true);
-                otherMembersContainer.appendChild(row);
-            });
-
-            // Append the container after the separator row
-            table.appendChild(otherMembersContainer);
-        }
-
-        // Set fixed width for time and distribution columns to prevent layout shift
-        const rows = table.querySelectorAll('tr');
-        rows.forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 3) {
-                // Second column (time)
-                if (cells[1]) {
-                    cells[1].style.width = '30px';
-                    cells[1].style.minWidth = '30px';
-                    cells[1].style.maxWidth = '30px';
-                }
-                // Third column (distribution)
-                if (cells[2]) {
-                    cells[2].style.width = '120px';
-                    cells[2].style.minWidth = '120px';
-                    cells[2].style.maxWidth = '120px';
-                }
-                // First column (name) takes remaining space
-                if (cells[0]) {
-                    cells[0].style.width = 'auto';
-                }
-            }
+        formattedData += `Issues\t${totalTickets}`;
+        navigator.clipboard.writeText(formattedData).then(() => {
+          if (this.notification) {
+            this.notification.success('Summary data copied to clipboard');
+          } else if (this.uiManager && this.uiManager.notification) {
+            this.uiManager.notification.success('Summary data copied to clipboard');
+          } else {}
+        }).catch(err => {
+          console.error('Failed to copy data:', err);
+          if (this.notification) {
+            this.notification.error('Failed to copy data to clipboard');
+          } else if (this.uiManager && this.uiManager.notification) {
+            this.uiManager.notification.error('Failed to copy data to clipboard');
+          } else {
+            console.error('Failed to copy data to clipboard');
+          }
         });
-
-        container.appendChild(table);
+        const originalText = copyButton.textContent;
+        copyButton.textContent = '✓ Copied!';
+        copyButton.style.backgroundColor = '#28a745';
+        setTimeout(() => {
+          copyButton.textContent = originalText;
+          copyButton.style.backgroundColor = '#1f75cb';
+        }, 1500);
+      } catch (error) {
+        console.error('Error formatting or copying data:', error);
+        if (this.notification) {
+          this.notification.error('Error preparing data for clipboard');
+        } else if (this.uiManager && this.uiManager.notification) {
+          this.uiManager.notification.error('Error preparing data for clipboard');
+        } else {
+          console.error('Error preparing data for clipboard');
+        }
+      }
+    };
+    buttonContainer.appendChild(copyButton);
+    container.appendChild(buttonContainer);
+  }
+  async render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, boardData, boardAssigneeData) {
+    if (this.isRendering) {
+      this.pendingRender = true;
+      return;
     }
-
-    addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
-        if (!name) name = "Unknown User";
-
-        const row = document.createElement('tr');
-        this.addAssigneeRowToElement(row, name, hours, boardNames, boardAssigneeData, isPotential, historyStats, historyboardAssigneeData);
-        table.appendChild(row);
-        return row;
-    }
-
-
-    async fetchMembers() {
+    try {
+      this.isRendering = true;
+      const summaryContent = document.getElementById('assignee-time-summary-content');
+      if (!summaryContent) return;
+      if (!this.membersList || this.membersList.length === 0) {
+        summaryContent.innerHTML = '<div style="text-align: center; padding: 20px;">Loading team members...</div>';
         try {
-            const whitelistedAssignees = this.getWhitelistedAssignees();
-            let allMembers = [];
-            if (whitelistedAssignees && whitelistedAssignees.length > 0) {
-                allMembers = [...whitelistedAssignees];
-            }
-            if (!this.gitlabApi) {
-                this.gitlabApi = window.gitlabApi;
-                if (!this.gitlabApi) {
-                    console.warn('GitLab API not available for fetching members, using whitelist only');
-                    this.membersList = allMembers;
-                    return allMembers;
-                }
-            }
-            const pathInfo = getPathFromUrl?.() || {};
-            if (!pathInfo || !pathInfo.type || !pathInfo.encodedPath) {
-                console.warn('Could not determine project/group path, using whitelist only');
-                this.membersList = allMembers;
-                return allMembers;
-            }
-            let endpoint;
-            if (pathInfo.type === 'project') {
-                endpoint = `projects/${pathInfo.encodedPath}/members/all`;
-            } else if (pathInfo.type === 'group') {
-                endpoint = `groups/${pathInfo.encodedPath}/members/all`;
-            } else {
-                console.warn('Unsupported path type, using whitelist only:', pathInfo.type);
-                this.membersList = allMembers;
-                return allMembers;
-            }
-            const members = await this.gitlabApi.callGitLabApiWithCache(endpoint, {
-                params: {
-                    per_page: 100,
-                    all_available: true
-                }
-            });
-            if (!Array.isArray(members)) {
-                console.warn('API did not return an array of members, using whitelist only');
-                this.membersList = allMembers;
-                return allMembers;
-            }
-            allMembers.push(...members);
-            const memberMap = new Map();
-            allMembers.forEach(member => {
-                if (!member || !member.username) return;
-                const key = member.username.toLowerCase();
-                if (memberMap.has(key)) {
-                    const existing = memberMap.get(key);
-                    if (!existing.id || member.id && existing.name === undefined && member.name) {
-                        memberMap.set(key, {
-                            id: member.id,
-                            name: member.name || existing.name,
-                            username: member.username,
-                            avatar_url: member.avatar_url || existing.avatar_url,
-                            stats: existing.stats
-                        });
-                    }
-                } else {
-                    memberMap.set(key, {
-                        id: member.id,
-                        name: member.name,
-                        username: member.username,
-                        avatar_url: member.avatar_url
-                    });
-                }
-            });
-            const historyAssignees = this.getHistoryAssignees();
-            historyAssignees.forEach(assignee => {
-                if (!assignee || !assignee.username) return;
-                const key = assignee.username.toLowerCase();
-                if (memberMap.has(key)) {
-                    const existing = memberMap.get(key);
-                    memberMap.set(key, {
-                        ...existing,
-                        stats: assignee.stats
-                    });
-                } else {
-                    const isWhitelisted = whitelistedAssignees.some(wa => wa.username && wa.username.toLowerCase() === key);
-                    if (isWhitelisted) {
-                        memberMap.set(key, assignee);
-                    }
-                }
-            });
-            this.membersList = Array.from(memberMap.values());
-            return this.membersList;
+          await this.fetchMembers();
         } catch (error) {
-            console.error('Error fetching members:', error);
-            if (allMembers && allMembers.length > 0) {
-                this.membersList = allMembers;
-                return allMembers;
-            }
-            this.membersList = [];
-            return [];
+          console.error('Error fetching members:', error);
         }
+      }
+      summaryContent.innerHTML = '';
+      if (this.uiManager) {
+        this.uiManager.updateBoardStats({
+          totalCards: cardsProcessed,
+          withTimeCards: cardsWithTime,
+          closedCards: this.getClosedBoardCount()
+        });
+      }
+      if (cardsWithTime === 0) {
+        this.renderNoDataMessage(summaryContent);
+        if (this.uiManager && this.uiManager.removeLoadingScreen) {
+          this.uiManager.removeLoadingScreen('summary-tab');
+        }
+        return;
+      }
+      const totalHours = formatHours(totalEstimate);
+      let doneHours = 0;
+      for (const boardName in boardData) {
+        const lowerBoardName = boardName.toLowerCase();
+        if (lowerBoardName.includes('done') || lowerBoardName.includes('closed') || lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
+          doneHours += boardData[boardName].timeEstimate || 0;
+        }
+      }
+      const doneHoursFormatted = formatHours(doneHours);
+      if (this.uiManager) {
+        this.uiManager.updateHeader(`Summary ${totalHours}h - <span style="color:#28a745">${doneHoursFormatted}h</span>`);
+      }
+      if (currentMilestone) {
+        this.renderMilestoneInfo(summaryContent, currentMilestone);
+      }
+      let that = this;
+      await this.renderDataTableWithDistribution(summaryContent, assigneeTimeMap, totalHours, boardData, boardAssigneeData);
+      that.addCopySummaryButton(summaryContent, assigneeTimeMap, cardsWithTime);
+      if (that.uiManager && that.uiManager.removeLoadingScreen) {
+        that.uiManager.removeLoadingScreen('summary-tab');
+      }
+    } finally {
+      this.isRendering = false;
+      if (this.pendingRender) {
+        this.pendingRender = false;
+      }
     }
-
-    findMemberByName(name) {
-        if (!name) return null;
+  }
+  getWhitelistedAssignees() {
+    let whitelist = [];
+    try {
+      if (this.uiManager && this.uiManager.assigneeManager && typeof this.uiManager.assigneeManager.getAssigneeWhitelist === 'function') {
+        whitelist = this.uiManager.assigneeManager.getAssigneeWhitelist();
+      } else if (typeof getAssigneeWhitelist === 'function') {
+        whitelist = getAssigneeWhitelist();
+      } else {
+        try {
+          const storedValue = localStorage.getItem('gitLabHelperAssigneeWhitelist');
+          if (storedValue) {
+            whitelist = JSON.parse(storedValue);
+          }
+        } catch (e) {
+          console.warn('Error reading assignee whitelist from localStorage:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting whitelist:', error);
+    }
+    return Array.isArray(whitelist) ? whitelist : [];
+  }
+  getHistoryAssignees() {
+    let historyAssignees = [];
+    try {
+      const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
+      if (generalHistoryStr) {
+        const generalHistory = JSON.parse(generalHistoryStr);
+        const boardKey = "2478181?milestone_title=Started";
+        if (generalHistory[boardKey]) {
+          const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
+          if (dates.length > 0) {
+            const latestEntry = generalHistory[boardKey][dates[0]];
+            if (latestEntry && latestEntry.assigneeTimeMap) {
+              const userData = latestEntry.userData || {};
+              const additionalAssignees = Object.entries(latestEntry.assigneeTimeMap).map(([name, timeEstimate]) => {
+                const username = userData[name]?.username || this.getUsernameFromName(name);
+                const avatar_url = userData[name]?.avatar_url || '';
+                return {
+                  name: name,
+                  username: username,
+                  avatar_url: avatar_url,
+                  stats: {
+                    totalHours: formatHours(timeEstimate),
+                    closedHours: 0,
+                    fromHistory: true
+                  },
+                  userDistribution: latestEntry.userDistributions[name].distribution,
+                  boardAssigneeData: latestEntry.boardAssigneeData
+                };
+              });
+              historyAssignees = [...historyAssignees, ...additionalAssignees];
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error getting history assignees:', error);
+    }
+    return historyAssignees;
+  }
+  getBoardKey() {
+    try {
+      const url = window.location.href;
+      const splitAtBoards = url.split('/boards/');
+      if (splitAtBoards.length < 2) {
+        return 'unknown-board';
+      }
+      return splitAtBoards[1];
+    } catch (error) {
+      console.error('Error generating board key:', error);
+      return 'unknown-board';
+    }
+  }
+  getUsernameFromName(name) {
+    if (!name) return '';
+    if (this.membersList && this.membersList.length) {
+      const match = this.membersList.find(m => m.name === name);
+      if (match && match.username) {
+        return match.username;
+      }
+    }
+    if (!name.includes(' ')) {
+      return name.toLowerCase();
+    }
+    return name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
+  }
+  getClosedBoardCount() {
+    let closedCount = 0;
+    const boardLists = document.querySelectorAll('.board-list');
+    boardLists.forEach(boardList => {
+      let boardTitle = '';
+      try {
+        if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+          const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
+          if (boardComponent && boardComponent.$props.list.title) {
+            boardTitle = boardComponent.$props.list.title.toLowerCase();
+          }
+        }
+        if (!boardTitle) {
+          const boardHeader = boardList.querySelector('.board-title-text');
+          if (boardHeader) {
+            boardTitle = boardHeader.textContent.trim().toLowerCase();
+          }
+        }
+      } catch (e) {
+        console.error('Error getting board title:', e);
+        const boardHeader = boardList.querySelector('.board-title-text');
+        if (boardHeader) {
+          boardTitle = boardHeader.textContent.trim().toLowerCase();
+        }
+      }
+      if (boardTitle.includes('done') || boardTitle.includes('closed') || boardTitle.includes('complete') || boardTitle.includes('finished')) {
+        const cards = boardList.querySelectorAll('.board-card');
+        closedCount += cards.length;
+      }
+    });
+    return closedCount;
+  }
+  renderNoDataMessage(container) {
+    const noDataMsg = document.createElement('p');
+    noDataMsg.textContent = 'No time estimate data found. Make sure the board is fully loaded and try again.';
+    noDataMsg.style.color = '#666';
+    container.appendChild(noDataMsg);
+    const tipMsg = document.createElement('p');
+    tipMsg.style.fontSize = '12px';
+    tipMsg.style.fontStyle = 'italic';
+    tipMsg.innerHTML = 'Tip: Try scrolling through all cards to ensure they are loaded before clicking Recalculate.';
+    container.appendChild(tipMsg);
+    this.uiManager.updateHeader('Summary 0.0h');
+  }
+  renderMilestoneInfo(container, milestoneName) {
+    const milestoneInfo = document.createElement('div');
+    milestoneInfo.style.marginBottom = '10px';
+    milestoneInfo.style.fontSize = '13px';
+    milestoneInfo.style.color = '#555';
+    milestoneInfo.textContent = `Current Milestone: ${milestoneName}`;
+    container.appendChild(milestoneInfo);
+  }
+  async renderDataTableWithDistribution(container, assigneeTimeMap, totalHours, boardData, boardAssigneeData) {
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.style.tableLayout = 'fixed';
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.textContent = 'Loading board configuration...';
+    loadingIndicator.style.padding = '15px';
+    loadingIndicator.style.textAlign = 'center';
+    loadingIndicator.style.color = '#666';
+    container.appendChild(loadingIndicator);
+    const fetchedBoardNames = await fetchAllBoards();
+    try {
+      if (loadingIndicator.parentNode === container) {
+        container.removeChild(loadingIndicator);
+      }
+    } catch (e) {}
+    try {
+      const existingTable = container.querySelector('table');
+      if (existingTable) {
+        container.removeChild(existingTable);
+      }
+    } catch (e) {}
+    try {
+      const copySummaryBtn = container.querySelector('.copySummaryBtn');
+      if (copySummaryBtn) {
+        $(copySummaryBtn).remove();
+      }
+    } catch (e) {}
+    container.appendChild(table);
+    const boardNames = fetchedBoardNames && fetchedBoardNames.length > 0 ? fetchedBoardNames : Object.keys(boardData || {});
+    table.style.tableLayout = 'fixed';
+    const totalRow = document.createElement('tr');
+    totalRow.style.borderBottom = '2px solid #ddd';
+    totalRow.style.fontWeight = 'bold';
+    const totalLabelCell = document.createElement('td');
+    const totalLink = document.createElement('a');
+    totalLink.textContent = 'Total';
+    totalLink.href = window.location.pathname + '?milestone_title=Started';
+    totalLink.style.color = '#1f75cb';
+    totalLink.style.textDecoration = 'none';
+    totalLink.style.cursor = 'pointer';
+    totalLink.addEventListener('mouseenter', () => {
+      totalLink.style.textDecoration = 'underline';
+    });
+    totalLink.addEventListener('mouseleave', () => {
+      totalLink.style.textDecoration = 'none';
+    });
+    totalLabelCell.appendChild(totalLink);
+    totalLabelCell.style.padding = '8px 0';
+    totalLabelCell.style.paddingLeft = '32px';
+    const totalValueCell = document.createElement('td');
+    totalValueCell.textContent = `${totalHours}h`;
+    totalValueCell.style.textAlign = 'right';
+    totalValueCell.style.padding = '8px 0';
+    const totalDistributionCell = document.createElement('td');
+    totalDistributionCell.style.textAlign = 'right';
+    totalDistributionCell.style.padding = '8px 0 8px 15px';
+    totalDistributionCell.style.color = '#666';
+    totalDistributionCell.style.fontSize = '12px';
+    if (boardNames.length > 0 && boardData) {
+      const distributionValues = boardNames.map(boardName => {
+        const boardDataObj = boardData[boardName] || {
+          timeEstimate: 0
+        };
+        const hoursFloat = parseFloat(formatHours(boardDataObj.timeEstimate || 0));
+        return Math.round(hoursFloat);
+      });
+      const distributionText = distributionValues.map((hours, index) => {
+        let spanHTML = `<span style="`;
+        if (hours === 0) {
+          spanHTML += `color:#aaa;`;
+        }
+        if (index === distributionValues.length - 1 && hours > 0) {
+          spanHTML += `color:#28a745;`;
+        }
+        spanHTML += `">${hours}h</span>`;
+        return spanHTML;
+      }).join('/');
+      totalDistributionCell.innerHTML = distributionText;
+    }
+    totalRow.appendChild(totalLabelCell);
+    totalRow.appendChild(totalValueCell);
+    totalRow.appendChild(totalDistributionCell);
+    table.appendChild(totalRow);
+    const currentAssigneeSet = new Set();
+    const sortedAssignees = Object.keys(assigneeTimeMap || {}).sort((a, b) => {
+      return (assigneeTimeMap[b] || 0) - (assigneeTimeMap[a] || 0);
+    });
+    sortedAssignees.forEach(name => {
+      if (!name) return;
+      const hours = formatHours(assigneeTimeMap[name] || 0);
+      this.addAssigneeRow(table, name, `${hours}h`, boardNames, boardAssigneeData);
+      currentAssigneeSet.add(name.toLowerCase());
+    });
+    const historyAssignees = this.getHistoryAssignees();
+    const historicalMembers = [];
+    if (historyAssignees && historyAssignees.length > 0) {
+      historyAssignees.forEach(assignee => {
+        if (!assignee || !assignee.name) return;
+        const assigneeName = assignee.name.toLowerCase();
+        if (currentAssigneeSet.has(assigneeName)) return;
+        historicalMembers.push(assignee);
+      });
+    }
+    const otherTeamMembers = [];
+    if (this.membersList && this.membersList.length > 0) {
+      this.membersList.forEach(member => {
+        if (!member) return;
+        const name = member.name || member.username;
+        if (!name) return;
         const lowerName = name.toLowerCase();
-        if (this.membersList && this.membersList.length) {
-            const memberMatch = this.membersList.find(member => {
-                if (!member) return false;
-                if (member.name && member.name.toLowerCase() === lowerName) {
-                    return true;
-                }
-                if (member.username && member.username.toLowerCase() === lowerName) {
-                    return true;
-                }
-                return false;
-            });
-            if (memberMatch) return memberMatch;
+        if (currentAssigneeSet.has(lowerName)) return;
+        if (historicalMembers.some(h => (h.name || '').toLowerCase() === lowerName || (h.username || '').toLowerCase() === lowerName)) {
+          return;
         }
-        try {
-            const sprintHistoryStr = localStorage.getItem('gitLabHelperSprintHistory');
-            if (sprintHistoryStr) {
-                const sprintHistory = JSON.parse(sprintHistoryStr);
-                if (Array.isArray(sprintHistory) && sprintHistory.length > 0) {
-                    const latestSprint = sprintHistory[0];
-                    if (latestSprint.userPerformance && latestSprint.userPerformance[name]) {
-                        const userData = latestSprint.userPerformance[name];
-                        if (userData.username || userData.avatar_url) {
-                            return {
-                                name: name,
-                                username: userData.username || '',
-                                avatar_url: userData.avatar_url || '',
-                                fromHistory: true
-                            };
-                        }
-                    }
-                    if (latestSprint.userDistributions && latestSprint.userDistributions[name]) {
-                        const userData = latestSprint.userDistributions[name];
-                        if (userData.username || userData.avatar_url) {
-                            return {
-                                name: name,
-                                username: userData.username || '',
-                                avatar_url: userData.avatar_url || '',
-                                fromHistory: true
-                            };
-                        }
-                    }
-                    if (latestSprint.userData && latestSprint.userData[name]) {
-                        const userData = latestSprint.userData[name];
-                        return {
-                            name: name,
-                            username: userData.username || '',
-                            avatar_url: userData.avatar_url || '',
-                            fromHistory: true
-                        };
-                    }
-                }
-            }
-            const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
-            if (generalHistoryStr) {
-                const generalHistory = JSON.parse(generalHistoryStr);
-                const boardKey = this.getBoardKey();
-                if (generalHistory[boardKey]) {
-                    const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
-                    for (const date of dates) {
-                        const entry = generalHistory[boardKey][date];
-                        if (entry.userData && entry.userData[name]) {
-                            const userData = entry.userData[name];
-                            return {
-                                name: name,
-                                username: userData.username || '',
-                                avatar_url: userData.avatar_url || '',
-                                fromHistory: true
-                            };
-                        }
-                        if (entry.userDistributions && entry.userDistributions[name]) {
-                            const userData = entry.userDistributions[name];
-                            if (userData.username || userData.avatar_url) {
-                                return {
-                                    name: name,
-                                    username: userData.username || '',
-                                    avatar_url: userData.avatar_url || '',
-                                    fromHistory: true
-                                };
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn('Error searching history for member:', error);
-        }
-        return null;
+        otherTeamMembers.push(member);
+      });
     }
-
-    addAssigneeRowToElement(row, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
-        if (!name) name = "Unknown User";
-
-        row.style.borderBottom = '1px solid #eee';
-        if (isPotential) {
-            row.style.opacity = '0.75';
-            row.style.fontStyle = 'italic';
-        }
-
-        const nameCell = document.createElement('td');
-        nameCell.style.display = 'flex';
-        nameCell.style.alignItems = 'center';
-        nameCell.style.padding = '8px 0';
-        nameCell.style.width = 'auto'; // First column takes remaining space
-
-        const member = this.findMemberByName(name);
-        const avatar = document.createElement('div');
-        avatar.style.width = '24px';
-        avatar.style.height = '24px';
-        avatar.style.borderRadius = '50%';
-        avatar.style.marginRight = '8px';
-        avatar.style.overflow = 'hidden';
-        avatar.style.flexShrink = '0';
-
-        let avatar_url = '';
-        if (member && member.avatar_url) {
-            avatar_url = member.avatar_url;
-        } else if (historyStats && historyStats.avatar_url) {
-            avatar_url = historyStats.avatar_url;
-        }
-
-        if (avatar_url) {
-            const img = document.createElement('img');
-            img.src = avatar_url;
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.style.objectFit = 'cover';
-            avatar.appendChild(img);
-        } else {
-            avatar.style.backgroundColor = '#e0e0e0';
-            avatar.style.display = 'flex';
-            avatar.style.alignItems = 'center';
-            avatar.style.justifyContent = 'center';
-            avatar.style.fontSize = '10px';
-            avatar.style.fontWeight = 'bold';
-            avatar.style.color = '#666';
-            const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
-            avatar.textContent = initials || '?';
-        }
-
-        nameCell.appendChild(avatar);
-
-        const nameContainer = document.createElement('div');
-        nameContainer.style.overflow = 'hidden';
-        nameContainer.style.textOverflow = 'ellipsis';
-
-        const nameLink = document.createElement('a');
-        let username = '';
-        if (member && member.username) {
-            username = member.username;
-        } else if (historyStats && historyStats.username) {
-            username = historyStats.username;
-        } else {
-            username = this.getUsernameFromName(name);
-        }
-
-        if (username) {
-            nameLink.href = window.location.pathname + `?milestone_title=Started&assignee_username=${username}`;
-        } else {
-            nameLink.href = window.location.pathname + '?milestone_title=Started';
-        }
-
-        nameLink.textContent = name + (Object.keys(boardAssigneeData).length == 0 ? " ?" : "");
-        nameLink.title = username ? `@${username}` : name;
-        nameLink.style.color = '#1f75cb';
-        nameLink.style.textDecoration = 'none';
-        nameLink.style.cursor = 'pointer';
-        nameLink.style.display = 'block';
-        nameLink.style.overflow = 'hidden';
-        nameLink.style.textOverflow = 'ellipsis';
-        nameLink.style.whiteSpace = 'nowrap';
-
-        nameLink.addEventListener('mouseenter', () => {
-            nameLink.style.textDecoration = 'underline';
-        });
-
-        nameLink.addEventListener('mouseleave', () => {
-            nameLink.style.textDecoration = 'none';
-        });
-
-        nameContainer.appendChild(nameLink);
-        nameCell.appendChild(nameContainer);
-
-        const timeCell = document.createElement('td');
-        timeCell.textContent = `${hours}`;
-        timeCell.style.textAlign = 'center';
-        timeCell.style.padding = '8px 0';
-        timeCell.style.width = '80px';
-        timeCell.style.minWidth = '80px';
-        timeCell.style.maxWidth = '80px';
-
-        const distributionCell = document.createElement('td');
-        distributionCell.style.textAlign = 'right';
-        distributionCell.style.padding = '8px 0 8px 15px';
-        distributionCell.style.color = '#666';
-        distributionCell.style.fontSize = '12px';
-        distributionCell.style.width = '180px';
-        distributionCell.style.minWidth = '180px';
-        distributionCell.style.maxWidth = '180px';
-
-        if (!isPotential && boardNames.length > 0 && boardAssigneeData) {
-            const distributionValues = boardNames.map(boardName => {
-                const boardAssignees = boardAssigneeData[boardName] || {};
-                const assigneeInBoard = boardAssignees[name] || {
-                    timeEstimate: 0
-                };
-                const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
-                return Math.round(hoursFloat);
-            });
-
-            const distributionText = distributionValues.map((hours, index) => {
-                let spanHTML = `<span style="`;
-                if (hours === 0) {
-                    spanHTML += `color:#aaa;`;
-                }
-                if (index === distributionValues.length - 1 && hours > 0) {
-                    spanHTML += `color:#28a745;`;
-                }
-                spanHTML += `">${hours}h</span>`;
-                return spanHTML;
-            }).join('/');
-
-            distributionCell.innerHTML = distributionText;
-        } else if (historyboardAssigneeData) {
-            const distributionValues = boardNames.map(boardName => {
-                const boardAssignees = historyboardAssigneeData[boardName] || {};
-                const assigneeInBoard = boardAssignees[name] || {
-                    timeEstimate: 0
-                };
-                const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
-                return Math.round(hoursFloat);
-            });
-
-            const distributionText = distributionValues.map((hours, index) => {
-                let spanHTML = `<span style="`;
-                if (hours === 0) {
-                    spanHTML += `color:#aaa;`;
-                }
-                if (index === distributionValues.length - 1 && hours > 0) {
-                    spanHTML += `color:#28a745;`;
-                }
-                spanHTML += `">${hours}h</span>`;
-                return spanHTML;
-            }).join('/');
-
-            distributionCell.innerHTML = distributionText;
-        } else {
-            const emptyText = boardNames.map(() => {
-                return `<span style="color:#aaa;">0h</span>`;
-            }).join('/');
-
-            distributionCell.innerHTML = emptyText;
-        }
-
-        row.appendChild(nameCell);
-        row.appendChild(timeCell);
-        row.appendChild(distributionCell);
+    if (historicalMembers.length > 0) {
+      const separatorRow = document.createElement('tr');
+      const separatorCell = document.createElement('td');
+      separatorCell.colSpan = 3;
+      separatorCell.style.padding = '10px 0 5px 32px';
+      separatorCell.style.fontSize = '12px';
+      separatorCell.style.color = '#666';
+      separatorCell.style.fontStyle = 'italic';
+      separatorCell.style.borderTop = '1px solid #eee';
+      separatorCell.textContent = 'Previously Active Members:';
+      separatorRow.appendChild(separatorCell);
+      table.appendChild(separatorRow);
+      historicalMembers.sort((a, b) => {
+        const aHours = a.stats?.totalHours || 0;
+        const bHours = b.stats?.totalHours || 0;
+        return bHours - aHours;
+      });
+      historicalMembers.forEach(member => {
+        const name = member.name || member.username;
+        if (!name) return;
+        const hours = member.stats ? `${member.stats.totalHours}h` : '0h';
+        this.addAssigneeRow(table, name, hours, boardNames, {}, true, member, member.boardAssigneeData);
+      });
     }
+    if (otherTeamMembers.length > 0) {
+      const separatorRow = document.createElement('tr');
+      const separatorCell = document.createElement('td');
+      separatorCell.colSpan = 3;
+      separatorCell.style.padding = '10px 0 5px 32px';
+      separatorCell.style.fontSize = '12px';
+      separatorCell.style.color = '#666';
+      separatorCell.style.fontStyle = 'italic';
+      separatorCell.style.borderTop = '1px solid #eee';
+      const headerContainer = document.createElement('div');
+      headerContainer.style.display = 'flex';
+      headerContainer.style.alignItems = 'center';
+      headerContainer.style.cursor = 'pointer';
+      const headerText = document.createElement('span');
+      headerText.textContent = 'Other Team Members:';
+      headerContainer.appendChild(headerText);
+      const toggleButton = document.createElement('span');
+      toggleButton.textContent = '▶';
+      toggleButton.style.marginLeft = '5px';
+      toggleButton.style.fontSize = '10px';
+      toggleButton.style.transition = 'transform 0.3s';
+      headerContainer.appendChild(toggleButton);
+      separatorCell.appendChild(headerContainer);
+      separatorRow.appendChild(separatorCell);
+      table.appendChild(separatorRow);
+      const otherMembersContainer = document.createElement('tbody');
+      otherMembersContainer.style.display = 'none';
+      otherMembersContainer.id = 'other-team-members-container';
+      headerContainer.addEventListener('click', () => {
+        const isCollapsed = otherMembersContainer.style.display === 'none';
+        otherMembersContainer.style.display = isCollapsed ? 'table-row-group' : 'none';
+        toggleButton.textContent = isCollapsed ? '▼' : '▶';
+      });
+      otherTeamMembers.sort((a, b) => {
+        const aName = (a.name || a.username || '').toLowerCase();
+        const bName = (b.name || b.username || '').toLowerCase();
+        return aName.localeCompare(bName);
+      });
+      otherTeamMembers.forEach(member => {
+        const name = member.name || member.username;
+        if (!name) return;
+        const row = document.createElement('tr');
+        this.addAssigneeRowToElement(row, name, '0h', boardNames, {}, true);
+        otherMembersContainer.appendChild(row);
+      });
+      table.appendChild(otherMembersContainer);
+    }
+    const rows = table.querySelectorAll('tr');
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 3) {
+        if (cells[1]) {
+          cells[1].style.width = '30px';
+          cells[1].style.minWidth = '30px';
+          cells[1].style.maxWidth = '30px';
+        }
+        if (cells[2]) {
+          cells[2].style.width = '120px';
+          cells[2].style.minWidth = '120px';
+          cells[2].style.maxWidth = '120px';
+        }
+        if (cells[0]) {
+          cells[0].style.width = 'auto';
+        }
+      }
+    });
+    container.appendChild(table);
+  }
+  addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
+    if (!name) name = "Unknown User";
+    const row = document.createElement('tr');
+    this.addAssigneeRowToElement(row, name, hours, boardNames, boardAssigneeData, isPotential, historyStats, historyboardAssigneeData);
+    table.appendChild(row);
+    return row;
+  }
+  async fetchMembers() {
+    try {
+      const whitelistedAssignees = this.getWhitelistedAssignees();
+      let allMembers = [];
+      if (whitelistedAssignees && whitelistedAssignees.length > 0) {
+        allMembers = [...whitelistedAssignees];
+      }
+      if (!this.gitlabApi) {
+        this.gitlabApi = window.gitlabApi;
+        if (!this.gitlabApi) {
+          console.warn('GitLab API not available for fetching members, using whitelist only');
+          this.membersList = allMembers;
+          return allMembers;
+        }
+      }
+      const pathInfo = getPathFromUrl?.() || {};
+      if (!pathInfo || !pathInfo.type || !pathInfo.encodedPath) {
+        console.warn('Could not determine project/group path, using whitelist only');
+        this.membersList = allMembers;
+        return allMembers;
+      }
+      let endpoint;
+      if (pathInfo.type === 'project') {
+        endpoint = `projects/${pathInfo.encodedPath}/members/all`;
+      } else if (pathInfo.type === 'group') {
+        endpoint = `groups/${pathInfo.encodedPath}/members/all`;
+      } else {
+        console.warn('Unsupported path type, using whitelist only:', pathInfo.type);
+        this.membersList = allMembers;
+        return allMembers;
+      }
+      const members = await this.gitlabApi.callGitLabApiWithCache(endpoint, {
+        params: {
+          per_page: 100,
+          all_available: true
+        }
+      });
+      if (!Array.isArray(members)) {
+        console.warn('API did not return an array of members, using whitelist only');
+        this.membersList = allMembers;
+        return allMembers;
+      }
+      allMembers.push(...members);
+      const memberMap = new Map();
+      allMembers.forEach(member => {
+        if (!member || !member.username) return;
+        const key = member.username.toLowerCase();
+        if (memberMap.has(key)) {
+          const existing = memberMap.get(key);
+          if (!existing.id || member.id && existing.name === undefined && member.name) {
+            memberMap.set(key, {
+              id: member.id,
+              name: member.name || existing.name,
+              username: member.username,
+              avatar_url: member.avatar_url || existing.avatar_url,
+              stats: existing.stats
+            });
+          }
+        } else {
+          memberMap.set(key, {
+            id: member.id,
+            name: member.name,
+            username: member.username,
+            avatar_url: member.avatar_url
+          });
+        }
+      });
+      const historyAssignees = this.getHistoryAssignees();
+      historyAssignees.forEach(assignee => {
+        if (!assignee || !assignee.username) return;
+        const key = assignee.username.toLowerCase();
+        if (memberMap.has(key)) {
+          const existing = memberMap.get(key);
+          memberMap.set(key, {
+            ...existing,
+            stats: assignee.stats
+          });
+        } else {
+          const isWhitelisted = whitelistedAssignees.some(wa => wa.username && wa.username.toLowerCase() === key);
+          if (isWhitelisted) {
+            memberMap.set(key, assignee);
+          }
+        }
+      });
+      this.membersList = Array.from(memberMap.values());
+      return this.membersList;
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      if (allMembers && allMembers.length > 0) {
+        this.membersList = allMembers;
+        return allMembers;
+      }
+      this.membersList = [];
+      return [];
+    }
+  }
+  findMemberByName(name) {
+    if (!name) return null;
+    const lowerName = name.toLowerCase();
+    if (this.membersList && this.membersList.length) {
+      const memberMatch = this.membersList.find(member => {
+        if (!member) return false;
+        if (member.name && member.name.toLowerCase() === lowerName) {
+          return true;
+        }
+        if (member.username && member.username.toLowerCase() === lowerName) {
+          return true;
+        }
+        return false;
+      });
+      if (memberMatch) return memberMatch;
+    }
+    try {
+      const sprintHistoryStr = localStorage.getItem('gitLabHelperSprintHistory');
+      if (sprintHistoryStr) {
+        const sprintHistory = JSON.parse(sprintHistoryStr);
+        if (Array.isArray(sprintHistory) && sprintHistory.length > 0) {
+          const latestSprint = sprintHistory[0];
+          if (latestSprint.userPerformance && latestSprint.userPerformance[name]) {
+            const userData = latestSprint.userPerformance[name];
+            if (userData.username || userData.avatar_url) {
+              return {
+                name: name,
+                username: userData.username || '',
+                avatar_url: userData.avatar_url || '',
+                fromHistory: true
+              };
+            }
+          }
+          if (latestSprint.userDistributions && latestSprint.userDistributions[name]) {
+            const userData = latestSprint.userDistributions[name];
+            if (userData.username || userData.avatar_url) {
+              return {
+                name: name,
+                username: userData.username || '',
+                avatar_url: userData.avatar_url || '',
+                fromHistory: true
+              };
+            }
+          }
+          if (latestSprint.userData && latestSprint.userData[name]) {
+            const userData = latestSprint.userData[name];
+            return {
+              name: name,
+              username: userData.username || '',
+              avatar_url: userData.avatar_url || '',
+              fromHistory: true
+            };
+          }
+        }
+      }
+      const generalHistoryStr = localStorage.getItem('gitLabHelperHistory');
+      if (generalHistoryStr) {
+        const generalHistory = JSON.parse(generalHistoryStr);
+        const boardKey = this.getBoardKey();
+        if (generalHistory[boardKey]) {
+          const dates = Object.keys(generalHistory[boardKey]).sort().reverse();
+          for (const date of dates) {
+            const entry = generalHistory[boardKey][date];
+            if (entry.userData && entry.userData[name]) {
+              const userData = entry.userData[name];
+              return {
+                name: name,
+                username: userData.username || '',
+                avatar_url: userData.avatar_url || '',
+                fromHistory: true
+              };
+            }
+            if (entry.userDistributions && entry.userDistributions[name]) {
+              const userData = entry.userDistributions[name];
+              if (userData.username || userData.avatar_url) {
+                return {
+                  name: name,
+                  username: userData.username || '',
+                  avatar_url: userData.avatar_url || '',
+                  fromHistory: true
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error searching history for member:', error);
+    }
+    return null;
+  }
+  addAssigneeRowToElement(row, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
+    if (!name) name = "Unknown User";
+    row.style.borderBottom = '1px solid #eee';
+    if (isPotential) {
+      row.style.opacity = '0.75';
+      row.style.fontStyle = 'italic';
+    }
+    const nameCell = document.createElement('td');
+    nameCell.style.display = 'flex';
+    nameCell.style.alignItems = 'center';
+    nameCell.style.padding = '8px 0';
+    nameCell.style.width = 'auto';
+    const member = this.findMemberByName(name);
+    const avatar = document.createElement('div');
+    avatar.style.width = '24px';
+    avatar.style.height = '24px';
+    avatar.style.borderRadius = '50%';
+    avatar.style.marginRight = '8px';
+    avatar.style.overflow = 'hidden';
+    avatar.style.flexShrink = '0';
+    let avatar_url = '';
+    if (member && member.avatar_url) {
+      avatar_url = member.avatar_url;
+    } else if (historyStats && historyStats.avatar_url) {
+      avatar_url = historyStats.avatar_url;
+    }
+    if (avatar_url) {
+      const img = document.createElement('img');
+      img.src = avatar_url;
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+      avatar.appendChild(img);
+    } else {
+      avatar.style.backgroundColor = '#e0e0e0';
+      avatar.style.display = 'flex';
+      avatar.style.alignItems = 'center';
+      avatar.style.justifyContent = 'center';
+      avatar.style.fontSize = '10px';
+      avatar.style.fontWeight = 'bold';
+      avatar.style.color = '#666';
+      const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
+      avatar.textContent = initials || '?';
+    }
+    nameCell.appendChild(avatar);
+    const nameContainer = document.createElement('div');
+    nameContainer.style.overflow = 'hidden';
+    nameContainer.style.textOverflow = 'ellipsis';
+    const nameLink = document.createElement('a');
+    let username = '';
+    if (member && member.username) {
+      username = member.username;
+    } else if (historyStats && historyStats.username) {
+      username = historyStats.username;
+    } else {
+      username = this.getUsernameFromName(name);
+    }
+    if (username) {
+      nameLink.href = window.location.pathname + `?milestone_title=Started&assignee_username=${username}`;
+    } else {
+      nameLink.href = window.location.pathname + '?milestone_title=Started';
+    }
+    nameLink.textContent = name + (Object.keys(boardAssigneeData).length == 0 ? " ?" : "");
+    nameLink.title = username ? `@${username}` : name;
+    nameLink.style.color = '#1f75cb';
+    nameLink.style.textDecoration = 'none';
+    nameLink.style.cursor = 'pointer';
+    nameLink.style.display = 'block';
+    nameLink.style.overflow = 'hidden';
+    nameLink.style.textOverflow = 'ellipsis';
+    nameLink.style.whiteSpace = 'nowrap';
+    nameLink.addEventListener('mouseenter', () => {
+      nameLink.style.textDecoration = 'underline';
+    });
+    nameLink.addEventListener('mouseleave', () => {
+      nameLink.style.textDecoration = 'none';
+    });
+    nameContainer.appendChild(nameLink);
+    nameCell.appendChild(nameContainer);
+    const timeCell = document.createElement('td');
+    timeCell.textContent = `${hours}`;
+    timeCell.style.textAlign = 'center';
+    timeCell.style.padding = '8px 0';
+    timeCell.style.width = '80px';
+    timeCell.style.minWidth = '80px';
+    timeCell.style.maxWidth = '80px';
+    const distributionCell = document.createElement('td');
+    distributionCell.style.textAlign = 'right';
+    distributionCell.style.padding = '8px 0 8px 15px';
+    distributionCell.style.color = '#666';
+    distributionCell.style.fontSize = '12px';
+    distributionCell.style.width = '180px';
+    distributionCell.style.minWidth = '180px';
+    distributionCell.style.maxWidth = '180px';
+    if (!isPotential && boardNames.length > 0 && boardAssigneeData) {
+      const distributionValues = boardNames.map(boardName => {
+        const boardAssignees = boardAssigneeData[boardName] || {};
+        const assigneeInBoard = boardAssignees[name] || {
+          timeEstimate: 0
+        };
+        const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
+        return Math.round(hoursFloat);
+      });
+      const distributionText = distributionValues.map((hours, index) => {
+        let spanHTML = `<span style="`;
+        if (hours === 0) {
+          spanHTML += `color:#aaa;`;
+        }
+        if (index === distributionValues.length - 1 && hours > 0) {
+          spanHTML += `color:#28a745;`;
+        }
+        spanHTML += `">${hours}h</span>`;
+        return spanHTML;
+      }).join('/');
+      distributionCell.innerHTML = distributionText;
+    } else if (historyboardAssigneeData) {
+      const distributionValues = boardNames.map(boardName => {
+        const boardAssignees = historyboardAssigneeData[boardName] || {};
+        const assigneeInBoard = boardAssignees[name] || {
+          timeEstimate: 0
+        };
+        const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
+        return Math.round(hoursFloat);
+      });
+      const distributionText = distributionValues.map((hours, index) => {
+        let spanHTML = `<span style="`;
+        if (hours === 0) {
+          spanHTML += `color:#aaa;`;
+        }
+        if (index === distributionValues.length - 1 && hours > 0) {
+          spanHTML += `color:#28a745;`;
+        }
+        spanHTML += `">${hours}h</span>`;
+        return spanHTML;
+      }).join('/');
+      distributionCell.innerHTML = distributionText;
+    } else {
+      const emptyText = boardNames.map(() => {
+        return `<span style="color:#aaa;">0h</span>`;
+      }).join('/');
+      distributionCell.innerHTML = emptyText;
+    }
+    row.appendChild(nameCell);
+    row.appendChild(timeCell);
+    row.appendChild(distributionCell);
+  }
 }
 
 // File: lib/ui/views/BoardsView.js
@@ -6894,10 +6754,8 @@ window.SprintManagementView = class SprintManagementView {
       this.notification.error('Failed to end sprint: ' + error.message);
     }
   }
-
   deleteCurrentSprint() {
     try {
-      // If there's a matching history entry for this sprint, remove it
       if (this.sprintState.id && this.sprintHistory && this.sprintHistory.length > 0) {
         const historyIndex = this.sprintHistory.findIndex(sprint => sprint.id === this.sprintState.id);
         if (historyIndex >= 0) {
@@ -6906,15 +6764,12 @@ window.SprintManagementView = class SprintManagementView {
           this.notification.info("Sprint removed from history.");
         }
       }
-
-      // Reset sprint state
       this.sprintState = {
         endSprint: false,
         preparedForNext: false,
-        currentMilestone: this.sprintState.currentMilestone, // Keep the milestone
+        currentMilestone: this.sprintState.currentMilestone,
         userPerformance: {}
       };
-
       this.saveSprintState();
       this.notification.success('Sprint data has been deleted.');
       this.render();
@@ -6995,19 +6850,14 @@ window.SprintManagementView = class SprintManagementView {
         this.notification.success('Sprint data updated successfully.');
         this.render();
       });
-
-      // Add event listener for delete button after modal is shown
       setTimeout(() => {
         const deleteButton = document.getElementById('delete-sprint-btn');
         if (deleteButton) {
-          deleteButton.addEventListener('click', (e) => {
+          deleteButton.addEventListener('click', e => {
             e.preventDefault();
             e.stopPropagation();
-
             if (confirm('Are you sure you want to delete the current sprint data? This action cannot be undone.')) {
               this.deleteCurrentSprint();
-
-              // Close the modal
               const modalOverlay = document.querySelector('div[style*="position: fixed"][style*="z-index: 1000"]');
               if (modalOverlay && modalOverlay.parentNode) {
                 modalOverlay.parentNode.removeChild(modalOverlay);
@@ -7507,11 +7357,9 @@ window.BulkCommentsView = class BulkCommentsView {
   }
   updateAssignShortcut(items) {
     if (!this.commandShortcuts) {
-
       return;
     }
     if (!items || items.length <= 3) {
-
       return;
     }
     try {
@@ -7750,8 +7598,7 @@ window.BulkCommentsView = class BulkCommentsView {
           label: assignee.name || assignee.username
         }));
         assignItems = assignItems.concat(whitelistItems);
-      } else {
-      }
+      } else {}
     }
     this.updateAssignShortcut(assignItems);
     setTimeout(() => {
@@ -9115,22 +8962,16 @@ setTimeout(() => {
 }, 2000);
 
 // File: lib/index.js
-// Initialize the linked items component
 let linkedItemsManager = null;
-
 function initializeLinkedItemsManager() {
   if (!linkedItemsManager) {
     linkedItemsManager = new LinkedItemsManager({
       uiManager: window.uiManager
     });
-
     window.linkedItemsManager = linkedItemsManager;
     linkedItemsManager.initialize();
-    console.log('LinkedItemsManager initialized');
   }
 }
-
-// Add a way to toggle LinkedItemsManager on/off
 function toggleLinkedItems() {
   if (!linkedItemsManager) {
     initializeLinkedItemsManager();
@@ -9142,8 +8983,6 @@ function toggleLinkedItems() {
     }
   }
 }
-
-// Add toggle function to window
 window.toggleLinkedItems = toggleLinkedItems;
 var gitlabApi = window.gitlabApi || new GitLabAPI();
 function createUIManager(attachmentElement = document.body) {
@@ -9190,7 +9029,6 @@ function checkAndInit() {
   if (isInitialized) {
     return;
   }
-
   if (window.location.href.includes('/boards')) {
     waitForBoardsElement().then(boardsElement => {
       const uiManager = createUIManager(boardsElement);
@@ -9202,12 +9040,8 @@ function checkAndInit() {
         }
       }
       isInitialized = true;
+      initializeLinkedItemsManager();
       waitForBoards();
-
-      // Initialize linked items after boards are loaded
-      setTimeout(() => {
-        initializeLinkedItemsManager();
-      }, 2000);
     }).catch(error => {
       console.error('Error initializing UI:', error);
       const uiManager = createUIManager(document.body);
@@ -9219,12 +9053,8 @@ function checkAndInit() {
         }
       }
       isInitialized = true;
+      initializeLinkedItemsManager();
       waitForBoards();
-
-      // Initialize linked items after boards are loaded
-      setTimeout(() => {
-        initializeLinkedItemsManager();
-      }, 2000);
     });
   }
 }
@@ -9371,6 +9201,11 @@ function waitForBoards() {
   const maxAttempts = 30;
   const boardCheckInterval = setInterval(() => {
     attempts++;
+    if (window.linkedItemsManager && !window.linkedItemsManager.initialized) {
+      initializeLinkedItemsManager();
+    } else if (window.linkedItemsManager && window.linkedItemsManager.initialized) {
+      window.linkedItemsManager.refreshDropdowns();
+    }
     const boardLists = document.querySelectorAll('.board-list');
     if (boardLists.length >= 3) {
       clearInterval(boardCheckInterval);
@@ -9381,11 +9216,6 @@ function waitForBoards() {
         updateSummary();
         addBoardChangeListeners();
         window.boardsInitialized = true;
-
-        // Initialize linked items after boards are fully loaded
-        setTimeout(() => {
-          initializeLinkedItemsManager();
-        }, 1000);
       }, 1000);
     } else if (attempts >= maxAttempts) {
       clearInterval(boardCheckInterval);
@@ -9396,11 +9226,6 @@ function waitForBoards() {
         updateSummary();
         addBoardChangeListeners();
         window.boardsInitialized = true;
-
-        // Initialize linked items after boards are fully loaded
-        setTimeout(() => {
-          initializeLinkedItemsManager();
-        }, 1000);
       }, 1000);
     } else if (boardLists.length > 0 && statusDiv) {
       statusDiv.textContent = `Found ${boardLists.length} boards, waiting for more...`;

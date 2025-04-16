@@ -30,7 +30,7 @@ const babelOptions = {
     };
   }]
 };
-const excludedFiles = ['main.js'];
+const excludedFiles = ['main.js', "build.js"];
 function shouldExcludeFile(filePath) {
   const fileName = path.basename(filePath);
   return excludedFiles.some(excluded => filePath.endsWith(excluded) || fileName === excluded);
