@@ -2268,7 +2268,8 @@ window.LinkedItemsManager = class LinkedItemsManager {
         // Modify the click event handler to dim other cards
         dropdownToggle.addEventListener('click', e => {
             e.stopPropagation();
-
+            dropdownContent.style.width = `${$(card).width() + 1}px`;
+            dropdownContent.style.top = `${$(card).height()}px`;
             // Set all other cards to a lower opacity
             const allCards = document.querySelectorAll('.board-card');
             const allDropdowns = document.querySelectorAll('.linked-items-dropdown');
@@ -2336,7 +2337,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 // Restore all cards and dropdowns to normal opacity
                 const allCards = document.querySelectorAll('.board-card');
                 const allDropdowns = document.querySelectorAll('.linked-items-dropdown');
-
                 allCards.forEach(c => {
                     c.style.opacity = '1';
                     c.style.removeProperty('z-index');
@@ -2602,6 +2602,12 @@ window.LinkedItemsManager = class LinkedItemsManager {
         text.style.textOverflow = 'ellipsis';
         text.style.whiteSpace = 'nowrap';
 
+        const infoContainer = document.createElement('div');
+        infoContainer.style.display = 'flex';
+        infoContainer.style.alignItems = 'center';
+        infoContainer.style.marginLeft = 'auto';
+        infoContainer.style.gap = '2px';
+
         if (item.state) {
             const status = document.createElement('span');
             status.style.borderRadius = '10px';
@@ -2648,6 +2654,59 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     status.style.backgroundColor = '#6c757d';
                     status.style.color = 'white';
                 }
+                infoContainer.appendChild(status);
+
+                // Add reviewer avatar if available (for merge requests)
+                if (item.mrDetails && (item.mrDetails.reviewers || item.mrDetails.approved_by)) {
+                    // First try the reviewers property
+                    const reviewers = item.mrDetails.reviewers || [];
+                    // Then try the approved_by property
+                    const approvers = item.mrDetails.approved_by || [];
+
+                    // Use the first reviewer or approver (whichever is available)
+                    const reviewer = reviewers.length > 0 ? reviewers[0] :
+                        (approvers.length > 0 ? approvers[0] : null);
+
+                    if (reviewer && reviewer.avatar_url) {
+                        const avatarContainer = document.createElement('div');
+                        avatarContainer.style.position = 'relative';
+                        avatarContainer.style.width = '25px';
+                        avatarContainer.style.height = '25px';
+
+                        const avatar = document.createElement('img');
+                        avatar.src = reviewer.avatar_url;
+                        avatar.alt = reviewer.name || 'Reviewer';
+                        avatar.title = `Reviewer: ${reviewer.name || 'Unknown'}`;
+                        avatar.style.width = '25px';
+                        avatar.style.height = '25px';
+                        avatar.style.borderRadius = '50%';
+                        avatar.style.objectFit = 'cover';
+                        avatar.style.border = '1px solid #e0e0e0';
+
+                        avatarContainer.appendChild(avatar);
+
+                        // Add a count badge if there are multiple reviewers
+                        const totalReviewers = reviewers.length + approvers.length;
+                        if (totalReviewers > 1) {
+                            const badge = document.createElement('span');
+                            badge.textContent = `+${totalReviewers - 1}`;
+                            badge.style.position = 'absolute';
+                            badge.style.top = '-4px';
+                            badge.style.right = '-4px';
+                            badge.style.backgroundColor = '#1f75cb';
+                            badge.style.color = 'white';
+                            badge.style.fontSize = '8px';
+                            badge.style.borderRadius = '8px';
+                            badge.style.padding = '1px 3px';
+                            badge.style.fontWeight = 'bold';
+
+                            avatarContainer.appendChild(badge);
+                            avatarContainer.title = `${totalReviewers} reviewers`;
+                        }
+
+                        infoContainer.appendChild(avatarContainer);
+                    }
+                }
             } else if (item.type === 'issue') {
                 const statusText = this.getEnhancedIssueStatus(item);
                 status.textContent = statusText;
@@ -2681,6 +2740,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     status.style.backgroundColor = '#6c757d';
                     status.style.color = 'white';
                 }
+                infoContainer.appendChild(status);
             } else {
                 status.textContent = item.state;
 
@@ -2694,13 +2754,13 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     status.style.backgroundColor = '#6f42c1';
                     status.style.color = 'white';
                 }
+                infoContainer.appendChild(status);
             }
-
-            link.appendChild(status);
         }
 
         link.prepend(icon);
         link.appendChild(text);
+        link.appendChild(infoContainer);
 
         link.addEventListener('mouseenter', function () {
             this.style.backgroundColor = '#f8f9fa';
@@ -2886,29 +2946,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
         });
     }
 
-    cleanup() {
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.parentNode) {
-                dropdown.parentNode.removeChild(dropdown);
-            }
-        });
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
-        if (this.boardObserver) {
-            this.boardObserver.disconnect();
-            this.boardObserver = null;
-        }
-        if (this.cardsObserver) {
-            this.cardsObserver.disconnect();
-            this.cardsObserver = null;
-        }
-        this.dropdowns = [];
-        this.cardLinks.clear();
-        this.initialized = false;
-    }
-
     setupCardsMutationObserver() {
         if (this.cardsObserver) {
             this.cardsObserver.disconnect();
@@ -2994,6 +3031,29 @@ window.LinkedItemsManager = class LinkedItemsManager {
             });
         }
     }
+
+    cleanup() {
+        this.dropdowns.forEach(dropdown => {
+            if (dropdown && dropdown.parentNode) {
+                dropdown.parentNode.removeChild(dropdown);
+            }
+        });
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        }
+        if (this.boardObserver) {
+            this.boardObserver.disconnect();
+            this.boardObserver = null;
+        }
+        if (this.cardsObserver) {
+            this.cardsObserver.disconnect();
+            this.cardsObserver = null;
+        }
+        this.dropdowns = [];
+        this.cardLinks.clear();
+        this.initialized = false;
+    }
 }
 
 // File: lib/ui/components/LabelDisplayManager.js
@@ -3007,6 +3067,7 @@ window.LabelDisplayManager = class LabelDisplayManager {
         this.isUpdating = false; // Prevent concurrent updates
         this.cardIdMap = new Map(); // Track card IDs to indicators for better cleanup
         this.cardContainerMap = new Map(); // Track which container each card belongs to
+        this.draggedCards = new Set(); // Track cards being dragged
 
         // Define all methods before binding
         this.handleScroll = function() {
@@ -3064,12 +3125,21 @@ window.LabelDisplayManager = class LabelDisplayManager {
                     const {element, card} = this.indicatorElements[i];
 
                     // Skip invalid elements or dragging cards
-                    if (!element || !element.parentNode || !card || !card.parentNode ||
-                        card.classList.contains('is-dragging') || card.classList.contains('is-ghost')) {
+                    if (!element || !element.parentNode || !card || !card.parentNode) {
                         if (element && element.parentNode) {
                             element.parentNode.removeChild(element);
                         }
                         continue;
+                    }
+
+                    // If card is being dragged, hide the indicator but keep tracking it
+                    if (card.classList.contains('is-dragging') || card.classList.contains('is-ghost')) {
+                        element.style.opacity = '0';
+                        validIndicators.push({element, card});
+                        continue;
+                    } else {
+                        // Make sure indicator is visible for non-dragged cards
+                        element.style.opacity = '1';
                     }
 
                     // Check if card moved to a different container
@@ -3120,15 +3190,42 @@ window.LabelDisplayManager = class LabelDisplayManager {
     handleDragEvents(e) {
         if (!this.initialized || !this.checkEnabled()) return;
 
-        // If it's dragstart, store all indicators that need cleanup
+        // Identify the card being dragged
+        let card = null;
+        if (e.target && e.target.classList && e.target.classList.contains('board-card')) {
+            card = e.target;
+        } else if (e.target) {
+            card = e.target.closest('.board-card');
+        }
+
+        if (!card) return;
+
+        // If it's dragstart, store the card ID
         if (e.type === 'dragstart') {
-            // Remove all indicators immediately when dragging starts
-            this.cleanupAllIndicators();
+            if (card.id) {
+                this.draggedCards.add(card.id);
+
+                // Hide the indicator but don't remove it
+                const indicator = this.cardIdMap.get(card.id);
+                if (indicator) {
+                    indicator.style.opacity = '0';
+                }
+            }
         } else if (e.type === 'dragend' || e.type === 'drop') {
+            if (card.id) {
+                // Remove from dragged cards set
+                this.draggedCards.delete(card.id);
+
+                // Show the indicator again if it exists
+                const indicator = this.cardIdMap.get(card.id);
+                if (indicator) {
+                    indicator.style.opacity = '1';
+                }
+            }
+
             // Wait a bit to let the DOM update
             setTimeout(() => {
-                this.cleanupAllIndicators();
-                this.processCards();
+                this.refreshCards();
             }, 100);
         }
     }
@@ -3181,6 +3278,7 @@ window.LabelDisplayManager = class LabelDisplayManager {
             let cardRemoved = false;
             let cardMoved = false;
             let classChanged = false;
+            let dragStateChanged = false;
 
             mutations.forEach(mutation => {
                 // Process mutations that add/remove elements
@@ -3207,17 +3305,55 @@ window.LabelDisplayManager = class LabelDisplayManager {
                     }
                 } else if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
                     // Track class changes on cards
-                    if (mutation.target.classList &&
-                        (mutation.target.classList.contains('board-card') ||
-                            mutation.target.classList.contains('is-dragging') ||
-                            mutation.target.classList.contains('is-ghost'))) {
+                    if (mutation.target.classList?.contains('board-card')) {
                         classChanged = true;
+
+                        // Check if drag state changed
+                        const isDragging = mutation.target.classList.contains('is-dragging') ||
+                            mutation.target.classList.contains('is-ghost');
+                        const wasDragging = this.draggedCards.has(mutation.target.id);
+
+                        if (isDragging !== wasDragging) {
+                            dragStateChanged = true;
+
+                            if (isDragging) {
+                                // Card started dragging
+                                if (mutation.target.id) {
+                                    this.draggedCards.add(mutation.target.id);
+
+                                    // Hide indicator
+                                    const indicator = this.cardIdMap.get(mutation.target.id);
+                                    if (indicator) {
+                                        indicator.style.opacity = '0';
+                                    }
+                                }
+                            } else {
+                                // Card stopped dragging
+                                if (mutation.target.id) {
+                                    this.draggedCards.delete(mutation.target.id);
+
+                                    // Show indicator again
+                                    const indicator = this.cardIdMap.get(mutation.target.id);
+                                    if (indicator) {
+                                        indicator.style.opacity = '1';
+                                    } else {
+                                        // Indicator might have been removed, reprocess the card
+                                        this.processCard(mutation.target);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             });
 
+            // If cards changed drag state, update positions and visibility
+            if (dragStateChanged) {
+                setTimeout(() => this.updatePositions(), 0);
+            }
+
             // If cards are changing classes (like adding/removing is-dragging)
-            if (classChanged) {
+            if (classChanged && !dragStateChanged) {
                 setTimeout(() => this.updatePositions(), 50);
             }
 
@@ -3277,10 +3413,10 @@ window.LabelDisplayManager = class LabelDisplayManager {
     checkEnabled() {
         try {
             const enabled = localStorage.getItem('gitLabHelperHideLabelsEnabled');
-            return localStorage.getItem('gitLabHelperHideLabelsEnabled') === null ? true : enabled === 'true';
+            return enabled === 'true';
         } catch (e) {
             console.error('Error checking hide labels enabled state:', e);
-            return true;
+            return false;
         }
     }
 
@@ -3336,8 +3472,8 @@ window.LabelDisplayManager = class LabelDisplayManager {
     }
 
     processCard(card) {
-        // Skip ghost/dragging cards
-        if (card.classList.contains('is-dragging') || card.classList.contains('is-ghost')) {
+        // Skip ghost cards (but not dragging cards - we want to process them but hide the indicator)
+        if (card.classList.contains('is-ghost')) {
             return;
         }
 
@@ -3407,6 +3543,17 @@ window.LabelDisplayManager = class LabelDisplayManager {
             indicator.style.backgroundColor = backgroundColor;
             indicator.style.zIndex = '98'; // Below dropdown z-index
             indicator.style.borderRadius = '2px';
+            indicator.style.transition = 'opacity 0.2s ease';
+
+            // Set initial opacity based on drag state
+            if (card.classList.contains('is-dragging')) {
+                indicator.style.opacity = '0';
+                if (card.id) {
+                    this.draggedCards.add(card.id);
+                }
+            } else {
+                indicator.style.opacity = '1';
+            }
 
             // Add indicator to the board-list-cards-area
             container.appendChild(indicator);
@@ -3464,14 +3611,13 @@ window.LabelDisplayManager = class LabelDisplayManager {
                 // 1. The element has no parent (already removed from DOM)
                 // 2. The card is not in the DOM anymore
                 // 3. The card's ID doesn't match any current cards
-                // 4. The card is being dragged
+                // Don't remove for dragging cards - just hide the indicator
 
                 const elementRemoved = !element || !element.parentNode;
                 const cardMissing = !card || !card.parentNode;
                 const cardIdMissing = card && card.id && !currentCardIds.has(card.id);
-                const cardDragging = card && (card.classList.contains('is-dragging') || card.classList.contains('is-ghost'));
 
-                if (elementRemoved || cardMissing || cardIdMissing || cardDragging) {
+                if (elementRemoved || cardMissing || cardIdMissing) {
                     // Remove the element from DOM if it still exists
                     if (element && element.parentNode) {
                         element.parentNode.removeChild(element);
@@ -3483,6 +3629,7 @@ window.LabelDisplayManager = class LabelDisplayManager {
                     // Remove from card ID map
                     if (card && card.id) {
                         this.cardIdMap.delete(card.id);
+                        this.draggedCards.delete(card.id);
                     }
 
                     // Clear from processed cards WeakMap (card will be GC'd if not in DOM)
@@ -3503,6 +3650,7 @@ window.LabelDisplayManager = class LabelDisplayManager {
                     // Make sure it's removed from our maps
                     if (cardId) {
                         this.cardIdMap.delete(cardId);
+                        this.draggedCards.delete(cardId);
                     }
                 }
             });
@@ -3530,60 +3678,8 @@ window.LabelDisplayManager = class LabelDisplayManager {
         this.indicatorElements = [];
         this.cardIdMap.clear();
         this.cardContainerMap.clear();
+        this.draggedCards.clear();
         this.processedCards = new WeakMap();
-    }
-
-    updatePositions() {
-        if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
-            return;
-        }
-
-        this.isUpdating = true;
-
-        try {
-            // Filter out invalid indicators before positioning
-            const validIndicators = [];
-
-            for (let i = 0; i < this.indicatorElements.length; i++) {
-                const {element, card} = this.indicatorElements[i];
-
-                // Skip invalid elements or dragging cards
-                if (!element || !element.parentNode || !card || !card.parentNode ||
-                    card.classList.contains('is-dragging') || card.classList.contains('is-ghost')) {
-                    if (element && element.parentNode) {
-                        element.parentNode.removeChild(element);
-                    }
-                    continue;
-                }
-
-                try {
-                    const container = card.closest('[data-testid="board-list-cards-area"]');
-                    if (container) {
-                        const cardRect = card.getBoundingClientRect();
-                        const containerRect = container.getBoundingClientRect();
-
-                        const top = cardRect.top - containerRect.top + container.scrollTop;
-                        const left = cardRect.left - containerRect.left + container.scrollLeft + 2;
-
-                        element.style.top = `${top}px`;
-                        element.style.left = `${left}px`;
-                        element.style.width = `${cardRect.width - 4}px`;
-
-                        validIndicators.push({element, card});
-                    }
-                } catch (e) {
-                    console.error('Error updating indicator position:', e);
-                    if (element && element.parentNode) {
-                        element.parentNode.removeChild(element);
-                    }
-                }
-            }
-
-            // Replace array with only valid indicators
-            this.indicatorElements = validIndicators;
-        } finally {
-            this.isUpdating = false;
-        }
     }
 
     handleScroll() {
