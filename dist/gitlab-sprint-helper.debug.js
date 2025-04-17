@@ -174,6 +174,27 @@ window.fetchAllBoards = async function() {
     console.error('Error fetching boards:', error);
     return [];
   }
+
+
+}
+window.hasOnlyAllowedParams = function hasOnlyAllowedParams() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const allowedParams = ['milestone_title', 'assignee_username'];
+    let paramCount = 0;
+    let disallowedParamFound = false;
+
+    urlParams.forEach((value, key) => {
+      paramCount++;
+      if (!allowedParams.includes(key)) {
+        disallowedParamFound = true;
+      }
+    });
+    return !disallowedParamFound && paramCount > 0;
+  } catch (error) {
+    console.error('Error checking URL parameters:', error);
+    return false;
+  }
 }
 
 // File: lib/api/GitLabAPI.js
@@ -442,18 +463,24 @@ window.processBoards = function processBoards() {
   });
   try {
     if (window.historyManager) {
-      window.historyManager.saveHistoryEntry({
-        assigneeTimeMap,
-        boardData,
-        boardAssigneeData,
-        totalEstimate,
-        cardsProcessed,
-        cardsWithTime,
-        currentMilestone,
-        closedBoardCards,
-        userDistributions: formattedUserDistributions,
-        userData: userDataMap
-      });
+      // Import the hasOnlyAllowedParams function
+      const { hasOnlyAllowedParams } = window;
+
+      // Only save to history if the URL has only allowed parameters
+      if (hasOnlyAllowedParams()) {
+        window.historyManager.saveHistoryEntry({
+          assigneeTimeMap,
+          boardData,
+          boardAssigneeData,
+          totalEstimate,
+          cardsProcessed,
+          cardsWithTime,
+          currentMilestone,
+          closedBoardCards,
+          userDistributions: formattedUserDistributions,
+          userData: userDataMap
+        });
+      }
     }
   } catch (e) {
     console.error('Error saving history data:', e);
@@ -492,6 +519,14 @@ window.HistoryManager = class HistoryManager {
   }
   saveHistoryEntry(data) {
     try {
+      // Import the hasOnlyAllowedParams function
+      const { hasOnlyAllowedParams } = window;
+
+      // Only save to history if the URL has only allowed parameters
+      if (!hasOnlyAllowedParams()) {
+        return false;
+      }
+
       const boardKey = this.getBoardKey();
       const today = new Date().toISOString().split('T')[0];
       const history = this.loadHistory();
@@ -557,6 +592,14 @@ window.HistoryManager = class HistoryManager {
   clearAllHistory() {
     try {
       localStorage.removeItem('gitLabHelperHistory');
+
+      // Also clear sprint history which is related
+      localStorage.removeItem('gitLabHelperSprintHistory');
+      localStorage.removeItem('gitLabHelperSprintState');
+
+      // Reset instance variables
+      this.historyData = {};
+
       return true;
     } catch (error) {
       console.error('Error clearing history:', error);
@@ -6013,16 +6056,49 @@ window.SettingsManager = class SettingsManager {
   resetAllSettings() {
     this.resetLabelWhitelist();
     saveAssigneeWhitelist([]);
-    const defaultShortcut = DEFAULT_SETTINGS.toggleShortcut;
+    const defaultShortcut = 'c';
     saveToggleShortcut(defaultShortcut);
+
+    // Clear history data properly
+    localStorage.removeItem('gitLabHelperHistory');
+    if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
+      window.historyManager.clearAllHistory();
+    }
+
+    // Clear sprint data more thoroughly
+    localStorage.removeItem('gitLabHelperSprintState');
+    localStorage.removeItem('gitLabHelperSprintHistory');
+
+    // Reset sprint state in memory if SprintManagementView exists
+    if (window.uiManager && window.uiManager.sprintManagementView) {
+      window.uiManager.sprintManagementView.sprintState = {
+        endSprint: false,
+        preparedForNext: false,
+        currentMilestone: null,
+        userPerformance: {}
+      };
+      window.uiManager.sprintManagementView.sprintHistory = [];
+      window.uiManager.sprintManagementView.render();
+    }
+
+    // Reset other application settings
+    localStorage.removeItem('gitLabHelperLinkedItemsEnabled');
+    localStorage.removeItem('gitLabHelperHideLabelsEnabled');
+
     if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
       window.uiManager.updateKeyboardShortcut(defaultShortcut);
     } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
       this.uiManager.updateKeyboardShortcut(defaultShortcut);
     }
+
     if (this.onSettingsChanged) {
       this.onSettingsChanged('all');
     }
+
+    // Reload the page to ensure all settings take effect
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   }
   autoSaveWhitelist(container) {
     const newWhitelist = [];
@@ -6168,6 +6244,9 @@ window.SettingsManager = class SettingsManager {
           this.currentModal.remove();
           this.currentModal = null;
         }
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       }
     });
     const resetHistoryButton = document.createElement('button');
@@ -6181,11 +6260,24 @@ window.SettingsManager = class SettingsManager {
     resetHistoryButton.style.fontWeight = 'bold';
     resetHistoryButton.addEventListener('click', () => {
       if (confirm('Are you sure you want to reset all history data? This action cannot be undone!')) {
-        if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
-          window.historyManager.clearAllHistory();
+        try {
+          localStorage.removeItem('gitLabHelperHistory');
+          localStorage.removeItem('gitLabHelperSprintHistory');
+          localStorage.removeItem('gitLabHelperSprintState');
+
+          if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
+            window.historyManager.clearAllHistory();
+          }
+
           this.notification.success('History data has been reset');
-        } else {
-          this.notification.error('History manager not available');
+
+          // Reload the page to ensure all settings take effect
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } catch (error) {
+          console.error('Error clearing history:', error);
+          this.notification.error('Failed to clear history data');
         }
       }
     });
@@ -6772,7 +6864,7 @@ window.SummaryView = class SummaryView {
         if (hours === 0) {
           spanHTML += `color:#aaa;`;
         }
-        if (index === distributionValues.length - 1 && hours > 0) {
+        if (index === distributionValues.length - 1 && hours > 0 || index === distributionValues.length - 2 && hours > 0) {
           spanHTML += `color:#28a745;`;
         }
         spanHTML += `">${hours}h</span>`;
@@ -7244,7 +7336,7 @@ window.SummaryView = class SummaryView {
         if (hours === 0) {
           spanHTML += `color:#aaa;`;
         }
-        if (index === distributionValues.length - 1 && hours > 0) {
+        if ((index === distributionValues.length - 1 || index === distributionValues.length - 2) && hours > 0 ) {
           spanHTML += `color:#28a745;`;
         }
         spanHTML += `">${hours}h</span>`;
@@ -7551,10 +7643,25 @@ window.SprintManagementView = class SprintManagementView {
     this.createStepButton(stepsContainer, '2. Ready for next Sprint', '#6f42c1', () => this.prepareForNextSprint(), this.sprintState.endSprint && !this.sprintState.preparedForNext);
     this.createStepButton(stepsContainer, '3. Copy Sprint Data Summary', '#28a745', () => this.copySprintData(), this.sprintState.preparedForNext);
     this.createStepButton(stepsContainer, '4. Copy Closed Issue Names', '#fd7e14', () => this.copyClosedTickets(), this.sprintState.preparedForNext);
+
+    // Add utility container with Reset and Edit buttons
     const utilityContainer = document.createElement('div');
     utilityContainer.style.display = 'flex';
-    utilityContainer.style.justifyContent = 'flex-end';
-    utilityContainer.style.marginTop = '10px';
+    utilityContainer.style.justifyContent = 'space-between';
+    utilityContainer.style.marginTop = '15px';
+    utilityContainer.style.gap = '10px';
+
+    const resetButton = document.createElement('button');
+    resetButton.textContent = 'Reset Current Sprint';
+    resetButton.style.padding = '10px 16px';
+    resetButton.style.backgroundColor = '#dc3545';
+    resetButton.style.color = 'white';
+    resetButton.style.border = 'none';
+    resetButton.style.borderRadius = '4px';
+    resetButton.style.cursor = 'pointer';
+    resetButton.style.fontWeight = 'bold';
+    resetButton.addEventListener('click', () => this.resetCurrentSprint());
+
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit Data';
     editButton.className = 'edit-sprint-data-button';
@@ -7571,8 +7678,11 @@ window.SprintManagementView = class SprintManagementView {
     if (editEnabled) {
       editButton.addEventListener('click', () => this.editSprintData());
     }
+
+    utilityContainer.appendChild(resetButton);
     utilityContainer.appendChild(editButton);
     stepsContainer.appendChild(utilityContainer);
+
     sprintManagementContent.appendChild(stepsContainer);
     if (this.sprintState.totalTickets !== undefined) {
       this.showSprintDataSummary(sprintManagementContent);
@@ -7582,6 +7692,33 @@ window.SprintManagementView = class SprintManagementView {
       this.uiManager.removeLoadingScreen('sprintmanagement-tab');
     }
   }
+
+  resetCurrentSprint() {
+    if (confirm('Are you sure you want to reset the current sprint? This will delete all sprint data and cannot be undone.')) {
+      try {
+        // Reset sprint state
+        this.sprintState = {
+          endSprint: false,
+          preparedForNext: false,
+          currentMilestone: null,
+          userPerformance: {}
+        };
+
+        // Save empty state to storage
+        this.saveSprintState();
+
+        // Show notification
+        this.notification.success('Current sprint has been reset');
+
+        // Re-render the view
+        this.render();
+      } catch (error) {
+        console.error('Error resetting current sprint:', error);
+        this.notification.error('Failed to reset sprint: ' + error.message);
+      }
+    }
+  }
+
   renderLockedState(container) {
     const lockedContainer = document.createElement('div');
     lockedContainer.style.display = 'flex';
@@ -10327,6 +10464,10 @@ function updateSummary(forceHistoryUpdate = false) {
   let loadingTimeout;
   clearTimeout(loadingTimeout);
   try {
+    // Check if URL has only allowed parameters
+    const { hasOnlyAllowedParams } = window;
+    const shouldUpdateCache = hasOnlyAllowedParams() || forceHistoryUpdate;
+
     const result = processBoards();
     const {
       assigneeTimeMap,
@@ -10500,7 +10641,7 @@ window.addEventListener('resize', () => {
     }
   }
 });
-
+window.hasOnlyAllowedParams = hasOnlyAllowedParams;
 
 // File: main.js (main script content)
 
