@@ -1877,22 +1877,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
         this.cardLinks = new Map();
         this.uiManager = options.uiManager || window.uiManager;
         this.gitlabApi = options.gitlabApi || window.gitlabApi;
-        this.cache = {
-            issues: new Map(),
-            mergeRequests: new Map(),
-            relatedIssues: new Map()
-        };
 
-        // Initialize timestamps if they don't exist
-        try {
-            if (!localStorage.getItem('gitlabHelperLinkedItemsTimestamps')) {
-                localStorage.setItem('gitlabHelperLinkedItemsTimestamps', JSON.stringify({}));
-            }
-        } catch (e) {
-            console.warn('Error initializing cache timestamps:', e);
-        }
-
-        this.loadCacheFromLocalStorage();
         this.handleScroll = this.handleScroll.bind(this);
         this.handleResize = this.handleResize.bind(this);
         this.refreshDropdowns = this.refreshDropdowns.bind(this);
@@ -1915,87 +1900,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
         }
     }
 
-    loadCacheFromLocalStorage() {
-        try {
-            const savedCache = localStorage.getItem('gitlabHelperLinkedItemsCache');
-            if (savedCache) {
-                const cacheData = JSON.parse(savedCache);
-
-                // Extend cache lifetime to 24 hours (was 8 hours)
-                if (cacheData.timestamp && Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000) {
-                    if (cacheData.issues) {
-                        Object.entries(cacheData.issues).forEach(([key, items]) => {
-                            this.cache.issues.set(key, items);
-                        });
-                    }
-
-                    if (cacheData.mergeRequests) {
-                        Object.entries(cacheData.mergeRequests).forEach(([key, items]) => {
-                            this.cache.mergeRequests.set(key, items);
-                        });
-                    }
-
-                    if (cacheData.relatedIssues) {
-                        Object.entries(cacheData.relatedIssues).forEach(([key, items]) => {
-                            this.cache.relatedIssues.set(key, items);
-                        });
-                    }
-                } else {
-                    localStorage.removeItem('gitlabHelperLinkedItemsCache');
-                    localStorage.removeItem('gitlabHelperLinkedItemsTimestamps');
-                }
-            }
-        } catch (error) {
-            console.warn('Error loading cache from localStorage:', error);
-            localStorage.removeItem('gitlabHelperLinkedItemsCache');
-            localStorage.removeItem('gitlabHelperLinkedItemsTimestamps');
-        }
-    }
-
-    saveCacheToLocalStorage() {
-        try {
-            const cacheObject = {
-                issues: {},
-                mergeRequests: {},
-                relatedIssues: {}
-            };
-
-            this.cache.issues.forEach((value, key) => {
-                cacheObject.issues[key] = value;
-            });
-
-            this.cache.mergeRequests.forEach((value, key) => {
-                cacheObject.mergeRequests[key] = value;
-            });
-
-            this.cache.relatedIssues.forEach((value, key) => {
-                cacheObject.relatedIssues[key] = value;
-            });
-
-            const cacheData = {
-                timestamp: Date.now(),
-                issues: cacheObject.issues,
-                mergeRequests: cacheObject.mergeRequests,
-                relatedIssues: cacheObject.relatedIssues
-            };
-
-            localStorage.setItem('gitlabHelperLinkedItemsCache', JSON.stringify(cacheData));
-
-            // Make sure we also save timestamps if they exist
-            if (!localStorage.getItem('gitlabHelperLinkedItemsTimestamps')) {
-                // Create timestamps for all cache entries if they don't exist
-                const now = Date.now();
-                const timestamps = {};
-                this.cache.issues.forEach((value, key) => {
-                    timestamps[key] = now;
-                });
-                localStorage.setItem('gitlabHelperLinkedItemsTimestamps', JSON.stringify(timestamps));
-            }
-        } catch (error) {
-            console.warn('Error saving cache to localStorage:', error);
-        }
-    }
-
     initialize() {
         if (!this.checkEnabled()) {
             return;
@@ -2006,50 +1910,25 @@ window.LinkedItemsManager = class LinkedItemsManager {
         this.initialized = true;
         this.applyOverflowFixes();
 
-        // First load from cache immediately
-        this.loadFromCacheAndCreateDropdowns();
+        // Create dropdowns for all cards
+        this.createCardDropdowns();
 
-        // Then set up periodic refresh to catch new cards
+        // Set up periodic refresh to catch new cards
         this.refreshInterval = setInterval(() => {
             this.refreshDropdowns();
         }, 2000);
 
         this.setupCardsMutationObserver();
-        this.cacheSaveInterval = setInterval(() => {
-            this.saveCacheToLocalStorage();
-        }, 60000);
     }
 
     loadFromCacheAndCreateDropdowns() {
-        // First create dropdowns for all existing cards
+        // Create dropdowns for all existing cards
         this.createCardDropdowns();
 
-        // Then for each dropdown that was created, immediately update it from cache if available
+        // Update all dropdowns with fresh data
         this.dropdowns.forEach(dropdown => {
             if (dropdown && dropdown.originalCard) {
-                const card = dropdown.originalCard;
-                const issueItem = this.getIssueItemFromCard(card);
-                if (issueItem && issueItem.iid) {
-                    const projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
-                    const issueIid = issueItem.iid.toString().split('#').pop();
-                    const cacheKey = `${projectPath}/${issueIid}`;
-                    if (this.cache.issues.has(cacheKey)) {
-                        const cachedItems = this.cache.issues.get(cacheKey);
-                        const cardId = dropdown.dataset.cardId;
-                        this.cardLinks.set(cardId, cachedItems);
-                        dropdown.isLoading = false;
-                        this.updateDropdownWithLinkedItems(dropdown, cachedItems);
-
-                        // Also update in the background for freshness
-                        this.fetchAndUpdateDropdown(dropdown, card);
-                    } else {
-                        // If not in cache, fetch asynchronously
-                        this.fetchAndUpdateDropdown(dropdown, card);
-                    }
-                } else {
-                    // No issue ID available, fetch asynchronously
-                    this.fetchAndUpdateDropdown(dropdown, card);
-                }
+                this.fetchAndUpdateDropdown(dropdown, dropdown.originalCard);
             }
         });
     }
@@ -2082,7 +1961,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
 
             // Check for merge conflicts
             if (item.has_conflicts === true) {
-
                 return 'Pipeline Failed';
             }
 
@@ -2091,7 +1969,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 return 'Changes Needed';
             }
 
-            // New: Check if MR has been approved but not yet merged
+            // Check if MR has been approved but not yet merged
             if (item.approvals_required !== undefined &&
                 item.approved_by !== undefined &&
                 item.approved_by.length >= item.approvals_required &&
@@ -2188,43 +2066,17 @@ window.LinkedItemsManager = class LinkedItemsManager {
             if (!dropdown || !card) return;
             const issueItem = await this.getIssueItemFromCard(card);
             if (!issueItem) return;
-            const projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
-            const issueIid = issueItem.iid ? issueItem.iid.toString().split('#').pop() : null;
-            const cacheKey = issueIid ? `${projectPath}/${issueIid}` : null;
 
-            // If there's cache data, use it immediately while fetching updated data
-            let usedCache = false;
-            if (cacheKey && this.cache.issues.has(cacheKey)) {
-                const cachedItems = this.cache.issues.get(cacheKey);
-                const cardId = dropdown.dataset.cardId;
-                this.cardLinks.set(cardId, cachedItems);
-                dropdown.isLoading = false;
-                this.updateDropdownWithLinkedItems(dropdown, cachedItems);
-                usedCache = true;
-            }
-
-            // Even if we used cache, still fetch fresh data
-            // If we didn't use cache, show initial linked items from props immediately if available
-            if (!usedCache) {
-                const initialLinkedItems = [];
-                const baseUrl = window.location.origin;
-                this.addLinkedItemsFromProps(issueItem, initialLinkedItems, baseUrl, projectPath);
-
-                if (initialLinkedItems.length > 0) {
-                    const cardId = dropdown.dataset.cardId;
-                    this.cardLinks.set(cardId, initialLinkedItems);
-                    dropdown.isLoading = false;
-                    this.updateDropdownWithLinkedItems(dropdown, initialLinkedItems);
-                }
-            }
-
-            // Always fetch fresh data
+            // Get linked items fresh each time
             const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
+
             if (linkedItems.length > 0) {
                 const cardId = dropdown.dataset.cardId;
                 this.cardLinks.set(cardId, linkedItems);
                 dropdown.isLoading = false;
                 this.updateDropdownWithLinkedItems(dropdown, linkedItems);
+            } else {
+                this.updateDropdownEmpty(dropdown);
             }
         } catch (error) {
             console.error('Error fetching and updating dropdown:', error);
@@ -2536,7 +2388,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
         return null;
     }
 
-    async getLinkedItemsFromIssue(issueItem, isBackgroundRefresh = false) {
+    async getLinkedItemsFromIssue(issueItem) {
         const linkedItems = [];
         try {
             let projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
@@ -2551,18 +2403,10 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     projectPath = projectPath.split('#')[0];
                 }
 
-                const cacheKey = `${projectPath}/${issueIid}`;
-
-                // Only return from cache if this is not a background refresh
-                if (!isBackgroundRefresh && this.cache.issues.has(cacheKey)) {
-                    return this.cache.issues.get(cacheKey);
-                }
-
                 this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
                 const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
 
                 if (gitlabApi && typeof gitlabApi.callGitLabApiWithCache === 'function') {
-
                     try {
                         const encodedPath = encodeURIComponent(projectPath);
                         try {
@@ -2572,7 +2416,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                     with_merge_status_recheck: true
                                 }
                             }, 60000);
-                            debugger
+
                             if (Array.isArray(relatedMRs) && relatedMRs.length > 0) {
                                 for (let i = linkedItems.length - 1; i >= 0; i--) {
                                     if (linkedItems[i].type === 'merge_request') {
@@ -2616,8 +2460,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                         issueItem: issueItem
                                     });
                                 }
-
-                                this.cache.mergeRequests.set(cacheKey, [...relatedMRs]);
                             }
                         } catch (mrError) {
                             console.warn('Error fetching related merge requests:', mrError);
@@ -2639,7 +2481,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                         url: related.web_url || `${baseUrl}/${projectPath}/-/issues/${related.iid}`
                                     });
                                 });
-                                this.cache.relatedIssues.set(cacheKey, [...relatedIssues]);
                             }
                         } catch (linkError) {
                             console.warn('Error fetching related issues:', linkError);
@@ -2672,26 +2513,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
                         url: `${baseUrl}/${projectPath}/-/issues/${issueIid}`
                     });
                 }
-            }
-
-            if (issueItem.iid) {
-                const cacheKey = `${projectPath}/${issueItem.iid.toString().split('#').pop()}`;
-                this.cache.issues.set(cacheKey, [...linkedItems]);
-
-                // Store timestamp of this update
-                try {
-                    const cacheTimestamp = localStorage.getItem('gitlabHelperLinkedItemsTimestamps');
-                    let timestamps = {};
-                    if (cacheTimestamp) {
-                        timestamps = JSON.parse(cacheTimestamp);
-                    }
-                    timestamps[cacheKey] = Date.now();
-                    localStorage.setItem('gitlabHelperLinkedItemsTimestamps', JSON.stringify(timestamps));
-                } catch (e) {
-                    console.warn('Error storing cache timestamp:', e);
-                }
-
-                this.saveCacheToLocalStorage();
             }
         } catch (e) {
             console.error('Error extracting linked items:', e);
@@ -3009,7 +2830,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                             this.dropdowns.push(dropdown);
                             newCardsFound = true;
 
-                            // Always fetch data for new cards, whether in cache or not
+                            // Always fetch data for new cards
                             this.fetchAndUpdateDropdown(dropdown, card);
                         }
                     } catch (error) {
@@ -3066,7 +2887,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
     }
 
     cleanup() {
-        this.saveCacheToLocalStorage();
         this.dropdowns.forEach(dropdown => {
             if (dropdown && dropdown.parentNode) {
                 dropdown.parentNode.removeChild(dropdown);
@@ -3075,10 +2895,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
-        }
-        if (this.cacheSaveInterval) {
-            clearInterval(this.cacheSaveInterval);
-            this.cacheSaveInterval = null;
         }
         if (this.boardObserver) {
             this.boardObserver.disconnect();
@@ -3090,9 +2906,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
         }
         this.dropdowns = [];
         this.cardLinks.clear();
-        this.cache.issues.clear();
-        this.cache.mergeRequests.clear();
-        this.cache.relatedIssues.clear();
         this.initialized = false;
     }
 
@@ -3179,17 +2992,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     url: issueUrl
                 });
             });
-        }
-    }
-
-    async preloadMergeRequests(projectPath) {
-        if (!projectPath) return;
-        try {
-            const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
-            if (!gitlabApi || typeof gitlabApi.callGitLabApiWithCache !== 'function') return;
-            const encodedPath = encodeURIComponent(projectPath);
-        } catch (error) {
-            console.warn('Error preloading merge requests:', error);
         }
     }
 }
@@ -3611,7 +3413,7 @@ window.TabManager = class TabManager {
     this.tabContainer.style.marginBottom = '10px';
     this.tabContainer.style.borderBottom = '1px solid #ddd';
     this.createTab('summary', 'Summary', this.currentTab === 'summary');
-    this.createTab('boards', 'Boards', this.currentTab === 'boards');
+    //this.createTab('boards', 'Boards', this.currentTab === 'boards');
     this.createTab('bulkcomments', 'Issues', this.currentTab === 'bulkcomments');
     this.createTab('sprintmanagement', 'Sprint', this.currentTab === 'sprintmanagement');
     this.createTab('stats', 'Stats', this.currentTab === 'stats');
