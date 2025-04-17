@@ -335,6 +335,23 @@ window.processBoards = function processBoards() {
               const timeEstimate = props.item.timeEstimate;
               totalEstimate += timeEstimate;
               boardData[boardTitle].timeEstimate += timeEstimate;
+
+              // Check if this item has the "needs-merge" label
+              let hasNeedsMergeLabel = false;
+              if (props.item.labels) {
+                const labels = Array.isArray(props.item.labels) ? props.item.labels :
+                    (props.item.labels.nodes ? props.item.labels.nodes : []);
+                hasNeedsMergeLabel = labels.some(label => {
+                  const labelName = label.title || label.name || '';
+                  return labelName.toLowerCase() === 'needs-merge';
+                });
+
+                // If it has "needs-merge" label but is not in a Done column, count it as closed
+                if (hasNeedsMergeLabel && !isClosedBoard) {
+                  closedBoardCards++;
+                }
+              }
+
               let assignees = [];
               if (props.item.assignees && props.item.assignees.nodes && props.item.assignees.nodes.length) {
                 assignees = props.item.assignees.nodes;
@@ -6519,7 +6536,7 @@ window.SummaryView = class SummaryView {
       let doneHours = 0;
       for (const boardName in boardData) {
         const lowerBoardName = boardName.toLowerCase();
-        if (lowerBoardName.includes('done') || lowerBoardName.includes('closed') || lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
+        if (lowerBoardName.includes('needs-merge') ||lowerBoardName.includes('done') || lowerBoardName.includes('closed') || lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
           doneHours += boardData[boardName].timeEstimate || 0;
         }
       }
@@ -6882,9 +6899,9 @@ window.SummaryView = class SummaryView {
           cells[1].style.maxWidth = '30px';
         }
         if (cells[2]) {
-          cells[2].style.width = '120px';
-          cells[2].style.minWidth = '120px';
-          cells[2].style.maxWidth = '120px';
+          cells[2].style.width = '200px';
+          cells[2].style.minWidth = '200px';
+          cells[2].style.maxWidth = '200px';
         }
         if (cells[0]) {
           cells[0].style.width = 'auto';
@@ -6893,6 +6910,8 @@ window.SummaryView = class SummaryView {
     });
     container.appendChild(table);
   }
+
+
   addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
     if (!name) name = "Unknown User";
     const row = document.createElement('tr');
@@ -7190,17 +7209,26 @@ window.SummaryView = class SummaryView {
         const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
         return Math.round(hoursFloat);
       });
+
+      // Get all issues to check for "needs-merge" labels
+      const issuesWithNeedsMergeLabels = this.findIssuesWithNeedsMergeLabel(name);
+
       const distributionText = distributionValues.map((hours, index) => {
         let spanHTML = `<span style="`;
         if (hours === 0) {
           spanHTML += `color:#aaa;`;
         }
-        if (index === distributionValues.length - 1 && hours > 0) {
+
+        // Check if this board is the last one (closed board) or if the assignee has "needs-merge" labeled issues
+        if ((index === distributionValues.length - 1 && hours > 0) ||
+            (issuesWithNeedsMergeLabels && issuesWithNeedsMergeLabels[boardNames[index]])) {
           spanHTML += `color:#28a745;`;
         }
+
         spanHTML += `">${hours}h</span>`;
         return spanHTML;
       }).join('/');
+
       distributionCell.innerHTML = distributionText;
     } else if (historyboardAssigneeData) {
       const distributionValues = boardNames.map(boardName => {
@@ -7232,6 +7260,88 @@ window.SummaryView = class SummaryView {
     row.appendChild(nameCell);
     row.appendChild(timeCell);
     row.appendChild(distributionCell);
+  }
+  findIssuesWithNeedsMergeLabel(assigneeName) {
+    if (!assigneeName) return null;
+
+    // Create a map to store which boards have needs-merge labeled issues for this assignee
+    const boardWithNeedsMerge = {};
+
+    try {
+      // Get all board lists
+      const boardLists = document.querySelectorAll('.board-list');
+      boardLists.forEach(boardList => {
+        // Get the board title
+        let boardTitle = "";
+        try {
+          if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+            const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
+            if (boardComponent && boardComponent.$props.list.title) {
+              boardTitle = boardComponent.$props.list.title;
+            }
+          }
+          if (!boardTitle) {
+            const boardHeader = boardList.querySelector('.board-title-text');
+            if (boardHeader) {
+              boardTitle = boardHeader.textContent.trim();
+            }
+          }
+        } catch (e) {
+          const boardHeader = boardList.querySelector('.board-title-text');
+          if (boardHeader) {
+            boardTitle = boardHeader.textContent.trim();
+          }
+        }
+
+        if (!boardTitle) return;
+
+        // Get all cards in this board
+        const cards = boardList.querySelectorAll('.board-card');
+        cards.forEach(card => {
+          try {
+            if (card.__vue__ && card.__vue__.$children) {
+              const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
+              if (issue && issue.$props && issue.$props.item) {
+                const item = issue.$props.item;
+
+                // Check if the card is assigned to our target assignee
+                let isAssignedToTarget = false;
+                if (item.assignees) {
+                  const assignees = item.assignees.nodes || item.assignees;
+                  isAssignedToTarget = assignees.some(assignee => {
+                    return (assignee.name === assigneeName || (assignee.username && assigneeName.toLowerCase().includes(assignee.username.toLowerCase())));
+                  });
+                }
+
+                // If assigned to our target assignee, check for needs-merge label
+                if (isAssignedToTarget) {
+                  let hasNeedsMergeLabel = false;
+                  if (item.labels) {
+                    const labels = Array.isArray(item.labels) ? item.labels :
+                        (item.labels.nodes ? item.labels.nodes : []);
+                    hasNeedsMergeLabel = labels.some(label => {
+                      const labelName = label.title || label.name || '';
+                      return labelName.toLowerCase() === 'needs-merge';
+                    });
+                  }
+
+                  // If has needs-merge label, mark this board
+                  if (hasNeedsMergeLabel) {
+                    boardWithNeedsMerge[boardTitle] = true;
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore errors for individual cards
+          }
+        });
+      });
+
+      return Object.keys(boardWithNeedsMerge).length > 0 ? boardWithNeedsMerge : null;
+    } catch (e) {
+      return null;
+    }
   }
 }
 
@@ -7568,45 +7678,64 @@ window.SprintManagementView = class SprintManagementView {
         }
       }
       const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') || boardTitle.includes('complete') || boardTitle.includes('finished');
-      if (isClosedBoard) {
-        const boardCards = boardList.querySelectorAll('.board-card');
-        boardCards.forEach(card => {
-          try {
-            if (card.__vue__ && card.__vue__.$children) {
-              const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
-              if (issue && issue.$props && issue.$props.item) {
-                const item = issue.$props.item;
-                const title = item.title;
-                const id = item.iid;
-                if (title) {
-                  closedTickets.push({
-                    id: id || 'unknown',
-                    title: title
-                  });
-                }
+
+      const boardCards = boardList.querySelectorAll('.board-card');
+      boardCards.forEach(card => {
+        try {
+          // Check if the card has needs-merge label
+          let hasNeedsMergeLabel = false;
+          let item = null;
+
+          if (card.__vue__ && card.__vue__.$children) {
+            const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
+            if (issue && issue.$props && issue.$props.item) {
+              item = issue.$props.item;
+
+              // Check for needs-merge label
+              if (item.labels) {
+                const labels = Array.isArray(item.labels) ? item.labels :
+                    (item.labels.nodes ? item.labels.nodes : []);
+                hasNeedsMergeLabel = labels.some(label => {
+                  const labelName = label.title || label.name || '';
+                  return labelName.toLowerCase() === 'needs-merge';
+                });
               }
+            }
+          }
+
+          // Add to closedTickets if it's in a closed board or has the needs-merge label
+          if (isClosedBoard || hasNeedsMergeLabel) {
+            let title = '';
+            let id = '';
+
+            if (item) {
+              title = item.title;
+              id = item.iid;
             } else {
               const titleEl = card.querySelector('.board-card-title');
               if (titleEl) {
-                const title = titleEl.textContent.trim();
-                let id = 'unknown';
-                const idMatch = card.querySelector('[data-issue-id]');
-                if (idMatch && idMatch.dataset.issueId) {
-                  id = idMatch.dataset.issueId;
-                }
-                if (title) {
-                  closedTickets.push({
-                    id: id,
-                    title: title
-                  });
-                }
+                title = titleEl.textContent.trim();
+              }
+
+              const idMatch = card.querySelector('[data-issue-id]');
+              if (idMatch && idMatch.dataset.issueId) {
+                id = idMatch.dataset.issueId;
+              } else {
+                id = 'unknown';
               }
             }
-          } catch (err) {
-            console.error('Error processing card:', err);
+
+            if (title) {
+              closedTickets.push({
+                id: id || 'unknown',
+                title: title
+              });
+            }
           }
-        });
-      }
+        } catch (err) {
+          console.error('Error processing card:', err);
+        }
+      });
     });
     return closedTickets;
   }
@@ -7676,10 +7805,22 @@ window.SprintManagementView = class SprintManagementView {
             if (issue && issue.$props && issue.$props.item) {
               const item = issue.$props.item;
               totalTickets++;
+
+              // Check if this item has the "needs-merge" label
+              let hasNeedsMergeLabel = false;
+              if (item.labels) {
+                const labels = Array.isArray(item.labels) ? item.labels :
+                    (item.labels.nodes ? item.labels.nodes : []);
+                hasNeedsMergeLabel = labels.some(label => {
+                  const labelName = label.title || label.name || '';
+                  return labelName.toLowerCase() === 'needs-merge';
+                });
+              }
+
               if (item.timeEstimate) {
                 const hours = item.timeEstimate / 3600;
                 totalHours += hours;
-                if (isClosedBoard) {
+                if (isClosedBoard || hasNeedsMergeLabel) {
                   closedHours += hours;
                 }
               }
@@ -9669,7 +9810,7 @@ window.UIManager = class UIManager {
     totalText.textContent = `Total: ${totalCards} cards`;
     totalStats.appendChild(totalText);
     const closedStats = document.createElement('div');
-    closedStats.textContent = `Closed: ${closedCards} cards`;
+    closedStats.textContent = `Done: ${closedCards} cards`;
     closedStats.style.color = '#28a745';
     this.boardStats.appendChild(totalStats);
     this.boardStats.appendChild(closedStats);
