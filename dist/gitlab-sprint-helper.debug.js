@@ -2009,7 +2009,8 @@ window.LinkedItemsManager = class LinkedItemsManager {
 
             // Check for merge conflicts
             if (item.has_conflicts === true) {
-                return 'Conflicts';
+
+                return 'Pipeline Failed';
             }
 
             // Check for blocking discussions not resolved
@@ -2017,18 +2018,26 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 return 'Changes Needed';
             }
 
-            // Check for discussions/comments
+            // New: Check if MR has been approved but not yet merged
+            if (item.approvals_required !== undefined &&
+                item.approved_by !== undefined &&
+                item.approved_by.length >= item.approvals_required &&
+                item.approvals_required > 0) {
+                return 'Approved';
+            }
+
+            // Check for discussions/comments to determine if it's being reviewed
             if (item.has_discussions === true ||
                 (item.user_notes_count !== undefined && item.user_notes_count > 0)) {
                 return 'Reviewing';
             }
 
-            // Check for approvals and changes requested
+            // Check if approval is required but no approvals yet
             if (item.approvals_required !== undefined &&
                 item.approved_by !== undefined) {
                 if (item.approvals_required > 0 &&
                     (!item.approved_by || item.approved_by.length < item.approvals_required)) {
-                    return 'Reviewing';
+                    return 'Needs Review';
                 }
             }
 
@@ -2485,7 +2494,8 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                 for (const mr of relatedMRs) {
                                     // Get more detailed MR info if not already included
                                     let mrDetails = mr;
-
+                                    mr.has_conflicts = mr.pipeline !== undefined && mr.pipeline.status === "failed"
+                                    mr.rspec_running = mr.pipeline !== undefined && mr.pipeline.status === "running"
                                     if (!mr.blocking_discussions_resolved || !mr.has_conflicts) {
                                         try {
                                             const detailedMR = await gitlabApi.callGitLabApiWithCache(
@@ -2506,13 +2516,16 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                         state: mrDetails.state,
                                         url: mrDetails.web_url || `${baseUrl}/${projectPath}/-/merge_requests/${mrDetails.iid}`,
                                         has_conflicts: mrDetails.has_conflicts,
+                                        rspec_running:  mr.rspec_running,
                                         blocking_discussions_resolved: mrDetails.blocking_discussions_resolved,
                                         has_discussions: mrDetails.discussion_locked !== undefined
                                             ? !mrDetails.discussion_locked
                                             : !!mrDetails.user_notes_count,
                                         approvals_required: mrDetails.approvals_required,
                                         approved_by: mrDetails.approved_by,
-                                        pipeline_status: mrDetails.pipeline_status
+                                        pipeline_status: mrDetails.pipeline_status,
+                                        mrDetails: mrDetails,
+                                        issueItem: issueItem
                                     });
                                 }
 
@@ -2576,9 +2589,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
             if (issueItem.iid) {
                 const cacheKey = `${projectPath}/${issueItem.iid.toString().split('#').pop()}`;
                 this.cache.issues.set(cacheKey, [...linkedItems]);
-                if (Math.random() < 0.1) {
-                    this.saveCacheToLocalStorage();
-                }
+                this.saveCacheToLocalStorage();
             }
         } catch (e) {
             console.error('Error extracting linked items:', e);
@@ -2606,21 +2617,26 @@ window.LinkedItemsManager = class LinkedItemsManager {
 
                 // Enhanced status display for merge requests
                 const mrStatusText = this.getEnhancedMRStatus(item);
-
                 if (mrStatusText === 'Merged') {
-                    icon.style.color = '#6f42c1';
+                    icon.style.color = '#6f42c1'; // Purple for merged
                 } else if (mrStatusText === 'Reviewing') {
-                    icon.style.color = '#28a745';
+                    icon.style.color = '#f9bc00'; // Yellow for in-review
+                } else if (mrStatusText === 'Approved') {
+                    icon.style.color = '#28a745'; // Green for approved
+                } else if (mrStatusText === 'Needs Review') {
+                    icon.style.color = '#1f75cb'; // Blue for needs review
                 } else if (mrStatusText === 'Changes Needed') {
-                    icon.style.color = '#f9bc00';
+                    icon.style.color = '#dc3545'; // Red for changes needed
                 } else if (mrStatusText === 'Open') {
-                    icon.style.color = '#1f75cb';
+                    icon.style.color = '#1f75cb'; // Blue for open
                 } else if (mrStatusText === 'Closed') {
-                    icon.style.color = '#dc3545';
+                    icon.style.color = '#dc3545'; // Red for closed
                 } else if (mrStatusText === 'Draft') {
-                    icon.style.color = '#6c757d';
-                } else if (mrStatusText === 'Conflicts') {
-                    icon.style.color = '#dc3545';
+                    icon.style.color = '#6c757d'; // Gray for drafts
+                } else if (mrStatusText === 'Pipeline Failed') {
+                    icon.style.color = '#dc3545'; // Red for conflicts
+                } else if (mrStatusText === 'Pipeline Failed') {
+                    icon.style.color = '#dc3545'; // Red for pipeline failures
                 }
                 break;
 
@@ -2679,25 +2695,34 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     status.style.backgroundColor = '#6f42c1';
                     status.style.color = 'white';
                 } else if (statusText === 'Reviewing') {
-                    status.style.backgroundColor = '#28a745';
+                    status.style.backgroundColor = '#f9bc00'; // Yellow for in-review
+                    status.style.color = 'black';
+                } else if (statusText === 'Approved') {
+                    status.style.backgroundColor = '#28a745'; // Green for approved
+                    status.style.color = 'white';
+                } else if (statusText === 'Needs Review') {
+                    status.style.backgroundColor = '#1f75cb'; // Blue for needs review
                     status.style.color = 'white';
                 } else if (statusText === 'Changes Needed') {
-                    status.style.backgroundColor = '#f9bc00';
-                    status.style.color = 'black';
+                    status.style.backgroundColor = '#dc3545'; // Red for changes needed
+                    status.style.color = 'white';
                 } else if (statusText === 'Draft') {
-                    status.style.backgroundColor = '#6c757d';
-                    status.style.color = 'white';
-                } else if (statusText === 'Conflicts') {
-                    status.style.backgroundColor = '#dc3545';
-                    status.style.color = 'white';
-                } else if (statusText === 'opened') {
-                    status.style.backgroundColor = '#1f75cb';
-                    status.style.color = 'white';
-                } else if (statusText === 'Closed') {
-                    status.style.backgroundColor = '#000000';
+                    status.style.backgroundColor = '#6c757d'; // Gray for drafts
                     status.style.color = 'white';
                 } else if (statusText === 'Pipeline Failed') {
-                    status.style.backgroundColor = '#dc3545';
+                    status.style.backgroundColor = '#dc3545'; // Red for conflicts
+                    status.style.color = 'white';
+                } else if (statusText === 'Pipeline Failed') {
+                    status.style.backgroundColor = '#dc3545'; // Red for failed pipeline
+                    status.style.color = 'white';
+                } else if (statusText === 'Open') {
+                    status.style.backgroundColor = '#1f75cb'; // Blue for open
+                    status.style.color = 'white';
+                } else if (statusText === 'Closed') {
+                    status.style.backgroundColor = '#000000'; // Black for closed
+                    status.style.color = 'white';
+                } else {
+                    status.style.backgroundColor = '#6c757d';
                     status.style.color = 'white';
                 }
             } else if (item.type === 'issue') {
@@ -10000,8 +10025,6 @@ window.addEventListener('resize', () => {
 (function () {
     'use strict';
 
-    function setupGlobalReferences() {
-    }
 
     
 
