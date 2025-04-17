@@ -1964,6 +1964,20 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 return 'Pipeline Failed';
             }
 
+            // Check if issue has the needs-merge label and should show "Ready to Merge"
+            const hasNeedsMergeLabel = item.issueItem?.labels?.some(label =>
+                label.title?.toLowerCase() === 'needs-merge' ||
+                label.name?.toLowerCase() === 'needs-merge'
+            );
+
+            // Check pipeline status for "Ready to Merge" determination
+            if (hasNeedsMergeLabel &&
+                (!item.pipeline_status ||
+                    (item.pipeline_status.status !== 'failed' &&
+                        item.pipeline_status.status !== 'running'))) {
+                return 'Ready to Merge';
+            }
+
             // Check for blocking discussions not resolved
             if (item.blocking_discussions_resolved === false) {
                 return 'Changes Needed';
@@ -2060,12 +2074,46 @@ window.LinkedItemsManager = class LinkedItemsManager {
             }
         });
     }
+    getBoardNameFromCard(card) {
+        try {
+            // Try to find the board list container
+            const boardList = card.closest('.board-list');
+            if (!boardList) return '';
 
+            // Look for the board title
+            const boardTitleElement = boardList.querySelector('.board-title-text');
+            if (boardTitleElement) {
+                return boardTitleElement.textContent.trim();
+            }
+
+            // If we can't find it directly, try using Vue components if available
+            if (boardList.__vue__ && boardList.__vue__.$children) {
+                const listComponent = boardList.__vue__.$children.find(c =>
+                    c.$props && c.$props.list && c.$props.list.title);
+                if (listComponent && listComponent.$props.list.title) {
+                    return listComponent.$props.list.title;
+                }
+            }
+
+            return '';
+        } catch (error) {
+            console.warn('Error getting board name:', error);
+            return '';
+        }
+    }
     async fetchAndUpdateDropdown(dropdown, card) {
         try {
             if (!dropdown || !card) return;
             const issueItem = await this.getIssueItemFromCard(card);
             if (!issueItem) return;
+
+            // Get the board name from the card's parent elements
+            try {
+                const boardName = this.getBoardNameFromCard(card) || '';
+                issueItem.boardName = boardName;
+            } catch (err) {
+                console.warn('Error getting board name:', err);
+            }
 
             // Get linked items fresh each time
             const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
@@ -2360,6 +2408,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 if (boardCard.__vue__.$children && boardCard.__vue__.$children.length > 0) {
                     const issueComponent = boardCard.__vue__.$children.find(child => child.$props && child.$props.item);
                     if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
+                        // This will include labels if available from GitLab's Vue component
                         return issueComponent.$props.item;
                     }
                 }
@@ -2373,13 +2422,27 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     return boardCard.__vue__.$props.item;
                 }
             }
+
+            // Fallback to DOM-based extraction
             const issueId = boardCard.querySelector('[data-issue-id]')?.dataset?.issueId;
             const titleElement = boardCard.querySelector('.board-card-title');
+
+            // Try to get labels from DOM if Vue data is not available
+            let labels = [];
+            const labelElements = boardCard.querySelectorAll('.gl-label-text');
+            if (labelElements && labelElements.length > 0) {
+                labels = Array.from(labelElements).map(el => ({
+                    name: el.textContent.trim(),
+                    title: el.textContent.trim()
+                }));
+            }
+
             if (issueId && titleElement) {
                 return {
                     iid: issueId,
                     title: titleElement.textContent.trim(),
-                    referencePath: window.location.pathname.split('/boards')[0]
+                    referencePath: window.location.pathname.split('/boards')[0],
+                    labels: labels
                 };
             }
         } catch (e) {
@@ -2629,6 +2692,10 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 } else if (statusText === 'Approved') {
                     status.style.backgroundColor = '#28a745'; // Green for approved
                     status.style.color = 'white';
+                } else if (statusText === 'Ready to Merge') {
+                    status.style.backgroundColor = '#28a745'; // Green for ready to merge
+                    status.style.color = 'white';
+                    status.style.fontWeight = 'bold'; // Make it stand out
                 } else if (statusText === 'Needs Review') {
                     status.style.backgroundColor = '#1f75cb'; // Blue for needs review
                     status.style.color = 'white';
