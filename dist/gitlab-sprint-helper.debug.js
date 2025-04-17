@@ -4,7 +4,7 @@
 // @version      1.0
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
-// @match        https://gitlab.com/*/boards/*
+// @match        https://gitlab.com/*/boards*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-idle
