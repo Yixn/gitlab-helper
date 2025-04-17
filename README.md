@@ -32,16 +32,13 @@ A powerful browser extension for GitLab that enhances issue management with time
 
 ## Installation
 
-### Option 1: Install from Tampermonkey Gallery (Recommended)
-1. Make sure you have the [Tampermonkey](https://www.tampermonkey.net/) browser extension installed
-2. Visit [our script page](https://example.com/gitlab-sprint-helper) in the Tampermonkey gallery
-3. Click "Install"
-
-### Option 2: Manual Installation
+### Manual Installation
 1. Install [Tampermonkey](https://www.tampermonkey.net/) for your browser
 2. Create a new script in Tampermonkey
 3. Copy the contents of `dist/gitlab-sprint-helper.js` and paste into the new script
 4. Save the script
+5. ...
+6. Profit?
 
 ## Usage
 
