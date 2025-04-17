@@ -1882,6 +1882,16 @@ window.LinkedItemsManager = class LinkedItemsManager {
             mergeRequests: new Map(),
             relatedIssues: new Map()
         };
+
+        // Initialize timestamps if they don't exist
+        try {
+            if (!localStorage.getItem('gitlabHelperLinkedItemsTimestamps')) {
+                localStorage.setItem('gitlabHelperLinkedItemsTimestamps', JSON.stringify({}));
+            }
+        } catch (e) {
+            console.warn('Error initializing cache timestamps:', e);
+        }
+
         this.loadCacheFromLocalStorage();
         this.handleScroll = this.handleScroll.bind(this);
         this.handleResize = this.handleResize.bind(this);
@@ -1910,17 +1920,21 @@ window.LinkedItemsManager = class LinkedItemsManager {
             const savedCache = localStorage.getItem('gitlabHelperLinkedItemsCache');
             if (savedCache) {
                 const cacheData = JSON.parse(savedCache);
-                if (cacheData.timestamp && Date.now() - cacheData.timestamp < 8 * 60 * 60 * 1000) {
+
+                // Extend cache lifetime to 24 hours (was 8 hours)
+                if (cacheData.timestamp && Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000) {
                     if (cacheData.issues) {
                         Object.entries(cacheData.issues).forEach(([key, items]) => {
                             this.cache.issues.set(key, items);
                         });
                     }
+
                     if (cacheData.mergeRequests) {
                         Object.entries(cacheData.mergeRequests).forEach(([key, items]) => {
                             this.cache.mergeRequests.set(key, items);
                         });
                     }
+
                     if (cacheData.relatedIssues) {
                         Object.entries(cacheData.relatedIssues).forEach(([key, items]) => {
                             this.cache.relatedIssues.set(key, items);
@@ -1928,11 +1942,13 @@ window.LinkedItemsManager = class LinkedItemsManager {
                     }
                 } else {
                     localStorage.removeItem('gitlabHelperLinkedItemsCache');
+                    localStorage.removeItem('gitlabHelperLinkedItemsTimestamps');
                 }
             }
         } catch (error) {
             console.warn('Error loading cache from localStorage:', error);
             localStorage.removeItem('gitlabHelperLinkedItemsCache');
+            localStorage.removeItem('gitlabHelperLinkedItemsTimestamps');
         }
     }
 
@@ -1943,22 +1959,38 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 mergeRequests: {},
                 relatedIssues: {}
             };
+
             this.cache.issues.forEach((value, key) => {
                 cacheObject.issues[key] = value;
             });
+
             this.cache.mergeRequests.forEach((value, key) => {
                 cacheObject.mergeRequests[key] = value;
             });
+
             this.cache.relatedIssues.forEach((value, key) => {
                 cacheObject.relatedIssues[key] = value;
             });
+
             const cacheData = {
                 timestamp: Date.now(),
                 issues: cacheObject.issues,
                 mergeRequests: cacheObject.mergeRequests,
                 relatedIssues: cacheObject.relatedIssues
             };
+
             localStorage.setItem('gitlabHelperLinkedItemsCache', JSON.stringify(cacheData));
+
+            // Make sure we also save timestamps if they exist
+            if (!localStorage.getItem('gitlabHelperLinkedItemsTimestamps')) {
+                // Create timestamps for all cache entries if they don't exist
+                const now = Date.now();
+                const timestamps = {};
+                this.cache.issues.forEach((value, key) => {
+                    timestamps[key] = now;
+                });
+                localStorage.setItem('gitlabHelperLinkedItemsTimestamps', JSON.stringify(timestamps));
+            }
         } catch (error) {
             console.warn('Error saving cache to localStorage:', error);
         }
@@ -1973,12 +2005,53 @@ window.LinkedItemsManager = class LinkedItemsManager {
         }
         this.initialized = true;
         this.applyOverflowFixes();
-        this.createCardDropdowns();
-        this.refreshInterval = setInterval(this.refreshDropdowns, 2000);
+
+        // First load from cache immediately
+        this.loadFromCacheAndCreateDropdowns();
+
+        // Then set up periodic refresh to catch new cards
+        this.refreshInterval = setInterval(() => {
+            this.refreshDropdowns();
+        }, 2000);
+
         this.setupCardsMutationObserver();
         this.cacheSaveInterval = setInterval(() => {
             this.saveCacheToLocalStorage();
         }, 60000);
+    }
+
+    loadFromCacheAndCreateDropdowns() {
+        // First create dropdowns for all existing cards
+        this.createCardDropdowns();
+
+        // Then for each dropdown that was created, immediately update it from cache if available
+        this.dropdowns.forEach(dropdown => {
+            if (dropdown && dropdown.originalCard) {
+                const card = dropdown.originalCard;
+                const issueItem = this.getIssueItemFromCard(card);
+                if (issueItem && issueItem.iid) {
+                    const projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
+                    const issueIid = issueItem.iid.toString().split('#').pop();
+                    const cacheKey = `${projectPath}/${issueIid}`;
+                    if (this.cache.issues.has(cacheKey)) {
+                        const cachedItems = this.cache.issues.get(cacheKey);
+                        const cardId = dropdown.dataset.cardId;
+                        this.cardLinks.set(cardId, cachedItems);
+                        dropdown.isLoading = false;
+                        this.updateDropdownWithLinkedItems(dropdown, cachedItems);
+
+                        // Also update in the background for freshness
+                        this.fetchAndUpdateDropdown(dropdown, card);
+                    } else {
+                        // If not in cache, fetch asynchronously
+                        this.fetchAndUpdateDropdown(dropdown, card);
+                    }
+                } else {
+                    // No issue ID available, fetch asynchronously
+                    this.fetchAndUpdateDropdown(dropdown, card);
+                }
+            }
+        });
     }
 
     getEnhancedMRStatus(item) {
@@ -2099,7 +2172,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
                         const dropdown = this.createPlaceholderDropdown(card, cardArea);
                         if (dropdown) {
                             this.dropdowns.push(dropdown);
-                            this.fetchAndUpdateDropdown(dropdown, card);
                         }
                     } catch (error) {
                         console.error('Error creating dropdown for card:', error);
@@ -2119,28 +2191,41 @@ window.LinkedItemsManager = class LinkedItemsManager {
             const projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
             const issueIid = issueItem.iid ? issueItem.iid.toString().split('#').pop() : null;
             const cacheKey = issueIid ? `${projectPath}/${issueIid}` : null;
+
+            // If there's cache data, use it immediately while fetching updated data
+            let usedCache = false;
             if (cacheKey && this.cache.issues.has(cacheKey)) {
                 const cachedItems = this.cache.issues.get(cacheKey);
                 const cardId = dropdown.dataset.cardId;
                 this.cardLinks.set(cardId, cachedItems);
                 dropdown.isLoading = false;
                 this.updateDropdownWithLinkedItems(dropdown, cachedItems);
-                return;
+                usedCache = true;
             }
-            const initialLinkedItems = [];
-            const baseUrl = window.location.origin;
-            this.addLinkedItemsFromProps(issueItem, initialLinkedItems, baseUrl, projectPath);
-            if (initialLinkedItems.length > 0) {
-                const cardId = dropdown.dataset.cardId;
-                this.cardLinks.set(cardId, initialLinkedItems);
-                dropdown.isLoading = false;
-                this.updateDropdownWithLinkedItems(dropdown, initialLinkedItems);
+
+            // Even if we used cache, still fetch fresh data
+            // If we didn't use cache, show initial linked items from props immediately if available
+            if (!usedCache) {
+                const initialLinkedItems = [];
+                const baseUrl = window.location.origin;
+                this.addLinkedItemsFromProps(issueItem, initialLinkedItems, baseUrl, projectPath);
+
+                if (initialLinkedItems.length > 0) {
+                    const cardId = dropdown.dataset.cardId;
+                    this.cardLinks.set(cardId, initialLinkedItems);
+                    dropdown.isLoading = false;
+                    this.updateDropdownWithLinkedItems(dropdown, initialLinkedItems);
+                }
             }
+
+            // Always fetch fresh data
             const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
-            const cardId = dropdown.dataset.cardId;
-            this.cardLinks.set(cardId, linkedItems);
-            dropdown.isLoading = false;
-            this.updateDropdownWithLinkedItems(dropdown, linkedItems);
+            if (linkedItems.length > 0) {
+                const cardId = dropdown.dataset.cardId;
+                this.cardLinks.set(cardId, linkedItems);
+                dropdown.isLoading = false;
+                this.updateDropdownWithLinkedItems(dropdown, linkedItems);
+            }
         } catch (error) {
             console.error('Error fetching and updating dropdown:', error);
             this.updateDropdownWithError(dropdown);
@@ -2261,7 +2346,6 @@ window.LinkedItemsManager = class LinkedItemsManager {
         }
     }
 
-    // lib/ui/components/LinkedItemsManager.js - createPlaceholderDropdown function
     createPlaceholderDropdown(card, cardArea) {
         const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const dropdown = document.createElement('div');
@@ -2452,11 +2536,12 @@ window.LinkedItemsManager = class LinkedItemsManager {
         return null;
     }
 
-    async getLinkedItemsFromIssue(issueItem) {
+    async getLinkedItemsFromIssue(issueItem, isBackgroundRefresh = false) {
         const linkedItems = [];
         try {
             let projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
             const baseUrl = window.location.origin;
+
             if (issueItem.iid) {
                 let issueIid = issueItem.iid;
                 if (typeof issueIid === 'string' && issueIid.includes('#')) {
@@ -2465,24 +2550,29 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 if (projectPath.includes('#')) {
                     projectPath = projectPath.split('#')[0];
                 }
+
                 const cacheKey = `${projectPath}/${issueIid}`;
-                if (this.cache.issues.has(cacheKey)) {
+
+                // Only return from cache if this is not a background refresh
+                if (!isBackgroundRefresh && this.cache.issues.has(cacheKey)) {
                     return this.cache.issues.get(cacheKey);
                 }
+
                 this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
                 const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
+
                 if (gitlabApi && typeof gitlabApi.callGitLabApiWithCache === 'function') {
+
                     try {
                         const encodedPath = encodeURIComponent(projectPath);
                         try {
                             const relatedMRs = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/related_merge_requests`, {
                                 params: {
-                                    // Request additional details for enhanced status
                                     with_discussions_to_resolve: true,
                                     with_merge_status_recheck: true
                                 }
                             }, 60000);
-
+                            debugger
                             if (Array.isArray(relatedMRs) && relatedMRs.length > 0) {
                                 for (let i = linkedItems.length - 1; i >= 0; i--) {
                                     if (linkedItems[i].type === 'merge_request') {
@@ -2490,9 +2580,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                     }
                                 }
 
-                                // Process each MR to fetch more details if needed
                                 for (const mr of relatedMRs) {
-                                    // Get more detailed MR info if not already included
                                     let mrDetails = mr;
                                     mr.has_conflicts = mr.pipeline !== undefined && mr.pipeline.status === "failed"
                                     mr.rspec_running = mr.pipeline !== undefined && mr.pipeline.status === "running"
@@ -2516,7 +2604,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                                         state: mrDetails.state,
                                         url: mrDetails.web_url || `${baseUrl}/${projectPath}/-/merge_requests/${mrDetails.iid}`,
                                         has_conflicts: mrDetails.has_conflicts,
-                                        rspec_running:  mr.rspec_running,
+                                        rspec_running: mr.rspec_running,
                                         blocking_discussions_resolved: mrDetails.blocking_discussions_resolved,
                                         has_discussions: mrDetails.discussion_locked !== undefined
                                             ? !mrDetails.discussion_locked
@@ -2589,6 +2677,20 @@ window.LinkedItemsManager = class LinkedItemsManager {
             if (issueItem.iid) {
                 const cacheKey = `${projectPath}/${issueItem.iid.toString().split('#').pop()}`;
                 this.cache.issues.set(cacheKey, [...linkedItems]);
+
+                // Store timestamp of this update
+                try {
+                    const cacheTimestamp = localStorage.getItem('gitlabHelperLinkedItemsTimestamps');
+                    let timestamps = {};
+                    if (cacheTimestamp) {
+                        timestamps = JSON.parse(cacheTimestamp);
+                    }
+                    timestamps[cacheKey] = Date.now();
+                    localStorage.setItem('gitlabHelperLinkedItemsTimestamps', JSON.stringify(timestamps));
+                } catch (e) {
+                    console.warn('Error storing cache timestamp:', e);
+                }
+
                 this.saveCacheToLocalStorage();
             }
         } catch (e) {
@@ -2886,19 +2988,28 @@ window.LinkedItemsManager = class LinkedItemsManager {
     }
 
     checkForNewCards() {
+        if (!this.initialized) {
+            return false;
+        }
+
         const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
         let newCardsFound = false;
         cardAreas.forEach(cardArea => {
             const cards = cardArea.querySelectorAll('.board-card');
             cards.forEach(card => {
                 const cardId = card.id || '';
-                const hasDropdown = this.dropdowns.some(dropdown => dropdown.dataset.cardId === cardId || dropdown.originalCard === card);
+                const hasDropdown = this.dropdowns.some(dropdown =>
+                    dropdown.dataset.cardId === cardId || dropdown.originalCard === card
+                );
+
                 if (!hasDropdown) {
                     try {
                         const dropdown = this.createPlaceholderDropdown(card, cardArea);
                         if (dropdown) {
                             this.dropdowns.push(dropdown);
                             newCardsFound = true;
+
+                            // Always fetch data for new cards, whether in cache or not
                             this.fetchAndUpdateDropdown(dropdown, card);
                         }
                     } catch (error) {
@@ -2907,6 +3018,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
                 }
             });
         });
+
         return newCardsFound;
     }
 
