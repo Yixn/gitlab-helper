@@ -291,6 +291,7 @@ window.processBoards = function processBoards() {
   let cardsWithTime = 0;
   let currentMilestone = null;
   let closedBoardCards = 0;
+  let needsMergeCards = 0;
   const userDistributionMap = {};
   const userDataMap = {};
   const boardLists = document.querySelectorAll('.board-list');
@@ -360,8 +361,10 @@ window.processBoards = function processBoards() {
                   const labelName = label.title || label.name || '';
                   return labelName.toLowerCase() === 'needs-merge';
                 });
-                if (hasNeedsMergeLabel && !isClosedBoard) {
-                  closedBoardCards++;
+                if (hasNeedsMergeLabel) {
+                  if (!isClosedBoard) {
+                    needsMergeCards++;
+                  }
                 }
               }
               let assignees = [];
@@ -484,6 +487,7 @@ window.processBoards = function processBoards() {
     cardsWithTime,
     currentMilestone,
     closedBoardCards,
+    needsMergeCards,
     userDistributions: formattedUserDistributions,
     userData: userDataMap
   };
@@ -6147,11 +6151,77 @@ window.SummaryView = class SummaryView {
         }
       }
       summaryContent.innerHTML = '';
+
+
+      // lib/ui/views/SummaryView.js - render function (partial update for counting needs-merge cards)
+
+// Count needs-merge cards, excluding those already in done boards
+      let needsMergeCount = 0;
+      try {
+        const boardLists = document.querySelectorAll('.board-list');
+        boardLists.forEach(boardList => {
+          // Check if this is a "done" board
+          let boardTitle = '';
+          try {
+            if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+              const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
+              if (boardComponent && boardComponent.$props.list.title) {
+                boardTitle = boardComponent.$props.list.title.toLowerCase();
+              }
+            }
+            if (!boardTitle) {
+              const boardHeader = boardList.querySelector('.board-title-text');
+              if (boardHeader) {
+                boardTitle = boardHeader.textContent.trim().toLowerCase();
+              }
+            }
+          } catch (e) {
+            console.error('Error getting board title:', e);
+            const boardHeader = boardList.querySelector('.board-title-text');
+            if (boardHeader) {
+              boardTitle = boardHeader.textContent.trim().toLowerCase();
+            }
+          }
+
+          const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') ||
+              boardTitle.includes('complete') || boardTitle.includes('finished');
+
+          // Skip closed boards to avoid double counting
+          if (isClosedBoard) {
+            return;
+          }
+
+          // Only count needs-merge cards in non-closed boards
+          const cards = boardList.querySelectorAll('.board-card');
+          cards.forEach(card => {
+            if (card.__vue__ && card.__vue__.$children) {
+              const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
+              if (issue && issue.$props && issue.$props.item) {
+                const item = issue.$props.item;
+                if (item.labels) {
+                  const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
+                  const hasNeedsMergeLabel = labels.some(label => {
+                    const labelName = label.title || label.name || '';
+                    return labelName.toLowerCase() === 'needs-merge';
+                  });
+                  if (hasNeedsMergeLabel) {
+                    needsMergeCount++;
+                  }
+                }
+              }
+            }
+          });
+        });
+      } catch (e) {
+        console.error('Error counting needs-merge cards:', e);
+      }
+
       if (this.uiManager) {
         this.uiManager.updateBoardStats({
           totalCards: cardsProcessed,
           withTimeCards: cardsWithTime,
-          closedCards: this.getClosedBoardCount()
+          closedCards: this.getClosedBoardCount(),
+          needsMergeCards: needsMergeCount
         });
       }
       if (cardsWithTime === 0) {
@@ -9729,24 +9799,33 @@ window.UIManager = class UIManager {
     this.boardStats.textContent = 'Loading board statistics...';
     this.container.appendChild(this.boardStats);
   }
+// lib/ui/UIManager.js - updateBoardStats function
+
   updateBoardStats(stats) {
     if (!this.boardStats) return;
     const totalCards = stats?.totalCards || 0;
-    const withTimeCards = stats?.withTimeCards || 0;
     const closedCards = stats?.closedCards || 0;
+    const needsMergeCards = stats?.needsMergeCards || 0;
+    const totalClosedCards = closedCards + needsMergeCards;
+
     this.boardStats.innerHTML = '';
+
     const totalStats = document.createElement('div');
     totalStats.style.display = 'flex';
     totalStats.style.gap = '8px';
+
     const totalText = document.createElement('span');
     totalText.textContent = `Total: ${totalCards} cards`;
     totalStats.appendChild(totalText);
+
     const closedStats = document.createElement('div');
-    closedStats.textContent = `Done: ${closedCards} cards`;
+    closedStats.textContent = `Done: ${totalClosedCards} cards`;
     closedStats.style.color = '#28a745';
+
     this.boardStats.appendChild(totalStats);
     this.boardStats.appendChild(closedStats);
   }
+
   toggleCollapse() {
     if (!this.contentWrapper || !this.collapseBtn) return;
     try {
@@ -10255,6 +10334,8 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
     checkForElement();
   });
 }
+// lib/index.js - updateSummary function
+
 function updateSummary() {
   if (!window.uiManager) {
     console.warn('UI Manager not initialized, cannot update summary');
@@ -10270,27 +10351,35 @@ function updateSummary() {
       cardsProcessed,
       cardsWithTime,
       currentMilestone,
-      closedBoardCards
+      closedBoardCards,
+      needsMergeCards
     } = result;
+
     window.uiManager.updateBoardStats({
       totalCards: cardsProcessed,
       withTimeCards: cardsWithTime,
-      closedCards: closedBoardCards || 0
+      closedCards: closedBoardCards,
+      needsMergeCards: needsMergeCards
     });
+
     const totalHours = totalEstimate / 3600;
     window.uiManager.updateHeader(`Summary ${totalHours}h`);
     const validBoardData = boardData || {};
     const validBoardAssigneeData = boardAssigneeData || {};
+
     if (window.uiManager.summaryView) {
       window.uiManager.summaryView.render(assigneeTimeMap, totalEstimate, cardsProcessed, cardsWithTime, currentMilestone, validBoardData, validBoardAssigneeData);
     }
+
     if (window.uiManager.boardsView) {
       window.uiManager.boardsView.render(validBoardData, validBoardAssigneeData);
     }
+
     const sprintManagementContent = document.getElementById('sprint-management-content');
     if (sprintManagementContent && sprintManagementContent.style.display === 'block' && window.uiManager.sprintManagementView) {
       window.uiManager.sprintManagementView.render();
     }
+
     const bulkCommentsContent = document.getElementById('bulk-comments-content');
     if (bulkCommentsContent && bulkCommentsContent.style.display === 'block' && window.uiManager.bulkCommentsView) {
       window.uiManager.bulkCommentsView.render();
