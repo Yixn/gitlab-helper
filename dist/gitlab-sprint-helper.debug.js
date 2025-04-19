@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -9939,19 +9939,12 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
     checkForElement();
   });
 }
-function updateSummary(forceHistoryUpdate = false) {
+function updateSummary() {
   if (!window.uiManager) {
     console.warn('UI Manager not initialized, cannot update summary');
     return;
   }
-  let boardFullyLoaded = false;
-  let loadingTimeout;
-  clearTimeout(loadingTimeout);
   try {
-    const {
-      hasOnlyAllowedParams
-    } = window;
-    const shouldUpdateCache = hasOnlyAllowedParams() || forceHistoryUpdate;
     const result = processBoards();
     const {
       assigneeTimeMap,
@@ -9963,10 +9956,6 @@ function updateSummary(forceHistoryUpdate = false) {
       currentMilestone,
       closedBoardCards
     } = result;
-    clearTimeout(loadingTimeout);
-    loadingTimeout = setTimeout(() => {
-      boardFullyLoaded = true;
-    }, 3000);
     window.uiManager.updateBoardStats({
       totalCards: cardsProcessed,
       withTimeCards: cardsWithTime,
@@ -9999,7 +9988,10 @@ function addBoardChangeListeners() {
     const boardLists = document.querySelectorAll('.board-list');
     boardLists.forEach(boardList => {
       const boardObserver = new MutationObserver(() => {
-        updateSummary();
+        setTimeout(()=>{
+          if($(".is-dragging").length === 0)
+            updateSummary();
+        })
       });
       boardObserver.observe(boardList, {
         childList: true,
