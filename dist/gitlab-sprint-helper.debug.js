@@ -174,8 +174,6 @@ window.fetchAllBoards = async function() {
     console.error('Error fetching boards:', error);
     return [];
   }
-
-
 }
 window.hasOnlyAllowedParams = function hasOnlyAllowedParams() {
   try {
@@ -183,7 +181,6 @@ window.hasOnlyAllowedParams = function hasOnlyAllowedParams() {
     const allowedParams = ['milestone_title', 'assignee_username'];
     let paramCount = 0;
     let disallowedParamFound = false;
-
     urlParams.forEach((value, key) => {
       paramCount++;
       if (!allowedParams.includes(key)) {
@@ -356,23 +353,17 @@ window.processBoards = function processBoards() {
               const timeEstimate = props.item.timeEstimate;
               totalEstimate += timeEstimate;
               boardData[boardTitle].timeEstimate += timeEstimate;
-
-              // Check if this item has the "needs-merge" label
               let hasNeedsMergeLabel = false;
               if (props.item.labels) {
-                const labels = Array.isArray(props.item.labels) ? props.item.labels :
-                    (props.item.labels.nodes ? props.item.labels.nodes : []);
+                const labels = Array.isArray(props.item.labels) ? props.item.labels : props.item.labels.nodes ? props.item.labels.nodes : [];
                 hasNeedsMergeLabel = labels.some(label => {
                   const labelName = label.title || label.name || '';
                   return labelName.toLowerCase() === 'needs-merge';
                 });
-
-                // If it has "needs-merge" label but is not in a Done column, count it as closed
                 if (hasNeedsMergeLabel && !isClosedBoard) {
                   closedBoardCards++;
                 }
               }
-
               let assignees = [];
               if (props.item.assignees && props.item.assignees.nodes && props.item.assignees.nodes.length) {
                 assignees = props.item.assignees.nodes;
@@ -463,10 +454,9 @@ window.processBoards = function processBoards() {
   });
   try {
     if (window.historyManager) {
-      // Import the hasOnlyAllowedParams function
-      const { hasOnlyAllowedParams } = window;
-
-      // Only save to history if the URL has only allowed parameters
+      const {
+        hasOnlyAllowedParams
+      } = window;
       if (hasOnlyAllowedParams()) {
         window.historyManager.saveHistoryEntry({
           assigneeTimeMap,
@@ -519,14 +509,12 @@ window.HistoryManager = class HistoryManager {
   }
   saveHistoryEntry(data) {
     try {
-      // Import the hasOnlyAllowedParams function
-      const { hasOnlyAllowedParams } = window;
-
-      // Only save to history if the URL has only allowed parameters
+      const {
+        hasOnlyAllowedParams
+      } = window;
       if (!hasOnlyAllowedParams()) {
         return false;
       }
-
       const boardKey = this.getBoardKey();
       const today = new Date().toISOString().split('T')[0];
       const history = this.loadHistory();
@@ -592,14 +580,9 @@ window.HistoryManager = class HistoryManager {
   clearAllHistory() {
     try {
       localStorage.removeItem('gitLabHelperHistory');
-
-      // Also clear sprint history which is related
       localStorage.removeItem('gitLabHelperSprintHistory');
       localStorage.removeItem('gitLabHelperSprintState');
-
-      // Reset instance variables
       this.historyData = {};
-
       return true;
     } catch (error) {
       console.error('Error clearing history:', error);
@@ -884,22 +867,18 @@ window.Notification = class Notification {
     switch (type) {
       case 'success':
         notification.style.backgroundColor = '#28a745';
-        notification.style.color = 'white';
         break;
       case 'error':
         notification.style.backgroundColor = '#dc3545';
-        notification.style.color = 'white';
         break;
       case 'warning':
         notification.style.backgroundColor = '#ffc107';
         notification.style.color = 'black';
         break;
-      case 'info':
       default:
         notification.style.backgroundColor = '#17a2b8';
-        notification.style.color = 'white';
-        break;
     }
+    notification.style.color = notification.style.color || 'white';
     const messageContainer = document.createElement('div');
     messageContainer.style.flex = '1';
     messageContainer.textContent = message;
@@ -915,15 +894,9 @@ window.Notification = class Notification {
     closeButton.style.opacity = '0.7';
     closeButton.style.transition = 'opacity 0.2s ease';
     closeButton.style.outline = 'none';
-    closeButton.addEventListener('mouseenter', () => {
-      closeButton.style.opacity = '1';
-    });
-    closeButton.addEventListener('mouseleave', () => {
-      closeButton.style.opacity = '0.7';
-    });
-    closeButton.addEventListener('click', () => {
-      this.close(notification, onClose);
-    });
+    closeButton.addEventListener('mouseenter', () => closeButton.style.opacity = '1');
+    closeButton.addEventListener('mouseleave', () => closeButton.style.opacity = '0.7');
+    closeButton.addEventListener('click', () => this.close(notification, onClose));
     notification.appendChild(messageContainer);
     notification.appendChild(closeButton);
     this.container.appendChild(notification);
@@ -932,9 +905,7 @@ window.Notification = class Notification {
       notification.style.transform = 'translateY(0)';
     }, 10);
     if (duration > 0) {
-      setTimeout(() => {
-        this.close(notification, onClose);
-      }, duration);
+      setTimeout(() => this.close(notification, onClose), duration);
     }
     return notification;
   }
@@ -1422,9 +1393,7 @@ window.IssueSelector = class IssueSelector {
     });
   }
   startSelection() {
-    if (this.isSelectingIssue) {
-      return;
-    }
+    if (this.isSelectingIssue) return;
     this.isSelectingIssue = true;
     const currentSelection = [...this.selectedIssues];
     this.applyOverflowFixes();
@@ -1931,1950 +1900,1552 @@ window.IssueSelector = class IssueSelector {
 
 // File: lib/ui/components/LinkedItemsManager.js
 window.LinkedItemsManager = class LinkedItemsManager {
-    constructor(options = {}) {
-        this.initialized = false;
-        this.dropdowns = [];
-        this.cardLinks = new Map();
-        this.uiManager = options.uiManager || window.uiManager;
-        this.gitlabApi = options.gitlabApi || window.gitlabApi;
-
-        this.handleScroll = this.handleScroll.bind(this);
-        this.handleResize = this.handleResize.bind(this);
-        this.refreshDropdowns = this.refreshDropdowns.bind(this);
-        window.addEventListener('scroll', this.handleScroll);
-        window.addEventListener('resize', this.handleResize);
-        this.setupMutationObserver();
-        this.checkEnabled();
+  constructor(options = {}) {
+    this.initialized = false;
+    this.dropdowns = [];
+    this.cardLinks = new Map();
+    this.uiManager = options.uiManager || window.uiManager;
+    this.gitlabApi = options.gitlabApi || window.gitlabApi;
+    this.handleScroll = this.handleScroll.bind(this);
+    this.handleResize = this.handleResize.bind(this);
+    this.refreshDropdowns = this.refreshDropdowns.bind(this);
+    window.addEventListener('scroll', this.handleScroll);
+    window.addEventListener('resize', this.handleResize);
+    this.setupMutationObserver();
+    this.checkEnabled();
+  }
+  checkEnabled() {
+    try {
+      const enabled = localStorage.getItem('gitLabHelperLinkedItemsEnabled');
+      if (enabled === null) {
+        return true;
+      }
+      return enabled === 'true';
+    } catch (e) {
+      console.error('Error checking linked items enabled state:', e);
+      return true;
     }
-
-    checkEnabled() {
-        try {
-            const enabled = localStorage.getItem('gitLabHelperLinkedItemsEnabled');
-            if (enabled === null) {
-                return true;
+  }
+  initialize() {
+    if (!this.checkEnabled()) {
+      return;
+    }
+    if (this.initialized) {
+      return;
+    }
+    this.initialized = true;
+    this.applyOverflowFixes();
+    this.createCardDropdowns();
+    this.refreshInterval = setInterval(() => {
+      this.refreshDropdowns();
+    }, 2000);
+    this.setupCardsMutationObserver();
+  }
+  loadFromCacheAndCreateDropdowns() {
+    this.createCardDropdowns();
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.originalCard) {
+        this.fetchAndUpdateDropdown(dropdown, dropdown.originalCard);
+      }
+    });
+  }
+  getEnhancedMRStatus(item) {
+    if (!item || !item.state) {
+      return 'Unknown';
+    }
+    if (item.state.toLowerCase() === 'merged') {
+      return 'Merged';
+    }
+    if (item.state.toLowerCase() === 'closed') {
+      return 'Closed';
+    }
+    if (item.state.toLowerCase() === 'opened' || item.state.toLowerCase() === 'open') {
+      if (item.title) {
+        if (item.title.toLowerCase().startsWith('draft:') || item.title.toLowerCase().startsWith('wip:') || item.title.toLowerCase().includes('[wip]') || item.title.toLowerCase().includes('[draft]')) {
+          return 'Draft';
+        }
+      }
+      if (item.has_conflicts === true) {
+        return 'Pipeline Failed';
+      }
+      const hasNeedsMergeLabel = item.issueItem?.labels?.some(label => label.title?.toLowerCase() === 'needs-merge' || label.name?.toLowerCase() === 'needs-merge');
+      if (hasNeedsMergeLabel && (!item.pipeline_status || item.pipeline_status.status !== 'failed' && item.pipeline_status.status !== 'running')) {
+        return 'Ready to Merge';
+      }
+      if (item.blocking_discussions_resolved === false) {
+        return 'Changes Needed';
+      }
+      if (item.approvals_required !== undefined && item.approved_by !== undefined && item.approved_by.length >= item.approvals_required && item.approvals_required > 0) {
+        return 'Approved';
+      }
+      if (item.has_discussions === true || item.user_notes_count !== undefined && item.user_notes_count > 0) {
+        return 'Reviewing';
+      }
+      if (item.approvals_required !== undefined && item.approved_by !== undefined) {
+        if (item.approvals_required > 0 && (!item.approved_by || item.approved_by.length < item.approvals_required)) {
+          return 'Needs Review';
+        }
+      }
+      if (item.pipeline_status && item.pipeline_status.status && item.pipeline_status.status === 'failed') {
+        return 'Pipeline Failed';
+      }
+    }
+    return item.state.charAt(0).toUpperCase() + item.state.slice(1).toLowerCase();
+  }
+  applyOverflowFixes() {
+    this.originalStyles = [];
+    const ulElements = document.querySelectorAll('ul.board-list');
+    ulElements.forEach(ul => {
+      this.originalStyles.push({
+        element: ul,
+        property: 'overflow-x',
+        value: ul.style.overflowX
+      });
+      ul.style.setProperty('overflow-x', 'unset', 'important');
+      ul.style.setProperty('overflow-y', 'unset', 'important');
+    });
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    cardAreas.forEach(area => {
+      this.originalStyles.push({
+        element: area,
+        property: 'overflow',
+        value: area.style.overflow
+      });
+      this.originalStyles.push({
+        element: area,
+        property: 'position',
+        value: area.style.position
+      });
+      area.style.overflow = 'auto';
+      area.style.position = 'relative';
+    });
+    return cardAreas;
+  }
+  createCardDropdowns() {
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.parentNode) {
+        dropdown.parentNode.removeChild(dropdown);
+      }
+    });
+    this.dropdowns = [];
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    cardAreas.forEach(cardArea => {
+      try {
+        const cards = cardArea.querySelectorAll('.board-card');
+        cards.forEach((card, index) => {
+          try {
+            const dropdown = this.createPlaceholderDropdown(card, cardArea);
+            if (dropdown) {
+              this.dropdowns.push(dropdown);
             }
-            return enabled === 'true';
-        } catch (e) {
-            console.error('Error checking linked items enabled state:', e);
-            return true;
-        }
-    }
-
-    initialize() {
-        if (!this.checkEnabled()) {
-            return;
-        }
-        if (this.initialized) {
-            return;
-        }
-        this.initialized = true;
-        this.applyOverflowFixes();
-
-        // Create dropdowns for all cards
-        this.createCardDropdowns();
-
-        // Set up periodic refresh to catch new cards
-        this.refreshInterval = setInterval(() => {
-            this.refreshDropdowns();
-        }, 2000);
-
-        this.setupCardsMutationObserver();
-    }
-
-    loadFromCacheAndCreateDropdowns() {
-        // Create dropdowns for all existing cards
-        this.createCardDropdowns();
-
-        // Update all dropdowns with fresh data
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.originalCard) {
-                this.fetchAndUpdateDropdown(dropdown, dropdown.originalCard);
-            }
+          } catch (error) {
+            console.error('Error creating dropdown for card:', error);
+          }
         });
+      } catch (error) {
+        console.error('Error processing card area:', error);
+      }
+    });
+  }
+  getBoardNameFromCard(card) {
+    try {
+      const boardList = card.closest('.board-list');
+      if (!boardList) return '';
+      const boardTitleElement = boardList.querySelector('.board-title-text');
+      if (boardTitleElement) {
+        return boardTitleElement.textContent.trim();
+      }
+      if (boardList.__vue__ && boardList.__vue__.$children) {
+        const listComponent = boardList.__vue__.$children.find(c => c.$props && c.$props.list && c.$props.list.title);
+        if (listComponent && listComponent.$props.list.title) {
+          return listComponent.$props.list.title;
+        }
+      }
+      return '';
+    } catch (error) {
+      console.warn('Error getting board name:', error);
+      return '';
     }
-
-    getEnhancedMRStatus(item) {
-        if (!item || !item.state) {
-            return 'Unknown';
-        }
-
-        // If the MR is already merged or closed, just return that state
-        if (item.state.toLowerCase() === 'merged') {
-            return 'Merged';
-        }
-
-        if (item.state.toLowerCase() === 'closed') {
-            return 'Closed';
-        }
-
-        // For open MRs, determine the specific status
-        if (item.state.toLowerCase() === 'opened' || item.state.toLowerCase() === 'open') {
-            // Check for draft/WIP status first
-            if (item.title) {
-                if (item.title.toLowerCase().startsWith('draft:') ||
-                    item.title.toLowerCase().startsWith('wip:') ||
-                    item.title.toLowerCase().includes('[wip]') ||
-                    item.title.toLowerCase().includes('[draft]')) {
-                    return 'Draft';
-                }
-            }
-
-            // Check for merge conflicts
-            if (item.has_conflicts === true) {
-                return 'Pipeline Failed';
-            }
-
-            // Check if issue has the needs-merge label and should show "Ready to Merge"
-            const hasNeedsMergeLabel = item.issueItem?.labels?.some(label =>
-                label.title?.toLowerCase() === 'needs-merge' ||
-                label.name?.toLowerCase() === 'needs-merge'
-            );
-
-            // Check pipeline status for "Ready to Merge" determination
-            if (hasNeedsMergeLabel &&
-                (!item.pipeline_status ||
-                    (item.pipeline_status.status !== 'failed' &&
-                        item.pipeline_status.status !== 'running'))) {
-                return 'Ready to Merge';
-            }
-
-            // Check for blocking discussions not resolved
-            if (item.blocking_discussions_resolved === false) {
-                return 'Changes Needed';
-            }
-
-            // Check if MR has been approved but not yet merged
-            if (item.approvals_required !== undefined &&
-                item.approved_by !== undefined &&
-                item.approved_by.length >= item.approvals_required &&
-                item.approvals_required > 0) {
-                return 'Approved';
-            }
-
-            // Check for discussions/comments to determine if it's being reviewed
-            if (item.has_discussions === true ||
-                (item.user_notes_count !== undefined && item.user_notes_count > 0)) {
-                return 'Reviewing';
-            }
-
-            // Check if approval is required but no approvals yet
-            if (item.approvals_required !== undefined &&
-                item.approved_by !== undefined) {
-                if (item.approvals_required > 0 &&
-                    (!item.approved_by || item.approved_by.length < item.approvals_required)) {
-                    return 'Needs Review';
-                }
-            }
-
-            // Check for pipeline status
-            if (item.pipeline_status &&
-                item.pipeline_status.status &&
-                item.pipeline_status.status === 'failed') {
-                return 'Pipeline Failed';
-            }
-        }
-
-        // Default to standard state if we can't determine a more specific status
-        return item.state.charAt(0).toUpperCase() + item.state.slice(1).toLowerCase();
+  }
+  async fetchAndUpdateDropdown(dropdown, card) {
+    try {
+      if (!dropdown || !card) return;
+      const issueItem = await this.getIssueItemFromCard(card);
+      if (!issueItem) return;
+      try {
+        const boardName = this.getBoardNameFromCard(card) || '';
+        issueItem.boardName = boardName;
+      } catch (err) {
+        console.warn('Error getting board name:', err);
+      }
+      const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
+      if (linkedItems.length > 0) {
+        const cardId = dropdown.dataset.cardId;
+        this.cardLinks.set(cardId, linkedItems);
+        dropdown.isLoading = false;
+        this.updateDropdownWithLinkedItems(dropdown, linkedItems);
+      } else {
+        this.updateDropdownEmpty(dropdown);
+      }
+    } catch (error) {
+      console.error('Error fetching and updating dropdown:', error);
+      this.updateDropdownWithError(dropdown);
     }
-
-    applyOverflowFixes() {
-        this.originalStyles = [];
-        const ulElements = document.querySelectorAll('ul.board-list');
-        ulElements.forEach(ul => {
-            this.originalStyles.push({
-                element: ul,
-                property: 'overflow-x',
-                value: ul.style.overflowX
-            });
-            ul.style.setProperty('overflow-x', 'unset', 'important');
-            ul.style.setProperty('overflow-y', 'unset', 'important');
+  }
+  updateDropdownEmpty(dropdown) {
+    const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
+    const dropdownContent = dropdown.querySelector('.linked-items-content');
+    if (!dropdownToggle || !dropdownContent) return;
+    dropdownToggle.style.backgroundColor = '#6c757d';
+    dropdownToggle.title = 'No linked items found';
+    dropdownContent.innerHTML = '';
+    const emptyMessage = document.createElement('div');
+    emptyMessage.textContent = 'No linked items found';
+    emptyMessage.style.padding = '10px 12px';
+    emptyMessage.style.color = '#666';
+    emptyMessage.style.fontStyle = 'italic';
+    emptyMessage.style.fontSize = '13px';
+    emptyMessage.style.textAlign = 'center';
+    dropdownContent.appendChild(emptyMessage);
+    const card = dropdown.originalCard;
+    const issueItem = this.getIssueItemFromCard(card);
+    if (issueItem && issueItem.iid) {
+      const projectPath = this.extractRepositoryPath(window.location.pathname);
+      const baseUrl = window.location.origin;
+      const viewIssueItem = {
+        type: 'issue_detail',
+        title: 'View Issue Details',
+        url: `${baseUrl}/${projectPath}/-/issues/${issueItem.iid}`
+      };
+      dropdownContent.appendChild(document.createElement('hr'));
+      dropdownContent.appendChild(this.createLinkItem(viewIssueItem));
+    }
+  }
+  updateDropdownWithError(dropdown) {
+    const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
+    const dropdownContent = dropdown.querySelector('.linked-items-content');
+    if (!dropdownToggle || !dropdownContent) return;
+    dropdownToggle.style.backgroundColor = '#dc3545';
+    dropdownToggle.title = 'Error loading linked items';
+    dropdownContent.innerHTML = '';
+    const errorMessage = document.createElement('div');
+    errorMessage.textContent = 'Error loading linked items';
+    errorMessage.style.padding = '10px 12px';
+    errorMessage.style.color = '#dc3545';
+    errorMessage.style.fontStyle = 'italic';
+    errorMessage.style.fontSize = '13px';
+    errorMessage.style.textAlign = 'center';
+    dropdownContent.appendChild(errorMessage);
+  }
+  updateDropdownWithLinkedItems(dropdown, linkedItems) {
+    if (!linkedItems || linkedItems.length === 0) {
+      this.updateDropdownEmpty(dropdown);
+      return;
+    }
+    const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
+    const dropdownContent = dropdown.querySelector('.linked-items-content');
+    if (!dropdownToggle || !dropdownContent) return;
+    dropdownToggle.title = `${linkedItems.length} linked item${linkedItems.length !== 1 ? 's' : ''}`;
+    const mrCount = linkedItems.filter(item => item.type === 'merge_request').length;
+    const branchCount = linkedItems.filter(item => item.type === 'branch').length;
+    const issueCount = linkedItems.filter(item => item.type === 'issue').length;
+    if (mrCount > 0 || branchCount > 0) {
+      dropdownToggle.title = `${mrCount ? mrCount + ' MR' + (mrCount > 1 ? 's' : '') : ''}${mrCount && branchCount ? ', ' : ''}${branchCount ? branchCount + ' branch' + (branchCount > 1 ? 'es' : '') : ''}${issueCount ? (mrCount || branchCount ? ', ' : '') + issueCount + ' issue' + (issueCount > 1 ? 's' : '') : ''}`;
+    }
+    dropdownContent.innerHTML = '';
+    const groupedItems = {
+      merge_request: [],
+      branch: [],
+      issue: [],
+      other: []
+    };
+    linkedItems.forEach(item => {
+      if (groupedItems[item.type]) {
+        groupedItems[item.type].push(item);
+      } else {
+        groupedItems.other.push(item);
+      }
+    });
+    const createSectionHeader = title => {
+      const header = document.createElement('div');
+      header.style.backgroundColor = '#f8f9fa';
+      header.style.padding = '5px 12px';
+      header.style.fontSize = '11px';
+      header.style.fontWeight = 'bold';
+      header.style.color = '#6c757d';
+      header.style.textTransform = 'uppercase';
+      header.style.borderBottom = '1px solid #eee';
+      header.textContent = title;
+      return header;
+    };
+    if (groupedItems.merge_request.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Merge Requests'));
+      groupedItems.merge_request.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.branch.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Branches'));
+      groupedItems.branch.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.issue.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Related Issues'));
+      groupedItems.issue.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+    if (groupedItems.other.length > 0) {
+      dropdownContent.appendChild(createSectionHeader('Actions'));
+      groupedItems.other.forEach(item => {
+        dropdownContent.appendChild(this.createLinkItem(item));
+      });
+    }
+  }
+  createPlaceholderDropdown(card, cardArea) {
+    const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const dropdown = document.createElement('div');
+    dropdown.className = 'linked-items-dropdown';
+    dropdown.style.position = 'absolute';
+    dropdown.style.zIndex = '99';
+    dropdown.style.cursor = 'pointer';
+    dropdown.style.transition = 'all 0.2s ease';
+    dropdown.dataset.cardId = cardId;
+    dropdown.originalCard = card;
+    dropdown.isLoading = true;
+    this.positionDropdown(dropdown, card, cardArea);
+    const dropdownToggle = document.createElement('div');
+    dropdownToggle.className = 'linked-items-toggle';
+    dropdownToggle.style.backgroundColor = '#1f75cb';
+    dropdownToggle.style.color = 'white';
+    dropdownToggle.style.borderRadius = '50%';
+    dropdownToggle.style.width = '22px';
+    dropdownToggle.style.height = '22px';
+    dropdownToggle.style.display = 'flex';
+    dropdownToggle.style.alignItems = 'center';
+    dropdownToggle.style.justifyContent = 'center';
+    dropdownToggle.style.fontSize = '12px';
+    dropdownToggle.style.fontWeight = 'bold';
+    dropdownToggle.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+    dropdownToggle.style.border = '2px solid white';
+    dropdownToggle.title = 'Loading linked items...';
+    const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgIcon.setAttribute('role', 'img');
+    svgIcon.setAttribute('aria-hidden', 'true');
+    svgIcon.classList.add('gl-icon');
+    svgIcon.style.width = '12px';
+    svgIcon.style.height = '12px';
+    svgIcon.style.fill = 'white';
+    const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    useElement.setAttribute('href', '/assets/icons-aa2c8ddf99d22b77153ca2bb092a23889c12c597fc8b8de94b0f730eb53513f6.svg#issue-type-issue');
+    svgIcon.appendChild(useElement);
+    dropdownToggle.appendChild(svgIcon);
+    dropdownToggle.addEventListener('mouseenter', function () {
+      this.style.backgroundColor = '#0056b3';
+      this.style.transform = 'scale(1.1)';
+    });
+    dropdownToggle.addEventListener('mouseleave', function () {
+      this.style.backgroundColor = '#1f75cb';
+      this.style.transform = 'scale(1)';
+    });
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'linked-items-content';
+    dropdownContent.style.display = 'none';
+    dropdownContent.style.position = 'absolute';
+    dropdownContent.style.backgroundColor = 'white';
+    dropdownContent.style.width = `${$(card).width() + 1}px`;
+    dropdownContent.style.boxShadow = '    box-shadow: rgba(0, 0, 0, 0.6) 0px 0px 6px;';
+    dropdownContent.style.zIndex = '100';
+    dropdownContent.style.borderRadius = '4px';
+    dropdownContent.style.border = '1px solid #ddd';
+    dropdownContent.style.left = '9px';
+    dropdownContent.style.top = `${$(card).height()}px`;
+    const loadingItem = document.createElement('div');
+    loadingItem.textContent = 'Loading linked items...';
+    loadingItem.style.padding = '10px 12px';
+    loadingItem.style.color = '#666';
+    loadingItem.style.fontStyle = 'italic';
+    loadingItem.style.fontSize = '13px';
+    loadingItem.style.textAlign = 'center';
+    dropdownContent.appendChild(loadingItem);
+    dropdownToggle.addEventListener('click', e => {
+      e.stopPropagation();
+      dropdownContent.style.width = `${$(card).width() + 1}px`;
+      dropdownContent.style.top = `${$(card).height()}px`;
+      const allCards = document.querySelectorAll('.board-card');
+      const allDropdowns = document.querySelectorAll('.linked-items-dropdown');
+      const isCurrentlyOpen = dropdownContent.style.display === 'block';
+      document.querySelectorAll('.linked-items-content').forEach(content => {
+        if (content !== dropdownContent) {
+          content.style.display = 'none';
+          const parentDropdown = content.closest('.linked-items-dropdown');
+          if (parentDropdown) {
+            parentDropdown.style.zIndex = '99';
+          }
+        }
+      });
+      if (!isCurrentlyOpen) {
+        dropdown.style.zIndex = '100';
+        dropdownContent.style.display = 'block';
+        allCards.forEach(c => {
+          if (c !== card) {
+            c.style.transition = 'opacity 0.2s ease';
+            c.style.opacity = '0.25';
+          }
         });
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        cardAreas.forEach(area => {
-            this.originalStyles.push({
-                element: area,
-                property: 'overflow',
-                value: area.style.overflow
-            });
-            this.originalStyles.push({
-                element: area,
-                property: 'position',
-                value: area.style.position
-            });
-            area.style.overflow = 'auto';
-            area.style.position = 'relative';
+        allDropdowns.forEach(d => {
+          if (d !== dropdown) {
+            d.style.transition = 'opacity 0.2s ease';
+            d.style.opacity = '0.25';
+          }
         });
-        return cardAreas;
-    }
-
-    createCardDropdowns() {
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.parentNode) {
-                dropdown.parentNode.removeChild(dropdown);
-            }
-        });
-        this.dropdowns = [];
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        cardAreas.forEach(cardArea => {
-            try {
-                const cards = cardArea.querySelectorAll('.board-card');
-                cards.forEach((card, index) => {
-                    try {
-                        const dropdown = this.createPlaceholderDropdown(card, cardArea);
-                        if (dropdown) {
-                            this.dropdowns.push(dropdown);
-                        }
-                    } catch (error) {
-                        console.error('Error creating dropdown for card:', error);
-                    }
-                });
-            } catch (error) {
-                console.error('Error processing card area:', error);
-            }
-        });
-    }
-    getBoardNameFromCard(card) {
-        try {
-            // Try to find the board list container
-            const boardList = card.closest('.board-list');
-            if (!boardList) return '';
-
-            // Look for the board title
-            const boardTitleElement = boardList.querySelector('.board-title-text');
-            if (boardTitleElement) {
-                return boardTitleElement.textContent.trim();
-            }
-
-            // If we can't find it directly, try using Vue components if available
-            if (boardList.__vue__ && boardList.__vue__.$children) {
-                const listComponent = boardList.__vue__.$children.find(c =>
-                    c.$props && c.$props.list && c.$props.list.title);
-                if (listComponent && listComponent.$props.list.title) {
-                    return listComponent.$props.list.title;
-                }
-            }
-
-            return '';
-        } catch (error) {
-            console.warn('Error getting board name:', error);
-            return '';
-        }
-    }
-    async fetchAndUpdateDropdown(dropdown, card) {
-        try {
-            if (!dropdown || !card) return;
-            const issueItem = await this.getIssueItemFromCard(card);
-            if (!issueItem) return;
-
-            // Get the board name from the card's parent elements
-            try {
-                const boardName = this.getBoardNameFromCard(card) || '';
-                issueItem.boardName = boardName;
-            } catch (err) {
-                console.warn('Error getting board name:', err);
-            }
-
-            // Get linked items fresh each time
-            const linkedItems = await this.getLinkedItemsFromIssue(issueItem);
-
-            if (linkedItems.length > 0) {
-                const cardId = dropdown.dataset.cardId;
-                this.cardLinks.set(cardId, linkedItems);
-                dropdown.isLoading = false;
-                this.updateDropdownWithLinkedItems(dropdown, linkedItems);
-            } else {
-                this.updateDropdownEmpty(dropdown);
-            }
-        } catch (error) {
-            console.error('Error fetching and updating dropdown:', error);
-            this.updateDropdownWithError(dropdown);
-        }
-    }
-
-    updateDropdownEmpty(dropdown) {
-        const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
-        const dropdownContent = dropdown.querySelector('.linked-items-content');
-        if (!dropdownToggle || !dropdownContent) return;
-        dropdownToggle.style.backgroundColor = '#6c757d';
-        dropdownToggle.title = 'No linked items found';
-        dropdownContent.innerHTML = '';
-        const emptyMessage = document.createElement('div');
-        emptyMessage.textContent = 'No linked items found';
-        emptyMessage.style.padding = '10px 12px';
-        emptyMessage.style.color = '#666';
-        emptyMessage.style.fontStyle = 'italic';
-        emptyMessage.style.fontSize = '13px';
-        emptyMessage.style.textAlign = 'center';
-        dropdownContent.appendChild(emptyMessage);
-        const card = dropdown.originalCard;
-        const issueItem = this.getIssueItemFromCard(card);
-        if (issueItem && issueItem.iid) {
-            const projectPath = this.extractRepositoryPath(window.location.pathname);
-            const baseUrl = window.location.origin;
-            const viewIssueItem = {
-                type: 'issue_detail',
-                title: 'View Issue Details',
-                url: `${baseUrl}/${projectPath}/-/issues/${issueItem.iid}`
-            };
-            dropdownContent.appendChild(document.createElement('hr'));
-            dropdownContent.appendChild(this.createLinkItem(viewIssueItem));
-        }
-    }
-
-    updateDropdownWithError(dropdown) {
-        const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
-        const dropdownContent = dropdown.querySelector('.linked-items-content');
-        if (!dropdownToggle || !dropdownContent) return;
-        dropdownToggle.style.backgroundColor = '#dc3545';
-        dropdownToggle.title = 'Error loading linked items';
-        dropdownContent.innerHTML = '';
-        const errorMessage = document.createElement('div');
-        errorMessage.textContent = 'Error loading linked items';
-        errorMessage.style.padding = '10px 12px';
-        errorMessage.style.color = '#dc3545';
-        errorMessage.style.fontStyle = 'italic';
-        errorMessage.style.fontSize = '13px';
-        errorMessage.style.textAlign = 'center';
-        dropdownContent.appendChild(errorMessage);
-    }
-
-    updateDropdownWithLinkedItems(dropdown, linkedItems) {
-        if (!linkedItems || linkedItems.length === 0) {
-            this.updateDropdownEmpty(dropdown);
-            return;
-        }
-        const dropdownToggle = dropdown.querySelector('.linked-items-toggle');
-        const dropdownContent = dropdown.querySelector('.linked-items-content');
-        if (!dropdownToggle || !dropdownContent) return;
-        dropdownToggle.title = `${linkedItems.length} linked item${linkedItems.length !== 1 ? 's' : ''}`;
-        const mrCount = linkedItems.filter(item => item.type === 'merge_request').length;
-        const branchCount = linkedItems.filter(item => item.type === 'branch').length;
-        const issueCount = linkedItems.filter(item => item.type === 'issue').length;
-        if (mrCount > 0 || branchCount > 0) {
-            dropdownToggle.title = `${mrCount ? mrCount + ' MR' + (mrCount > 1 ? 's' : '') : ''}${mrCount && branchCount ? ', ' : ''}${branchCount ? branchCount + ' branch' + (branchCount > 1 ? 'es' : '') : ''}${issueCount ? (mrCount || branchCount ? ', ' : '') + issueCount + ' issue' + (issueCount > 1 ? 's' : '') : ''}`;
-        }
-        dropdownContent.innerHTML = '';
-        const groupedItems = {
-            merge_request: [],
-            branch: [],
-            issue: [],
-            other: []
-        };
-        linkedItems.forEach(item => {
-            if (groupedItems[item.type]) {
-                groupedItems[item.type].push(item);
-            } else {
-                groupedItems.other.push(item);
-            }
-        });
-        const createSectionHeader = title => {
-            const header = document.createElement('div');
-            header.style.backgroundColor = '#f8f9fa';
-            header.style.padding = '5px 12px';
-            header.style.fontSize = '11px';
-            header.style.fontWeight = 'bold';
-            header.style.color = '#6c757d';
-            header.style.textTransform = 'uppercase';
-            header.style.borderBottom = '1px solid #eee';
-            header.textContent = title;
-            return header;
-        };
-        if (groupedItems.merge_request.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Merge Requests'));
-            groupedItems.merge_request.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-        if (groupedItems.branch.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Branches'));
-            groupedItems.branch.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-        if (groupedItems.issue.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Related Issues'));
-            groupedItems.issue.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-        if (groupedItems.other.length > 0) {
-            dropdownContent.appendChild(createSectionHeader('Actions'));
-            groupedItems.other.forEach(item => {
-                dropdownContent.appendChild(this.createLinkItem(item));
-            });
-        }
-    }
-
-    createPlaceholderDropdown(card, cardArea) {
-        const cardId = card.id || `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const dropdown = document.createElement('div');
-        dropdown.className = 'linked-items-dropdown';
-        dropdown.style.position = 'absolute';
+        card.style.opacity = '1';
+        card.style.zIndex = '10';
+        dropdown.style.opacity = '1';
+      } else {
         dropdown.style.zIndex = '99';
-        dropdown.style.cursor = 'pointer';
-        dropdown.style.transition = 'all 0.2s ease';
-        dropdown.dataset.cardId = cardId;
-        dropdown.originalCard = card;
-        dropdown.isLoading = true;
-        this.positionDropdown(dropdown, card, cardArea);
-        const dropdownToggle = document.createElement('div');
-        dropdownToggle.className = 'linked-items-toggle';
-        dropdownToggle.style.backgroundColor = '#1f75cb';
-        dropdownToggle.style.color = 'white';
-        dropdownToggle.style.borderRadius = '50%';
-        dropdownToggle.style.width = '22px';
-        dropdownToggle.style.height = '22px';
-        dropdownToggle.style.display = 'flex';
-        dropdownToggle.style.alignItems = 'center';
-        dropdownToggle.style.justifyContent = 'center';
-        dropdownToggle.style.fontSize = '12px';
-        dropdownToggle.style.fontWeight = 'bold';
-        dropdownToggle.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
-        dropdownToggle.style.border = '2px solid white';
-        dropdownToggle.title = 'Loading linked items...';
-        const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svgIcon.setAttribute('role', 'img');
-        svgIcon.setAttribute('aria-hidden', 'true');
-        svgIcon.classList.add('gl-icon');
-        svgIcon.style.width = '12px';
-        svgIcon.style.height = '12px';
-        svgIcon.style.fill = 'white';
-        const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        useElement.setAttribute('href', '/assets/icons-aa2c8ddf99d22b77153ca2bb092a23889c12c597fc8b8de94b0f730eb53513f6.svg#issue-type-issue');
-        svgIcon.appendChild(useElement);
-        dropdownToggle.appendChild(svgIcon);
-        dropdownToggle.addEventListener('mouseenter', function () {
-            this.style.backgroundColor = '#0056b3';
-            this.style.transform = 'scale(1.1)';
-        });
-        dropdownToggle.addEventListener('mouseleave', function () {
-            this.style.backgroundColor = '#1f75cb';
-            this.style.transform = 'scale(1)';
-        });
-        const dropdownContent = document.createElement('div');
-        dropdownContent.className = 'linked-items-content';
         dropdownContent.style.display = 'none';
-        dropdownContent.style.position = 'absolute';
-        dropdownContent.style.backgroundColor = 'white';
-        dropdownContent.style.width = `${$(card).width() + 1}px`;
-        dropdownContent.style.boxShadow = '    box-shadow: rgba(0, 0, 0, 0.6) 0px 0px 6px;';
-        dropdownContent.style.zIndex = '100';
-        dropdownContent.style.borderRadius = '4px';
-        dropdownContent.style.border = '1px solid #ddd';
-        dropdownContent.style.left = '9px';
-        dropdownContent.style.top = `${$(card).height()}px`;
-        const loadingItem = document.createElement('div');
-        loadingItem.textContent = 'Loading linked items...';
-        loadingItem.style.padding = '10px 12px';
-        loadingItem.style.color = '#666';
-        loadingItem.style.fontStyle = 'italic';
-        loadingItem.style.fontSize = '13px';
-        loadingItem.style.textAlign = 'center';
-        dropdownContent.appendChild(loadingItem);
-
-        // Modify the click event handler to dim other cards
-        dropdownToggle.addEventListener('click', e => {
-            e.stopPropagation();
-            dropdownContent.style.width = `${$(card).width() + 1}px`;
-            dropdownContent.style.top = `${$(card).height()}px`;
-            // Set all other cards to a lower opacity
-            const allCards = document.querySelectorAll('.board-card');
-            const allDropdowns = document.querySelectorAll('.linked-items-dropdown');
-            const isCurrentlyOpen = dropdownContent.style.display === 'block';
-
-            // Close all other dropdowns
-            document.querySelectorAll('.linked-items-content').forEach(content => {
-                if (content !== dropdownContent) {
-                    content.style.display = 'none';
-                    const parentDropdown = content.closest('.linked-items-dropdown');
-                    if (parentDropdown) {
-                        parentDropdown.style.zIndex = '99';
-                    }
-                }
-            });
-
-            // Toggle current dropdown
-            if (!isCurrentlyOpen) {
-                dropdown.style.zIndex = '100';
-                dropdownContent.style.display = 'block';
-
-                // Dim all other cards
-                allCards.forEach(c => {
-                    // Skip the current card
-                    if (c !== card) {
-                        c.style.transition = 'opacity 0.2s ease';
-                        c.style.opacity = '0.25';
-                    }
-                });
-
-                // Dim all other dropdowns
-                allDropdowns.forEach(d => {
-                    if (d !== dropdown) {
-                        d.style.transition = 'opacity 0.2s ease';
-                        d.style.opacity = '0.25';
-                    }
-                });
-
-                // Make sure our card stays fully visible
-                card.style.opacity = '1';
-                card.style.zIndex = '10';
-                dropdown.style.opacity = '1';
-            } else {
-                dropdown.style.zIndex = '99';
-                dropdownContent.style.display = 'none';
-
-                // Restore all cards and dropdowns to normal opacity
-                allCards.forEach(c => {
-                    c.style.opacity = '1';
-                    c.style.removeProperty('z-index');
-                });
-
-                allDropdowns.forEach(d => {
-                    d.style.opacity = '1';
-                });
-            }
+        allCards.forEach(c => {
+          c.style.opacity = '1';
+          c.style.removeProperty('z-index');
         });
-
-        // Also modify the document click handler to restore opacity when clicking outside
-        document.addEventListener('click', () => {
-            if (dropdownContent.style.display === 'block') {
-                dropdownContent.style.display = 'none';
-                dropdown.style.zIndex = '99';
-
-                // Restore all cards and dropdowns to normal opacity
-                const allCards = document.querySelectorAll('.board-card');
-                const allDropdowns = document.querySelectorAll('.linked-items-dropdown');
-                allCards.forEach(c => {
-                    c.style.opacity = '1';
-                    c.style.removeProperty('z-index');
-                });
-
-                allDropdowns.forEach(d => {
-                    d.style.opacity = '1';
-                });
-            }
+        allDropdowns.forEach(d => {
+          d.style.opacity = '1';
         });
-
-        dropdown.appendChild(dropdownToggle);
-        dropdown.appendChild(dropdownContent);
-        cardArea.appendChild(dropdown);
-        return dropdown;
-    }
-
-    getIssueItemFromCard(boardCard) {
-        try {
-            if (boardCard.__vue__) {
-                if (boardCard.__vue__.$children && boardCard.__vue__.$children.length > 0) {
-                    const issueComponent = boardCard.__vue__.$children.find(child => child.$props && child.$props.item);
-                    if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
-                        // This will include labels if available from GitLab's Vue component
-                        return issueComponent.$props.item;
-                    }
-                }
-                if (boardCard.__vue__.$options && boardCard.__vue__.$options.children && boardCard.__vue__.$options.children.length > 0) {
-                    const issueComponent = boardCard.__vue__.$options.children.find(child => child.$props && child.$props.item);
-                    if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
-                        return issueComponent.$props.item;
-                    }
-                }
-                if (boardCard.__vue__.$props && boardCard.__vue__.$props.item) {
-                    return boardCard.__vue__.$props.item;
-                }
-            }
-
-            // Fallback to DOM-based extraction
-            const issueId = boardCard.querySelector('[data-issue-id]')?.dataset?.issueId;
-            const titleElement = boardCard.querySelector('.board-card-title');
-
-            // Try to get labels from DOM if Vue data is not available
-            let labels = [];
-            const labelElements = boardCard.querySelectorAll('.gl-label-text');
-            if (labelElements && labelElements.length > 0) {
-                labels = Array.from(labelElements).map(el => ({
-                    name: el.textContent.trim(),
-                    title: el.textContent.trim()
-                }));
-            }
-
-            if (issueId && titleElement) {
-                return {
-                    iid: issueId,
-                    title: titleElement.textContent.trim(),
-                    referencePath: window.location.pathname.split('/boards')[0],
-                    labels: labels
-                };
-            }
-        } catch (e) {
-            console.error('Error getting issue item from card:', e);
+      }
+    });
+    document.addEventListener('click', () => {
+      if (dropdownContent.style.display === 'block') {
+        dropdownContent.style.display = 'none';
+        dropdown.style.zIndex = '99';
+        const allCards = document.querySelectorAll('.board-card');
+        const allDropdowns = document.querySelectorAll('.linked-items-dropdown');
+        allCards.forEach(c => {
+          c.style.opacity = '1';
+          c.style.removeProperty('z-index');
+        });
+        allDropdowns.forEach(d => {
+          d.style.opacity = '1';
+        });
+      }
+    });
+    dropdown.appendChild(dropdownToggle);
+    dropdown.appendChild(dropdownContent);
+    cardArea.appendChild(dropdown);
+    return dropdown;
+  }
+  getIssueItemFromCard(boardCard) {
+    try {
+      if (boardCard.__vue__) {
+        if (boardCard.__vue__.$children && boardCard.__vue__.$children.length > 0) {
+          const issueComponent = boardCard.__vue__.$children.find(child => child.$props && child.$props.item);
+          if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
+            return issueComponent.$props.item;
+          }
         }
-        return null;
+        if (boardCard.__vue__.$options && boardCard.__vue__.$options.children && boardCard.__vue__.$options.children.length > 0) {
+          const issueComponent = boardCard.__vue__.$options.children.find(child => child.$props && child.$props.item);
+          if (issueComponent && issueComponent.$props && issueComponent.$props.item) {
+            return issueComponent.$props.item;
+          }
+        }
+        if (boardCard.__vue__.$props && boardCard.__vue__.$props.item) {
+          return boardCard.__vue__.$props.item;
+        }
+      }
+      const issueId = boardCard.querySelector('[data-issue-id]')?.dataset?.issueId;
+      const titleElement = boardCard.querySelector('.board-card-title');
+      let labels = [];
+      const labelElements = boardCard.querySelectorAll('.gl-label-text');
+      if (labelElements && labelElements.length > 0) {
+        labels = Array.from(labelElements).map(el => ({
+          name: el.textContent.trim(),
+          title: el.textContent.trim()
+        }));
+      }
+      if (issueId && titleElement) {
+        return {
+          iid: issueId,
+          title: titleElement.textContent.trim(),
+          referencePath: window.location.pathname.split('/boards')[0],
+          labels: labels
+        };
+      }
+    } catch (e) {
+      console.error('Error getting issue item from card:', e);
     }
-
-    async getLinkedItemsFromIssue(issueItem) {
-        const linkedItems = [];
-        try {
-            let projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
-            const baseUrl = window.location.origin;
-
-            if (issueItem.iid) {
-                let issueIid = issueItem.iid;
-                if (typeof issueIid === 'string' && issueIid.includes('#')) {
-                    issueIid = issueIid.split('#').pop();
+    return null;
+  }
+  async getLinkedItemsFromIssue(issueItem) {
+    const linkedItems = [];
+    try {
+      let projectPath = this.extractRepositoryPath(issueItem.referencePath || window.location.pathname);
+      const baseUrl = window.location.origin;
+      if (issueItem.iid) {
+        let issueIid = issueItem.iid;
+        if (typeof issueIid === 'string' && issueIid.includes('#')) {
+          issueIid = issueIid.split('#').pop();
+        }
+        if (projectPath.includes('#')) {
+          projectPath = projectPath.split('#')[0];
+        }
+        this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+        const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
+        if (gitlabApi && typeof gitlabApi.callGitLabApiWithCache === 'function') {
+          try {
+            const encodedPath = encodeURIComponent(projectPath);
+            try {
+              const relatedMRs = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/related_merge_requests`, {
+                params: {
+                  with_discussions_to_resolve: true,
+                  with_merge_status_recheck: true
                 }
-                if (projectPath.includes('#')) {
-                    projectPath = projectPath.split('#')[0];
+              }, 60000);
+              if (Array.isArray(relatedMRs) && relatedMRs.length > 0) {
+                for (let i = linkedItems.length - 1; i >= 0; i--) {
+                  if (linkedItems[i].type === 'merge_request') {
+                    linkedItems.splice(i, 1);
+                  }
                 }
-
-                this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
-                const gitlabApi = window.gitlabApi || this.uiManager?.gitlabApi;
-
-                if (gitlabApi && typeof gitlabApi.callGitLabApiWithCache === 'function') {
+                for (const mr of relatedMRs) {
+                  let mrDetails = mr;
+                  mr.has_conflicts = mr.pipeline !== undefined && mr.pipeline.status === "failed";
+                  mr.rspec_running = mr.pipeline !== undefined && mr.pipeline.status === "running";
+                  if (!mr.blocking_discussions_resolved || !mr.has_conflicts) {
                     try {
-                        const encodedPath = encodeURIComponent(projectPath);
-                        try {
-                            const relatedMRs = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/related_merge_requests`, {
-                                params: {
-                                    with_discussions_to_resolve: true,
-                                    with_merge_status_recheck: true
-                                }
-                            }, 60000);
-
-                            if (Array.isArray(relatedMRs) && relatedMRs.length > 0) {
-                                for (let i = linkedItems.length - 1; i >= 0; i--) {
-                                    if (linkedItems[i].type === 'merge_request') {
-                                        linkedItems.splice(i, 1);
-                                    }
-                                }
-
-                                for (const mr of relatedMRs) {
-                                    let mrDetails = mr;
-                                    mr.has_conflicts = mr.pipeline !== undefined && mr.pipeline.status === "failed"
-                                    mr.rspec_running = mr.pipeline !== undefined && mr.pipeline.status === "running"
-                                    if (!mr.blocking_discussions_resolved || !mr.has_conflicts) {
-                                        try {
-                                            const detailedMR = await gitlabApi.callGitLabApiWithCache(
-                                                `projects/${encodedPath}/merge_requests/${mr.iid}`,
-                                                {}, 60000
-                                            );
-                                            if (detailedMR) {
-                                                mrDetails = {...mr, ...detailedMR};
-                                            }
-                                        } catch (detailsError) {
-                                            console.warn(`Couldn't fetch detailed info for MR #${mr.iid}:`, detailsError);
-                                        }
-                                    }
-
-                                    linkedItems.push({
-                                        type: 'merge_request',
-                                        title: mrDetails.title || `Merge Request !${mrDetails.iid}`,
-                                        state: mrDetails.state,
-                                        url: mrDetails.web_url || `${baseUrl}/${projectPath}/-/merge_requests/${mrDetails.iid}`,
-                                        has_conflicts: mrDetails.has_conflicts,
-                                        rspec_running: mr.rspec_running,
-                                        blocking_discussions_resolved: mrDetails.blocking_discussions_resolved,
-                                        has_discussions: mrDetails.discussion_locked !== undefined
-                                            ? !mrDetails.discussion_locked
-                                            : !!mrDetails.user_notes_count,
-                                        approvals_required: mrDetails.approvals_required,
-                                        approved_by: mrDetails.approved_by,
-                                        pipeline_status: mrDetails.pipeline_status,
-                                        mrDetails: mrDetails,
-                                        issueItem: issueItem
-                                    });
-                                }
-                            }
-                        } catch (mrError) {
-                            console.warn('Error fetching related merge requests:', mrError);
-                        }
-
-                        try {
-                            const relatedIssues = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/links`, {}, 60000);
-                            if (Array.isArray(relatedIssues)) {
-                                for (let i = linkedItems.length - 1; i >= 0; i--) {
-                                    if (linkedItems[i].type === 'issue') {
-                                        linkedItems.splice(i, 1);
-                                    }
-                                }
-                                relatedIssues.forEach(related => {
-                                    linkedItems.push({
-                                        type: 'issue',
-                                        title: related.title || `Issue #${related.iid}`,
-                                        state: related.state,
-                                        url: related.web_url || `${baseUrl}/${projectPath}/-/issues/${related.iid}`
-                                    });
-                                });
-                            }
-                        } catch (linkError) {
-                            console.warn('Error fetching related issues:', linkError);
-                        }
-                    } catch (apiError) {
-                        console.warn('Error fetching issue details via API:', apiError);
-                        if (linkedItems.length === 0) {
-                            this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
-                        }
+                      const detailedMR = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/merge_requests/${mr.iid}`, {}, 60000);
+                      if (detailedMR) {
+                        mrDetails = {
+                          ...mr,
+                          ...detailedMR
+                        };
+                      }
+                    } catch (detailsError) {
+                      console.warn(`Couldn't fetch detailed info for MR #${mr.iid}:`, detailsError);
                     }
-                } else {
-                    if (linkedItems.length === 0) {
-                        this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
-                    }
-                }
-            } else {
-                this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
-            }
-
-            if (issueItem.iid) {
-                let issueIid = issueItem.iid;
-                if (typeof issueIid === 'string' && issueIid.includes('#')) {
-                    issueIid = issueIid.split('#').pop();
-                }
-                const hasIssueLink = linkedItems.some(item => item.type === 'issue_detail');
-                if (!hasIssueLink) {
-                    linkedItems.push({
-                        type: 'issue_detail',
-                        title: 'View Issue Details',
-                        url: `${baseUrl}/${projectPath}/-/issues/${issueIid}`
-                    });
-                }
-            }
-        } catch (e) {
-            console.error('Error extracting linked items:', e);
-        }
-        return linkedItems;
-    }
-
-    createLinkItem(item) {
-        const link = document.createElement('a');
-        link.href = item.url;
-        link.target = '_blank';
-        link.style.padding = '8px 12px';
-        link.style.display = 'flex';
-        link.style.alignItems = 'center';
-        link.style.textDecoration = 'none';
-        link.style.color = '#333';
-        link.style.borderBottom = '1px solid #eee';
-
-        const icon = document.createElement('span');
-
-        switch (item.type) {
-            case 'merge_request':
-                icon.textContent = '🔀';
-                icon.title = 'Merge Request';
-
-                // Enhanced status display for merge requests
-                const mrStatusText = this.getEnhancedMRStatus(item);
-                if (mrStatusText === 'Merged') {
-                    icon.style.color = '#6f42c1'; // Purple for merged
-                } else if (mrStatusText === 'Reviewing') {
-                    icon.style.color = '#f9bc00'; // Yellow for in-review
-                } else if (mrStatusText === 'Approved') {
-                    icon.style.color = '#28a745'; // Green for approved
-                } else if (mrStatusText === 'Needs Review') {
-                    icon.style.color = '#1f75cb'; // Blue for needs review
-                } else if (mrStatusText === 'Changes Needed') {
-                    icon.style.color = '#dc3545'; // Red for changes needed
-                } else if (mrStatusText === 'Open') {
-                    icon.style.color = '#1f75cb'; // Blue for open
-                } else if (mrStatusText === 'Closed') {
-                    icon.style.color = '#dc3545'; // Red for closed
-                } else if (mrStatusText === 'Draft') {
-                    icon.style.color = '#6c757d'; // Gray for drafts
-                } else if (mrStatusText === 'Pipeline Failed') {
-                    icon.style.color = '#dc3545'; // Red for conflicts
-                } else if (mrStatusText === 'Pipeline Failed') {
-                    icon.style.color = '#dc3545'; // Red for pipeline failures
-                }
-                break;
-
-            case 'branch':
-                icon.textContent = '🌿';
-                icon.title = 'Branch';
-                icon.style.color = '#f9bc00';
-                break;
-
-            case 'issue':
-                icon.textContent = '📝';
-                icon.title = 'Issue';
-                if (item.state) {
-                    if (item.state.toLowerCase() === 'closed') {
-                        icon.style.color = '#dc3545';
-                    } else if (item.state.toLowerCase() === 'opened' || item.state.toLowerCase() === 'open') {
-                        icon.style.color = '#1f75cb';
-                    }
-                }
-                break;
-
-            case 'issue_detail':
-                icon.textContent = '👁️';
-                icon.title = 'View Issue';
-                icon.style.color = '#17a2b8';
-                break;
-
-            default:
-                icon.textContent = '🔗';
-                icon.style.color = '#6c757d';
-        }
-
-        icon.style.marginRight = '8px';
-        icon.style.fontSize = '16px';
-
-        const text = document.createElement('span');
-        text.textContent = this.truncateText(item.title, 30);
-        text.style.flex = '1';
-        text.style.overflow = 'hidden';
-        text.style.textOverflow = 'ellipsis';
-        text.style.whiteSpace = 'nowrap';
-
-        const infoContainer = document.createElement('div');
-        infoContainer.style.display = 'flex';
-        infoContainer.style.alignItems = 'center';
-        infoContainer.style.marginLeft = 'auto';
-        infoContainer.style.gap = '2px';
-
-        if (item.state) {
-            const status = document.createElement('span');
-            status.style.borderRadius = '10px';
-            status.style.padding = '2px 6px';
-            status.style.fontSize = '10px';
-            status.style.marginRight = '4px';
-
-            // Use enhanced status for merge requests
-            if (item.type === 'merge_request') {
-                const statusText = this.getEnhancedMRStatus(item);
-                status.textContent = statusText;
-
-                if (statusText === 'Merged') {
-                    status.style.backgroundColor = '#6f42c1';
-                    status.style.color = 'white';
-                } else if (statusText === 'Reviewing') {
-                    status.style.backgroundColor = '#f9bc00'; // Yellow for in-review
-                    status.style.color = 'black';
-                } else if (statusText === 'Approved') {
-                    status.style.backgroundColor = '#28a745'; // Green for approved
-                    status.style.color = 'white';
-                } else if (statusText === 'Ready to Merge') {
-                    status.style.backgroundColor = '#28a745'; // Green for ready to merge
-                    status.style.color = 'white';
-                    status.style.fontWeight = 'bold'; // Make it stand out
-                } else if (statusText === 'Needs Review') {
-                    status.style.backgroundColor = '#1f75cb'; // Blue for needs review
-                    status.style.color = 'white';
-                } else if (statusText === 'Changes Needed') {
-                    status.style.backgroundColor = '#dc3545'; // Red for changes needed
-                    status.style.color = 'white';
-                } else if (statusText === 'Draft') {
-                    status.style.backgroundColor = '#6c757d'; // Gray for drafts
-                    status.style.color = 'white';
-                } else if (statusText === 'Pipeline Failed') {
-                    status.style.backgroundColor = '#dc3545'; // Red for conflicts
-                    status.style.color = 'white';
-                } else if (statusText === 'Pipeline Failed') {
-                    status.style.backgroundColor = '#dc3545'; // Red for failed pipeline
-                    status.style.color = 'white';
-                } else if (statusText === 'Open') {
-                    status.style.backgroundColor = '#1f75cb'; // Blue for open
-                    status.style.color = 'white';
-                } else if (statusText === 'Closed') {
-                    status.style.backgroundColor = '#000000'; // Black for closed
-                    status.style.color = 'white';
-                } else {
-                    status.style.backgroundColor = '#6c757d';
-                    status.style.color = 'white';
-                }
-                infoContainer.appendChild(status);
-
-                // Add reviewer avatar if available (for merge requests)
-                if (item.mrDetails && (item.mrDetails.reviewers || item.mrDetails.approved_by)) {
-                    // First try the reviewers property
-                    const reviewers = item.mrDetails.reviewers || [];
-                    // Then try the approved_by property
-                    const approvers = item.mrDetails.approved_by || [];
-
-                    // Use the first reviewer or approver (whichever is available)
-                    const reviewer = reviewers.length > 0 ? reviewers[0] :
-                        (approvers.length > 0 ? approvers[0] : null);
-
-                    if (reviewer && reviewer.avatar_url) {
-                        const avatarContainer = document.createElement('div');
-                        avatarContainer.style.position = 'relative';
-                        avatarContainer.style.width = '25px';
-                        avatarContainer.style.height = '25px';
-
-                        const avatar = document.createElement('img');
-                        avatar.src = reviewer.avatar_url;
-                        avatar.alt = reviewer.name || 'Reviewer';
-                        avatar.title = `Reviewer: ${reviewer.name || 'Unknown'}`;
-                        avatar.style.width = '25px';
-                        avatar.style.height = '25px';
-                        avatar.style.borderRadius = '50%';
-                        avatar.style.objectFit = 'cover';
-                        avatar.style.border = '1px solid #e0e0e0';
-
-                        avatarContainer.appendChild(avatar);
-
-                        // Add a count badge if there are multiple reviewers
-                        const totalReviewers = reviewers.length + approvers.length;
-                        if (totalReviewers > 1) {
-                            const badge = document.createElement('span');
-                            badge.textContent = `+${totalReviewers - 1}`;
-                            badge.style.position = 'absolute';
-                            badge.style.top = '-4px';
-                            badge.style.right = '-4px';
-                            badge.style.backgroundColor = '#1f75cb';
-                            badge.style.color = 'white';
-                            badge.style.fontSize = '8px';
-                            badge.style.borderRadius = '8px';
-                            badge.style.padding = '1px 3px';
-                            badge.style.fontWeight = 'bold';
-
-                            avatarContainer.appendChild(badge);
-                            avatarContainer.title = `${totalReviewers} reviewers`;
-                        }
-
-                        infoContainer.appendChild(avatarContainer);
-                    }
-                }
-            } else if (item.type === 'issue') {
-                const statusText = this.getEnhancedIssueStatus(item);
-                status.textContent = statusText;
-
-                if (statusText === 'Open') {
-                    status.style.backgroundColor = '#1f75cb';
-                    status.style.color = 'white';
-                } else if (statusText === 'In Progress') {
-                    status.style.backgroundColor = '#28a745';
-                    status.style.color = 'white';
-                } else if (statusText === 'Draft') {
-                    status.style.backgroundColor = '#6c757d';
-                    status.style.color = 'white';
-                } else if (statusText === 'Active') {
-                    status.style.backgroundColor = '#17a2b8';
-                    status.style.color = 'white';
-                } else if (statusText === 'Overdue') {
-                    status.style.backgroundColor = '#dc3545';
-                    status.style.color = 'white';
-                } else if (statusText === 'Due Soon') {
-                    status.style.backgroundColor = '#f9bc00';
-                    status.style.color = 'black';
-                } else if (statusText === 'Resolved') {
-                    status.style.backgroundColor = '#6f42c1';
-                    status.style.color = 'white';
-                } else if (statusText === 'Closed') {
-                    status.style.backgroundColor = '#dc3545';
-                    status.style.color = 'white';
-                } else {
-                    // Default for any other status
-                    status.style.backgroundColor = '#6c757d';
-                    status.style.color = 'white';
-                }
-                infoContainer.appendChild(status);
-            } else {
-                status.textContent = item.state;
-
-                if (item.state.toLowerCase() === 'open' || item.state.toLowerCase() === 'opened') {
-                    status.style.backgroundColor = '#1f75cb';
-                    status.style.color = 'white';
-                } else if (item.state.toLowerCase() === 'closed') {
-                    status.style.backgroundColor = '#dc3545';
-                    status.style.color = 'white';
-                } else if (item.state.toLowerCase() === 'merged') {
-                    status.style.backgroundColor = '#6f42c1';
-                    status.style.color = 'white';
-                }
-                infoContainer.appendChild(status);
-            }
-        }
-
-        link.prepend(icon);
-        link.appendChild(text);
-        link.appendChild(infoContainer);
-
-        link.addEventListener('mouseenter', function () {
-            this.style.backgroundColor = '#f8f9fa';
-        });
-        link.addEventListener('mouseleave', function () {
-            this.style.backgroundColor = 'white';
-        });
-
-        return link;
-    }
-
-    getEnhancedIssueStatus(item) {
-        if (!item || !item.state) {
-            return 'Unknown';
-        }
-
-        // Check basic states first
-        const state = item.state.toLowerCase();
-        if (state === 'closed') {
-            // Could check for different closure reasons
-            if (item.closed_at && item.updated_at &&
-                new Date(item.closed_at).getTime() === new Date(item.updated_at).getTime()) {
-                return 'Resolved';
-            }
-            return 'Closed';
-        }
-
-        if (state === 'open' || state === 'opened') {
-            // Check for various open states
-
-            // Check for draft or WIP
-            if (item.title) {
-                if (item.title.toLowerCase().startsWith('draft:') ||
-                    item.title.toLowerCase().startsWith('wip:') ||
-                    item.title.toLowerCase().includes('[wip]') ||
-                    item.title.toLowerCase().includes('[draft]')) {
-                    return 'Draft';
-                }
-            }
-
-            // Check if it's being worked on
-            if (item.assignees && item.assignees.length > 0) {
-                return 'In Progress';
-            }
-
-            // Check for due date
-            if (item.due_date) {
-                const dueDate = new Date(item.due_date);
-                const today = new Date();
-
-                if (dueDate < today) {
-                    return 'Overdue';
-                }
-
-                // Due within 2 days
-                const twoDaysInMs = 2 * 24 * 60 * 60 * 1000;
-                if (dueDate.getTime() - today.getTime() < twoDaysInMs) {
-                    return 'Due Soon';
-                }
-            }
-
-            // Check for activity level (comments)
-            if (item.user_notes_count !== undefined && item.user_notes_count > 3) {
-                return 'Active';
-            }
-
-            // Default open state with better wording
-            return 'Open';
-        }
-
-        // If it's another state, just capitalize it
-        return item.state.charAt(0).toUpperCase() + item.state.slice(1).toLowerCase();
-    }
-
-    positionDropdown(dropdown, card, cardArea) {
-        try {
-            const cardRect = card.getBoundingClientRect();
-            const areaRect = cardArea.getBoundingClientRect();
-            const top = cardRect.top - areaRect.top + cardArea.scrollTop;
-            const left = cardRect.left - areaRect.left + cardArea.scrollLeft + 5 - 13;
-            dropdown.style.top = `${top}px`;
-            dropdown.style.left = `${left}px`;
-        } catch (e) {
-            console.error('Error positioning dropdown:', e);
-        }
-    }
-
-    refreshDropdowns() {
-        if (!this.initialized) {
-            return;
-        }
-        this.repositionDropdowns();
-        this.checkForNewCards();
-    }
-
-    repositionDropdowns() {
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.className === 'linked-items-dropdown' && dropdown.originalCard) {
-                const card = dropdown.originalCard;
-                const container = dropdown.parentNode;
-                if (card && container) {
-                    this.positionDropdown(dropdown, card, container);
-                }
-            }
-        });
-    }
-
-    checkForNewCards() {
-        if (!this.initialized) {
-            return false;
-        }
-
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        let newCardsFound = false;
-        cardAreas.forEach(cardArea => {
-            const cards = cardArea.querySelectorAll('.board-card');
-            cards.forEach(card => {
-                const cardId = card.id || '';
-                const hasDropdown = this.dropdowns.some(dropdown =>
-                    dropdown.dataset.cardId === cardId || dropdown.originalCard === card
-                );
-
-                if (!hasDropdown) {
-                    try {
-                        const dropdown = this.createPlaceholderDropdown(card, cardArea);
-                        if (dropdown) {
-                            this.dropdowns.push(dropdown);
-                            newCardsFound = true;
-
-                            // Always fetch data for new cards
-                            this.fetchAndUpdateDropdown(dropdown, card);
-                        }
-                    } catch (error) {
-                        console.error('Error creating dropdown for new card:', error);
-                    }
-                }
-            });
-        });
-
-        return newCardsFound;
-    }
-
-    truncateText(text, maxLength) {
-        if (!text) return '';
-        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-    }
-
-    handleScroll() {
-        this.repositionDropdowns();
-    }
-
-    handleResize() {
-        this.repositionDropdowns();
-    }
-
-    setupMutationObserver() {
-        if (this.boardObserver) {
-            this.boardObserver.disconnect();
-        }
-        this.boardObserver = new MutationObserver(mutations => {
-            let needsUpdate = false;
-            mutations.forEach(mutation => {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    const hasCardChanges = Array.from(mutation.addedNodes).some(node => node.classList && node.classList.contains('board-card'));
-                    if (hasCardChanges) {
-                        needsUpdate = true;
-                    }
-                }
-            });
-            if (needsUpdate && this.initialized) {
-                clearTimeout(this.updateTimeout);
-                this.updateTimeout = setTimeout(() => {
-                    this.refreshDropdowns();
-                }, 100);
-            }
-        });
-        const boardContainers = document.querySelectorAll('.board-list, [data-testid="board-list"], .boards-list');
-        boardContainers.forEach(container => {
-            this.boardObserver.observe(container, {
-                childList: true,
-                subtree: true
-            });
-        });
-    }
-
-    setupCardsMutationObserver() {
-        if (this.cardsObserver) {
-            this.cardsObserver.disconnect();
-        }
-        this.cardsObserver = new MutationObserver(mutations => {
-            let needsCheck = false;
-            mutations.forEach(mutation => {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    needsCheck = true;
-                }
-            });
-            if (needsCheck) {
-                this.checkForNewCards();
-            }
-        });
-        document.body.querySelectorAll('.boards-app, .boards-list').forEach(container => {
-            this.cardsObserver.observe(container, {
-                childList: true,
-                subtree: true
-            });
-        });
-        if (!document.querySelector('.boards-app, .boards-list')) {
-            this.cardsObserver.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-        }
-    }
-
-    extractRepositoryPath(path) {
-        if (!path) {
-            return window.location.pathname.split('/boards')[0].replace(/^\//, '');
-        }
-        if (!path.includes('/') && !path.includes('#')) {
-            return path;
-        }
-        let cleanPath = path;
-        if (cleanPath.includes('#')) {
-            cleanPath = cleanPath.split('#')[0];
-        }
-        const boardsMatch = cleanPath.match(/\/boards\/([^\/]+\/[^\/]+)/);
-        if (boardsMatch && boardsMatch[1]) {
-            return boardsMatch[1];
-        }
-        const projectMatch = cleanPath.match(/^\/([^\/]+\/[^\/]+)/);
-        if (projectMatch && projectMatch[1]) {
-            return projectMatch[1];
-        }
-        const simpleMatch = cleanPath.match(/^\/([^\/]+\/[^\/]+)\/?$/);
-        if (simpleMatch && simpleMatch[1]) {
-            return simpleMatch[1];
-        }
-        const fallback = cleanPath.replace(/^\//, '').split('/boards')[0];
-        if (fallback.includes('/')) {
-            return fallback;
-        }
-        return window.location.pathname.split('/boards')[0].replace(/^\//, '');
-    }
-
-    addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath) {
-        if (issueItem.mergeRequests && issueItem.mergeRequests.nodes) {
-            issueItem.mergeRequests.nodes.forEach(mr => {
-                const mrUrl = mr.webUrl || `${baseUrl}/${projectPath}/-/merge_requests/${mr.iid}`;
-                linkedItems.push({
+                  }
+                  linkedItems.push({
                     type: 'merge_request',
-                    title: mr.title || `Merge Request !${mr.iid}`,
-                    state: mr.state,
-                    url: mrUrl,
-                    mrData: mr
-                });
-            });
-        }
-        if (issueItem.relatedIssues && issueItem.relatedIssues.nodes) {
-            issueItem.relatedIssues.nodes.forEach(related => {
-                const relatedPath = related.referencePath || projectPath;
-                const issueUrl = related.webUrl || `${baseUrl}/${relatedPath}/-/issues/${related.iid}`;
-                linkedItems.push({
+                    title: mrDetails.title || `Merge Request !${mrDetails.iid}`,
+                    state: mrDetails.state,
+                    url: mrDetails.web_url || `${baseUrl}/${projectPath}/-/merge_requests/${mrDetails.iid}`,
+                    has_conflicts: mrDetails.has_conflicts,
+                    rspec_running: mr.rspec_running,
+                    blocking_discussions_resolved: mrDetails.blocking_discussions_resolved,
+                    has_discussions: mrDetails.discussion_locked !== undefined ? !mrDetails.discussion_locked : !!mrDetails.user_notes_count,
+                    approvals_required: mrDetails.approvals_required,
+                    approved_by: mrDetails.approved_by,
+                    pipeline_status: mrDetails.pipeline_status,
+                    mrDetails: mrDetails,
+                    issueItem: issueItem
+                  });
+                }
+              }
+            } catch (mrError) {
+              console.warn('Error fetching related merge requests:', mrError);
+            }
+            try {
+              const relatedIssues = await gitlabApi.callGitLabApiWithCache(`projects/${encodedPath}/issues/${issueIid}/links`, {}, 60000);
+              if (Array.isArray(relatedIssues)) {
+                for (let i = linkedItems.length - 1; i >= 0; i--) {
+                  if (linkedItems[i].type === 'issue') {
+                    linkedItems.splice(i, 1);
+                  }
+                }
+                relatedIssues.forEach(related => {
+                  linkedItems.push({
                     type: 'issue',
                     title: related.title || `Issue #${related.iid}`,
                     state: related.state,
-                    url: issueUrl
+                    url: related.web_url || `${baseUrl}/${projectPath}/-/issues/${related.iid}`
+                  });
                 });
-            });
-        }
-    }
-
-    cleanup() {
-        this.dropdowns.forEach(dropdown => {
-            if (dropdown && dropdown.parentNode) {
-                dropdown.parentNode.removeChild(dropdown);
+              }
+            } catch (linkError) {
+              console.warn('Error fetching related issues:', linkError);
             }
-        });
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
+          } catch (apiError) {
+            console.warn('Error fetching issue details via API:', apiError);
+            if (linkedItems.length === 0) {
+              this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+            }
+          }
+        } else {
+          if (linkedItems.length === 0) {
+            this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+          }
         }
-        if (this.boardObserver) {
-            this.boardObserver.disconnect();
-            this.boardObserver = null;
+      } else {
+        this.addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath);
+      }
+      if (issueItem.iid) {
+        let issueIid = issueItem.iid;
+        if (typeof issueIid === 'string' && issueIid.includes('#')) {
+          issueIid = issueIid.split('#').pop();
         }
-        if (this.cardsObserver) {
-            this.cardsObserver.disconnect();
-            this.cardsObserver = null;
+        const hasIssueLink = linkedItems.some(item => item.type === 'issue_detail');
+        if (!hasIssueLink) {
+          linkedItems.push({
+            type: 'issue_detail',
+            title: 'View Issue Details',
+            url: `${baseUrl}/${projectPath}/-/issues/${issueIid}`
+          });
         }
-        this.dropdowns = [];
-        this.cardLinks.clear();
-        this.initialized = false;
+      }
+    } catch (e) {
+      console.error('Error extracting linked items:', e);
     }
+    return linkedItems;
+  }
+  createLinkItem(item) {
+    const link = document.createElement('a');
+    link.href = item.url;
+    link.target = '_blank';
+    link.style.padding = '8px 12px';
+    link.style.display = 'flex';
+    link.style.alignItems = 'center';
+    link.style.textDecoration = 'none';
+    link.style.color = '#333';
+    link.style.borderBottom = '1px solid #eee';
+    const icon = document.createElement('span');
+    switch (item.type) {
+      case 'merge_request':
+        icon.textContent = '🔀';
+        icon.title = 'Merge Request';
+        const mrStatusText = this.getEnhancedMRStatus(item);
+        if (mrStatusText === 'Merged') {
+          icon.style.color = '#6f42c1';
+        } else if (mrStatusText === 'Reviewing') {
+          icon.style.color = '#f9bc00';
+        } else if (mrStatusText === 'Approved') {
+          icon.style.color = '#28a745';
+        } else if (mrStatusText === 'Needs Review') {
+          icon.style.color = '#1f75cb';
+        } else if (mrStatusText === 'Changes Needed') {
+          icon.style.color = '#dc3545';
+        } else if (mrStatusText === 'Open') {
+          icon.style.color = '#1f75cb';
+        } else if (mrStatusText === 'Closed') {
+          icon.style.color = '#dc3545';
+        } else if (mrStatusText === 'Draft') {
+          icon.style.color = '#6c757d';
+        } else if (mrStatusText === 'Pipeline Failed') {
+          icon.style.color = '#dc3545';
+        } else if (mrStatusText === 'Pipeline Failed') {
+          icon.style.color = '#dc3545';
+        }
+        break;
+      case 'branch':
+        icon.textContent = '🌿';
+        icon.title = 'Branch';
+        icon.style.color = '#f9bc00';
+        break;
+      case 'issue':
+        icon.textContent = '📝';
+        icon.title = 'Issue';
+        if (item.state) {
+          if (item.state.toLowerCase() === 'closed') {
+            icon.style.color = '#dc3545';
+          } else if (item.state.toLowerCase() === 'opened' || item.state.toLowerCase() === 'open') {
+            icon.style.color = '#1f75cb';
+          }
+        }
+        break;
+      case 'issue_detail':
+        icon.textContent = '👁️';
+        icon.title = 'View Issue';
+        icon.style.color = '#17a2b8';
+        break;
+      default:
+        icon.textContent = '🔗';
+        icon.style.color = '#6c757d';
+    }
+    icon.style.marginRight = '8px';
+    icon.style.fontSize = '16px';
+    const text = document.createElement('span');
+    text.textContent = this.truncateText(item.title, 30);
+    text.style.flex = '1';
+    text.style.overflow = 'hidden';
+    text.style.textOverflow = 'ellipsis';
+    text.style.whiteSpace = 'nowrap';
+    const infoContainer = document.createElement('div');
+    infoContainer.style.display = 'flex';
+    infoContainer.style.alignItems = 'center';
+    infoContainer.style.marginLeft = 'auto';
+    infoContainer.style.gap = '2px';
+    if (item.state) {
+      const status = document.createElement('span');
+      status.style.borderRadius = '10px';
+      status.style.padding = '2px 6px';
+      status.style.fontSize = '10px';
+      status.style.marginRight = '4px';
+      if (item.type === 'merge_request') {
+        const statusText = this.getEnhancedMRStatus(item);
+        status.textContent = statusText;
+        if (statusText === 'Merged') {
+          status.style.backgroundColor = '#6f42c1';
+          status.style.color = 'white';
+        } else if (statusText === 'Reviewing') {
+          status.style.backgroundColor = '#f9bc00';
+          status.style.color = 'black';
+        } else if (statusText === 'Approved') {
+          status.style.backgroundColor = '#28a745';
+          status.style.color = 'white';
+        } else if (statusText === 'Ready to Merge') {
+          status.style.backgroundColor = '#28a745';
+          status.style.color = 'white';
+          status.style.fontWeight = 'bold';
+        } else if (statusText === 'Needs Review') {
+          status.style.backgroundColor = '#1f75cb';
+          status.style.color = 'white';
+        } else if (statusText === 'Changes Needed') {
+          status.style.backgroundColor = '#dc3545';
+          status.style.color = 'white';
+        } else if (statusText === 'Draft') {
+          status.style.backgroundColor = '#6c757d';
+          status.style.color = 'white';
+        } else if (statusText === 'Pipeline Failed') {
+          status.style.backgroundColor = '#dc3545';
+          status.style.color = 'white';
+        } else if (statusText === 'Pipeline Failed') {
+          status.style.backgroundColor = '#dc3545';
+          status.style.color = 'white';
+        } else if (statusText === 'Open') {
+          status.style.backgroundColor = '#1f75cb';
+          status.style.color = 'white';
+        } else if (statusText === 'Closed') {
+          status.style.backgroundColor = '#000000';
+          status.style.color = 'white';
+        } else {
+          status.style.backgroundColor = '#6c757d';
+          status.style.color = 'white';
+        }
+        infoContainer.appendChild(status);
+        if (item.mrDetails && (item.mrDetails.reviewers || item.mrDetails.approved_by)) {
+          const reviewers = item.mrDetails.reviewers || [];
+          const approvers = item.mrDetails.approved_by || [];
+          const reviewer = reviewers.length > 0 ? reviewers[0] : approvers.length > 0 ? approvers[0] : null;
+          if (reviewer && reviewer.avatar_url) {
+            const avatarContainer = document.createElement('div');
+            avatarContainer.style.position = 'relative';
+            avatarContainer.style.width = '25px';
+            avatarContainer.style.height = '25px';
+            const avatar = document.createElement('img');
+            avatar.src = reviewer.avatar_url;
+            avatar.alt = reviewer.name || 'Reviewer';
+            avatar.title = `Reviewer: ${reviewer.name || 'Unknown'}`;
+            avatar.style.width = '25px';
+            avatar.style.height = '25px';
+            avatar.style.borderRadius = '50%';
+            avatar.style.objectFit = 'cover';
+            avatar.style.border = '1px solid #e0e0e0';
+            avatarContainer.appendChild(avatar);
+            const totalReviewers = reviewers.length + approvers.length;
+            if (totalReviewers > 1) {
+              const badge = document.createElement('span');
+              badge.textContent = `+${totalReviewers - 1}`;
+              badge.style.position = 'absolute';
+              badge.style.top = '-4px';
+              badge.style.right = '-4px';
+              badge.style.backgroundColor = '#1f75cb';
+              badge.style.color = 'white';
+              badge.style.fontSize = '8px';
+              badge.style.borderRadius = '8px';
+              badge.style.padding = '1px 3px';
+              badge.style.fontWeight = 'bold';
+              avatarContainer.appendChild(badge);
+              avatarContainer.title = `${totalReviewers} reviewers`;
+            }
+            infoContainer.appendChild(avatarContainer);
+          }
+        }
+      } else if (item.type === 'issue') {
+        const statusText = this.getEnhancedIssueStatus(item);
+        status.textContent = statusText;
+        if (statusText === 'Open') {
+          status.style.backgroundColor = '#1f75cb';
+          status.style.color = 'white';
+        } else if (statusText === 'In Progress') {
+          status.style.backgroundColor = '#28a745';
+          status.style.color = 'white';
+        } else if (statusText === 'Draft') {
+          status.style.backgroundColor = '#6c757d';
+          status.style.color = 'white';
+        } else if (statusText === 'Active') {
+          status.style.backgroundColor = '#17a2b8';
+          status.style.color = 'white';
+        } else if (statusText === 'Overdue') {
+          status.style.backgroundColor = '#dc3545';
+          status.style.color = 'white';
+        } else if (statusText === 'Due Soon') {
+          status.style.backgroundColor = '#f9bc00';
+          status.style.color = 'black';
+        } else if (statusText === 'Resolved') {
+          status.style.backgroundColor = '#6f42c1';
+          status.style.color = 'white';
+        } else if (statusText === 'Closed') {
+          status.style.backgroundColor = '#dc3545';
+          status.style.color = 'white';
+        } else {
+          status.style.backgroundColor = '#6c757d';
+          status.style.color = 'white';
+        }
+        infoContainer.appendChild(status);
+      } else {
+        status.textContent = item.state;
+        if (item.state.toLowerCase() === 'open' || item.state.toLowerCase() === 'opened') {
+          status.style.backgroundColor = '#1f75cb';
+          status.style.color = 'white';
+        } else if (item.state.toLowerCase() === 'closed') {
+          status.style.backgroundColor = '#dc3545';
+          status.style.color = 'white';
+        } else if (item.state.toLowerCase() === 'merged') {
+          status.style.backgroundColor = '#6f42c1';
+          status.style.color = 'white';
+        }
+        infoContainer.appendChild(status);
+      }
+    }
+    link.prepend(icon);
+    link.appendChild(text);
+    link.appendChild(infoContainer);
+    link.addEventListener('mouseenter', function () {
+      this.style.backgroundColor = '#f8f9fa';
+    });
+    link.addEventListener('mouseleave', function () {
+      this.style.backgroundColor = 'white';
+    });
+    return link;
+  }
+  getEnhancedIssueStatus(item) {
+    if (!item || !item.state) {
+      return 'Unknown';
+    }
+    const state = item.state.toLowerCase();
+    if (state === 'closed') {
+      if (item.closed_at && item.updated_at && new Date(item.closed_at).getTime() === new Date(item.updated_at).getTime()) {
+        return 'Resolved';
+      }
+      return 'Closed';
+    }
+    if (state === 'open' || state === 'opened') {
+      if (item.title) {
+        if (item.title.toLowerCase().startsWith('draft:') || item.title.toLowerCase().startsWith('wip:') || item.title.toLowerCase().includes('[wip]') || item.title.toLowerCase().includes('[draft]')) {
+          return 'Draft';
+        }
+      }
+      if (item.assignees && item.assignees.length > 0) {
+        return 'In Progress';
+      }
+      if (item.due_date) {
+        const dueDate = new Date(item.due_date);
+        const today = new Date();
+        if (dueDate < today) {
+          return 'Overdue';
+        }
+        const twoDaysInMs = 2 * 24 * 60 * 60 * 1000;
+        if (dueDate.getTime() - today.getTime() < twoDaysInMs) {
+          return 'Due Soon';
+        }
+      }
+      if (item.user_notes_count !== undefined && item.user_notes_count > 3) {
+        return 'Active';
+      }
+      return 'Open';
+    }
+    return item.state.charAt(0).toUpperCase() + item.state.slice(1).toLowerCase();
+  }
+  positionDropdown(dropdown, card, cardArea) {
+    try {
+      const cardRect = card.getBoundingClientRect();
+      const areaRect = cardArea.getBoundingClientRect();
+      const top = cardRect.top - areaRect.top + cardArea.scrollTop;
+      const left = cardRect.left - areaRect.left + cardArea.scrollLeft + 5 - 13;
+      dropdown.style.top = `${top}px`;
+      dropdown.style.left = `${left}px`;
+    } catch (e) {
+      console.error('Error positioning dropdown:', e);
+    }
+  }
+  refreshDropdowns() {
+    if (!this.initialized) {
+      return;
+    }
+    this.repositionDropdowns();
+    this.checkForNewCards();
+  }
+  repositionDropdowns() {
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.className === 'linked-items-dropdown' && dropdown.originalCard) {
+        const card = dropdown.originalCard;
+        const container = dropdown.parentNode;
+        if (card && container) {
+          this.positionDropdown(dropdown, card, container);
+        }
+      }
+    });
+  }
+  checkForNewCards() {
+    if (!this.initialized) {
+      return false;
+    }
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    let newCardsFound = false;
+    cardAreas.forEach(cardArea => {
+      const cards = cardArea.querySelectorAll('.board-card');
+      cards.forEach(card => {
+        const cardId = card.id || '';
+        const hasDropdown = this.dropdowns.some(dropdown => dropdown.dataset.cardId === cardId || dropdown.originalCard === card);
+        if (!hasDropdown) {
+          try {
+            const dropdown = this.createPlaceholderDropdown(card, cardArea);
+            if (dropdown) {
+              this.dropdowns.push(dropdown);
+              newCardsFound = true;
+              this.fetchAndUpdateDropdown(dropdown, card);
+            }
+          } catch (error) {
+            console.error('Error creating dropdown for new card:', error);
+          }
+        }
+      });
+    });
+    return newCardsFound;
+  }
+  truncateText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  }
+  handleScroll() {
+    this.repositionDropdowns();
+  }
+  handleResize() {
+    this.repositionDropdowns();
+  }
+  setupMutationObserver() {
+    if (this.boardObserver) {
+      this.boardObserver.disconnect();
+    }
+    this.boardObserver = new MutationObserver(mutations => {
+      let needsUpdate = false;
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          const hasCardChanges = Array.from(mutation.addedNodes).some(node => node.classList && node.classList.contains('board-card'));
+          if (hasCardChanges) {
+            needsUpdate = true;
+          }
+        }
+      });
+      if (needsUpdate && this.initialized) {
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(() => {
+          this.refreshDropdowns();
+        }, 100);
+      }
+    });
+    const boardContainers = document.querySelectorAll('.board-list, [data-testid="board-list"], .boards-list');
+    boardContainers.forEach(container => {
+      this.boardObserver.observe(container, {
+        childList: true,
+        subtree: true
+      });
+    });
+  }
+  setupCardsMutationObserver() {
+    if (this.cardsObserver) {
+      this.cardsObserver.disconnect();
+    }
+    this.cardsObserver = new MutationObserver(mutations => {
+      let needsCheck = false;
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          needsCheck = true;
+        }
+      });
+      if (needsCheck) {
+        this.checkForNewCards();
+      }
+    });
+    document.body.querySelectorAll('.boards-app, .boards-list').forEach(container => {
+      this.cardsObserver.observe(container, {
+        childList: true,
+        subtree: true
+      });
+    });
+    if (!document.querySelector('.boards-app, .boards-list')) {
+      this.cardsObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+  }
+  extractRepositoryPath(path) {
+    if (!path) {
+      return window.location.pathname.split('/boards')[0].replace(/^\//, '');
+    }
+    if (!path.includes('/') && !path.includes('#')) {
+      return path;
+    }
+    let cleanPath = path;
+    if (cleanPath.includes('#')) {
+      cleanPath = cleanPath.split('#')[0];
+    }
+    const boardsMatch = cleanPath.match(/\/boards\/([^\/]+\/[^\/]+)/);
+    if (boardsMatch && boardsMatch[1]) {
+      return boardsMatch[1];
+    }
+    const projectMatch = cleanPath.match(/^\/([^\/]+\/[^\/]+)/);
+    if (projectMatch && projectMatch[1]) {
+      return projectMatch[1];
+    }
+    const simpleMatch = cleanPath.match(/^\/([^\/]+\/[^\/]+)\/?$/);
+    if (simpleMatch && simpleMatch[1]) {
+      return simpleMatch[1];
+    }
+    const fallback = cleanPath.replace(/^\//, '').split('/boards')[0];
+    if (fallback.includes('/')) {
+      return fallback;
+    }
+    return window.location.pathname.split('/boards')[0].replace(/^\//, '');
+  }
+  addLinkedItemsFromProps(issueItem, linkedItems, baseUrl, projectPath) {
+    if (issueItem.mergeRequests && issueItem.mergeRequests.nodes) {
+      issueItem.mergeRequests.nodes.forEach(mr => {
+        const mrUrl = mr.webUrl || `${baseUrl}/${projectPath}/-/merge_requests/${mr.iid}`;
+        linkedItems.push({
+          type: 'merge_request',
+          title: mr.title || `Merge Request !${mr.iid}`,
+          state: mr.state,
+          url: mrUrl,
+          mrData: mr
+        });
+      });
+    }
+    if (issueItem.relatedIssues && issueItem.relatedIssues.nodes) {
+      issueItem.relatedIssues.nodes.forEach(related => {
+        const relatedPath = related.referencePath || projectPath;
+        const issueUrl = related.webUrl || `${baseUrl}/${relatedPath}/-/issues/${related.iid}`;
+        linkedItems.push({
+          type: 'issue',
+          title: related.title || `Issue #${related.iid}`,
+          state: related.state,
+          url: issueUrl
+        });
+      });
+    }
+  }
+  cleanup() {
+    this.dropdowns.forEach(dropdown => {
+      if (dropdown && dropdown.parentNode) {
+        dropdown.parentNode.removeChild(dropdown);
+      }
+    });
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
+    if (this.boardObserver) {
+      this.boardObserver.disconnect();
+      this.boardObserver = null;
+    }
+    if (this.cardsObserver) {
+      this.cardsObserver.disconnect();
+      this.cardsObserver = null;
+    }
+    this.dropdowns = [];
+    this.cardLinks.clear();
+    this.initialized = false;
+  }
 }
 
 // File: lib/ui/components/LabelDisplayManager.js
 window.LabelDisplayManager = class LabelDisplayManager {
-    constructor(options = {}) {
-        this.initialized = false;
-        this.uiManager = options.uiManager || window.uiManager;
-        this.priorityLabels = ['priority', 'Priority', 'high', 'High', 'medium', 'Medium', 'low', 'Low', 'critical', 'Critical'];
-        this.indicatorElements = [];
-        this.processedCards = new WeakMap(); // Track processed cards
-        this.isUpdating = false; // Prevent concurrent updates
-        this.cardIdMap = new Map(); // Track card IDs to indicators for better cleanup
-        this.cardContainerMap = new Map(); // Track which container each card belongs to
-        this.draggedCards = new Set(); // Track cards being dragged
-
-        // Define all methods before binding
-        this.handleScroll = function() {
-            if (!this.initialized || !this.checkEnabled()) return;
-            // Update positions immediately
-            this.updatePositions();
-        };
-
-        this.handleResize = function() {
-            if (!this.initialized || !this.checkEnabled()) return;
-            // Update positions immediately
-            this.updatePositions();
-        };
-
-        this.refreshCards = function() {
-            if (this.isUpdating) return;
-            this.isUpdating = true;
-
-            try {
-                // Process all cards
-                const cards = document.querySelectorAll('.board-card');
-                cards.forEach(card => {
-                    // Skip cards we've already processed
-                    if (!this.processedCards.has(card)) {
-                        this.processCard(card);
-                        this.processedCards.set(card, true);
-                    } else {
-                        // Check if the card has moved to a different container
-                        this.checkCardContainer(card);
-                    }
-                });
-
-                // Update positions immediately
-                this.updatePositions();
-
-                // Check for removed cards and clean up their indicators
-                this.cleanupOrphanedIndicators();
-            } finally {
-                this.isUpdating = false;
-            }
-        };
-
-        this.updatePositions = function() {
-            if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
-                return;
-            }
-
-            this.isUpdating = true;
-
-            try {
-                // Filter and update valid indicators
-                const validIndicators = [];
-
-                for (let i = 0; i < this.indicatorElements.length; i++) {
-                    const {element, card} = this.indicatorElements[i];
-
-                    // Skip invalid elements or dragging cards
-                    if (!element || !element.parentNode || !card || !card.parentNode) {
-                        if (element && element.parentNode) {
-                            element.parentNode.removeChild(element);
-                        }
-                        continue;
-                    }
-
-                    // If card is being dragged, hide the indicator but keep tracking it
-                    if (card.classList.contains('is-dragging') || card.classList.contains('is-ghost')) {
-                        element.style.opacity = '0';
-                        validIndicators.push({element, card});
-                        continue;
-                    } else {
-                        // Make sure indicator is visible for non-dragged cards
-                        element.style.opacity = '1';
-                    }
-
-                    // Check if card moved to a different container
-                    const container = card.closest('[data-testid="board-list-cards-area"]');
-                    if (!container) continue;
-
-                    const cardRect = card.getBoundingClientRect();
-                    const containerRect = container.getBoundingClientRect();
-
-                    const top = cardRect.top - containerRect.top + container.scrollTop;
-                    const left = cardRect.left - containerRect.left + container.scrollLeft + 2;
-
-                    element.style.top = `${top}px`;
-                    element.style.left = `${left}px`;
-                    element.style.width = `${cardRect.width - 4}px`;
-
-                    validIndicators.push({element, card});
-                }
-
-                // Replace array with only valid indicators
-                this.indicatorElements = validIndicators;
-            } finally {
-                this.isUpdating = false;
-            }
-        };
-
-        // Now bind all methods to this instance
-        this.handleScroll = this.handleScroll.bind(this);
-        this.handleResize = this.handleResize.bind(this);
-        this.refreshCards = this.refreshCards.bind(this);
-        this.updatePositions = this.updatePositions.bind(this);
-        this.handleDragEvents = this.handleDragEvents.bind(this);
-
-        // Setup listeners
-        window.addEventListener('scroll', this.handleScroll);
-        window.addEventListener('resize', this.handleResize);
-        document.addEventListener('dragstart', this.handleDragEvents);
-        document.addEventListener('dragend', this.handleDragEvents);
-        document.addEventListener('drop', this.handleDragEvents);
-
-        this.setupMutationObserver();
-
-        // Check if enabled
-        this.checkEnabled();
-    }
-
-    // Handle drag events to improve cleanup
-    handleDragEvents(e) {
-        if (!this.initialized || !this.checkEnabled()) return;
-
-        // Identify the card being dragged
-        let card = null;
-        if (e.target && e.target.classList && e.target.classList.contains('board-card')) {
-            card = e.target;
-        } else if (e.target) {
-            card = e.target.closest('.board-card');
-        }
-
-        if (!card) return;
-
-        // If it's dragstart, store the card ID
-        if (e.type === 'dragstart') {
-            if (card.id) {
-                this.draggedCards.add(card.id);
-
-                // Hide the indicator but don't remove it
-                const indicator = this.cardIdMap.get(card.id);
-                if (indicator) {
-                    indicator.style.opacity = '0';
-                }
-            }
-        } else if (e.type === 'dragend' || e.type === 'drop') {
-            if (card.id) {
-                // Remove from dragged cards set
-                this.draggedCards.delete(card.id);
-
-                // Show the indicator again if it exists
-                const indicator = this.cardIdMap.get(card.id);
-                if (indicator) {
-                    indicator.style.opacity = '1';
-                }
-            }
-
-            // Wait a bit to let the DOM update
-            setTimeout(() => {
-                this.refreshCards();
-            }, 100);
-        }
-    }
-
-    // Check if a card has moved to a different container
-    checkCardContainer(card) {
-        if (!card.id) return;
-
-        const currentContainer = card.closest('[data-testid="board-list-cards-area"]');
-        if (!currentContainer) return;
-
-        const previousContainer = this.cardContainerMap.get(card.id);
-
-        // If the card has moved to a different container
-        if (previousContainer && previousContainer !== currentContainer) {
-            // Find and remove the indicator for this card
-            const indicator = this.cardIdMap.get(card.id);
-            if (indicator && indicator.parentNode) {
-                indicator.parentNode.removeChild(indicator);
-
-                // Remove from tracking
-                this.cardIdMap.delete(card.id);
-
-                // Filter out this indicator from the array
-                this.indicatorElements = this.indicatorElements.filter(item =>
-                    item.element !== indicator
-                );
-
-                // Reprocess the card in its new container
-                this.processCard(card);
-            }
-        }
-
-        // Update the container map
-        this.cardContainerMap.set(card.id, currentContainer);
-    }
-
-    // Update the setupMutationObserver method to provide instant updates
-    setupMutationObserver() {
-        if (this.boardObserver) {
-            this.boardObserver.disconnect();
-        }
-
-        this.boardObserver = new MutationObserver(mutations => {
-            if (!this.initialized || !this.checkEnabled()) {
-                return;
-            }
-
-            let needsUpdate = false;
-            let cardRemoved = false;
-            let cardMoved = false;
-            let classChanged = false;
-            let dragStateChanged = false;
-
-            mutations.forEach(mutation => {
-                // Process mutations that add/remove elements
-                if (mutation.type === 'childList') {
-                    // Check for added cards
-                    const addedCards = Array.from(mutation.addedNodes).filter(node =>
-                        node.nodeType === Node.ELEMENT_NODE &&
-                        (node.classList?.contains('board-card') || node.querySelector?.('.board-card'))
-                    );
-
-                    if (addedCards.length > 0) {
-                        needsUpdate = true;
-                        cardMoved = true;
-                    }
-
-                    // Check for removed cards
-                    const removedCards = Array.from(mutation.removedNodes).filter(node =>
-                        node.nodeType === Node.ELEMENT_NODE &&
-                        (node.classList?.contains('board-card') || node.querySelector?.('.board-card'))
-                    );
-
-                    if (removedCards.length > 0) {
-                        cardRemoved = true;
-                    }
-                } else if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    // Track class changes on cards
-                    if (mutation.target.classList?.contains('board-card')) {
-                        classChanged = true;
-
-                        // Check if drag state changed
-                        const isDragging = mutation.target.classList.contains('is-dragging') ||
-                            mutation.target.classList.contains('is-ghost');
-                        const wasDragging = this.draggedCards.has(mutation.target.id);
-
-                        if (isDragging !== wasDragging) {
-                            dragStateChanged = true;
-
-                            if (isDragging) {
-                                // Card started dragging
-                                if (mutation.target.id) {
-                                    this.draggedCards.add(mutation.target.id);
-
-                                    // Hide indicator
-                                    const indicator = this.cardIdMap.get(mutation.target.id);
-                                    if (indicator) {
-                                        indicator.style.opacity = '0';
-                                    }
-                                }
-                            } else {
-                                // Card stopped dragging
-                                if (mutation.target.id) {
-                                    this.draggedCards.delete(mutation.target.id);
-
-                                    // Show indicator again
-                                    const indicator = this.cardIdMap.get(mutation.target.id);
-                                    if (indicator) {
-                                        indicator.style.opacity = '1';
-                                    } else {
-                                        // Indicator might have been removed, reprocess the card
-                                        this.processCard(mutation.target);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            // If cards changed drag state, update positions and visibility
-            if (dragStateChanged) {
-                setTimeout(() => this.updatePositions(), 0);
-            }
-
-            // If cards are changing classes (like adding/removing is-dragging)
-            if (classChanged && !dragStateChanged) {
-                setTimeout(() => this.updatePositions(), 50);
-            }
-
-            // If cards are moved or removed, do a full cleanup
-            if (cardMoved || cardRemoved) {
-                setTimeout(() => {
-                    this.cleanupOrphanedIndicators();
-                    this.refreshCards();
-                }, 100);
-            } else if (needsUpdate) {
-                // Process immediately without debouncing for other updates
-                this.refreshCards();
-            }
-        });
-
-        // Observe the board containers with class attribute changes too
-        const boardContainers = document.querySelectorAll('.board-list, [data-testid="board-list"], .boards-list');
-        boardContainers.forEach(container => {
-            this.boardObserver.observe(container, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['class']
-            });
-        });
-    }
-
-    // Also update initialize to set up continuous checks
-    initialize() {
-        if (!this.checkEnabled()) {
-            return;
-        }
-
-        if (this.initialized) {
-            return;
-        }
-
-        this.initialized = true;
-        this.applyOverflowFixes();
-
-        // Clear any existing indicators first
-        this.cleanupAllIndicators();
-
-        // Process cards
-        this.processCards();
-
-        // Use a more frequent interval for smoother updates
-        this.refreshInterval = setInterval(() => {
-            if (!this.isUpdating) {
-                this.checkForNewCards();
-                this.updatePositions(); // Update positions regularly
-                this.cleanupOrphanedIndicators(); // Periodically check for orphaned indicators
-            }
-        }, 500); // More frequent updates
-    }
-
-    checkEnabled() {
-        try {
-            const enabled = localStorage.getItem('gitLabHelperHideLabelsEnabled');
-            return enabled === 'true';
-        } catch (e) {
-            console.error('Error checking hide labels enabled state:', e);
-            return false;
-        }
-    }
-
-    applyOverflowFixes() {
-        this.originalStyles = [];
-        const ulElements = document.querySelectorAll('ul.board-list');
-        ulElements.forEach(ul => {
-            this.originalStyles.push({
-                element: ul,
-                property: 'overflow-x',
-                value: ul.style.overflowX
-            });
-            ul.style.setProperty('overflow-x', 'unset', 'important');
-            ul.style.setProperty('overflow-y', 'unset', 'important');
-        });
-
-        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
-        cardAreas.forEach(area => {
-            this.originalStyles.push({
-                element: area,
-                property: 'overflow',
-                value: area.style.overflow
-            });
-            this.originalStyles.push({
-                element: area,
-                property: 'position',
-                value: area.style.position
-            });
-            area.style.overflow = 'auto';
-            area.style.position = 'relative';
-        });
-
-        return cardAreas;
-    }
-
-    processCards() {
-        if (this.isUpdating) return;
-        this.isUpdating = true;
-
-        try {
-            // Process all cards
-            const cards = document.querySelectorAll('.board-card');
-            cards.forEach(card => {
-                // Skip cards we've already processed
-                if (!this.processedCards.has(card)) {
-                    this.processCard(card);
-                    this.processedCards.set(card, true);
-                }
-            });
-        } finally {
-            this.isUpdating = false;
-        }
-    }
-
-    processCard(card) {
-        // Skip ghost cards (but not dragging cards - we want to process them but hide the indicator)
-        if (card.classList.contains('is-ghost')) {
-            return;
-        }
-
-        // Find the labels container
-        const labelsContainer = card.querySelector('.board-card-labels');
-        if (!labelsContainer) return;
-
-        // Hide the labels container
-        labelsContainer.style.display = 'none';
-
-        // Find priority labels
-        const labels = Array.from(labelsContainer.querySelectorAll('.gl-label'));
-        const priorityLabel = labels.find(label => {
-            const labelText = label.textContent.trim();
-            return this.priorityLabels.some(priority =>
-                labelText.includes(priority)
-            );
-        });
-
-        if (priorityLabel) {
-            // Get the background color of the priority label
-            const style = window.getComputedStyle(priorityLabel);
-            const backgroundColor = style.backgroundColor;
-
-            // Store a unique ID for this card if it doesn't have one
-            if (!card.id) {
-                card.id = `card-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            }
-
-            // Find the board-list-cards-area container
-            const container = card.closest('[data-testid="board-list-cards-area"]');
-            if (!container) return;
-
-            // Store the container for this card
-            this.cardContainerMap.set(card.id, container);
-
-            // Check if an indicator already exists for this card
-            if (this.cardIdMap.has(card.id)) {
-                const existingIndicator = this.cardIdMap.get(card.id);
-                if (existingIndicator && existingIndicator.parentNode) {
-                    existingIndicator.parentNode.removeChild(existingIndicator);
-
-                    // Remove from tracking
-                    this.indicatorElements = this.indicatorElements.filter(item =>
-                        item.element !== existingIndicator
-                    );
-                }
-            }
-
-            // Create indicator line
-            const indicator = document.createElement('div');
-            indicator.className = 'priority-indicator';
-            indicator.dataset.cardId = card.id;
-
-            // Position relative to the container (similar to dropdown)
-            const cardRect = card.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-
-            const top = cardRect.top - containerRect.top + container.scrollTop;
-            const left = cardRect.left - containerRect.left + container.scrollLeft + 2;
-
-            indicator.style.position = 'absolute';
-            indicator.style.top = `${top}px`;
-            indicator.style.left = `${left}px`;
-            indicator.style.width = `${cardRect.width - 4}px`;
-            indicator.style.height = '4px';
-            indicator.style.backgroundColor = backgroundColor;
-            indicator.style.zIndex = '98'; // Below dropdown z-index
-            indicator.style.borderRadius = '2px';
-            indicator.style.transition = 'opacity 0.2s ease';
-
-            // Set initial opacity based on drag state
-            if (card.classList.contains('is-dragging')) {
-                indicator.style.opacity = '0';
-                if (card.id) {
-                    this.draggedCards.add(card.id);
-                }
-            } else {
-                indicator.style.opacity = '1';
-            }
-
-            // Add indicator to the board-list-cards-area
-            container.appendChild(indicator);
-
-            // Track the relationship between card ID and indicator
-            this.cardIdMap.set(card.id, indicator);
-
-            this.indicatorElements.push({
-                element: indicator,
-                card: card
-            });
-        }
-    }
-
-    checkForNewCards() {
-        if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
-            return;
-        }
-
+  constructor(options = {}) {
+    this.initialized = false;
+    this.uiManager = options.uiManager || window.uiManager;
+    this.priorityLabels = ['priority', 'Priority', 'high', 'High', 'medium', 'Medium', 'low', 'Low', 'critical', 'Critical'];
+    this.indicatorElements = [];
+    this.processedCards = new WeakMap();
+    this.isUpdating = false;
+    this.cardIdMap = new Map();
+    this.cardContainerMap = new Map();
+    this.draggedCards = new Set();
+    this.handleScroll = function () {
+      if (!this.initialized || !this.checkEnabled()) return;
+      this.updatePositions();
+    };
+    this.handleResize = function () {
+      if (!this.initialized || !this.checkEnabled()) return;
+      this.updatePositions();
+    };
+    this.refreshCards = function () {
+      if (this.isUpdating) return;
+      this.isUpdating = true;
+      try {
         const cards = document.querySelectorAll('.board-card');
-        let newCardsFound = false;
-
         cards.forEach(card => {
-            if (!this.processedCards.has(card)) {
-                newCardsFound = true;
-            }
+          if (!this.processedCards.has(card)) {
+            this.processCard(card);
+            this.processedCards.set(card, true);
+          } else {
+            this.checkCardContainer(card);
+          }
         });
-
-        if (newCardsFound) {
-            this.processCards();
-        }
-    }
-
-    cleanupOrphanedIndicators() {
-        if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
-            return;
-        }
-
-        this.isUpdating = true;
-
-        try {
-            // Get all current card IDs
-            const currentCardIds = new Set();
-            document.querySelectorAll('.board-card').forEach(card => {
-                if (card.id) {
-                    currentCardIds.add(card.id);
-                }
-            });
-
-            // Check each indicator against current cards
-            for (let i = this.indicatorElements.length - 1; i >= 0; i--) {
-                const {element, card} = this.indicatorElements[i];
-
-                // Remove indicator if either:
-                // 1. The element has no parent (already removed from DOM)
-                // 2. The card is not in the DOM anymore
-                // 3. The card's ID doesn't match any current cards
-                // Don't remove for dragging cards - just hide the indicator
-
-                const elementRemoved = !element || !element.parentNode;
-                const cardMissing = !card || !card.parentNode;
-                const cardIdMissing = card && card.id && !currentCardIds.has(card.id);
-
-                if (elementRemoved || cardMissing || cardIdMissing) {
-                    // Remove the element from DOM if it still exists
-                    if (element && element.parentNode) {
-                        element.parentNode.removeChild(element);
-                    }
-
-                    // Remove from our tracking arrays
-                    this.indicatorElements.splice(i, 1);
-
-                    // Remove from card ID map
-                    if (card && card.id) {
-                        this.cardIdMap.delete(card.id);
-                        this.draggedCards.delete(card.id);
-                    }
-
-                    // Clear from processed cards WeakMap (card will be GC'd if not in DOM)
-                    if (card) {
-                        this.processedCards.delete(card);
-                    }
-                }
-            }
-
-            // Also find and remove any indicators that are orphaned but still in the DOM
-            document.querySelectorAll('.priority-indicator').forEach(indicator => {
-                const cardId = indicator.dataset.cardId;
-                if (!cardId || !currentCardIds.has(cardId)) {
-                    if (indicator.parentNode) {
-                        indicator.parentNode.removeChild(indicator);
-                    }
-
-                    // Make sure it's removed from our maps
-                    if (cardId) {
-                        this.cardIdMap.delete(cardId);
-                        this.draggedCards.delete(cardId);
-                    }
-                }
-            });
-        } finally {
-            this.isUpdating = false;
-        }
-    }
-
-    cleanupAllIndicators() {
-        // Remove all indicator elements from the DOM
-        this.indicatorElements.forEach(({element}) => {
-            if (element && element.parentNode) {
-                element.parentNode.removeChild(element);
-            }
-        });
-
-        // Also find and remove any other indicators in the DOM
-        document.querySelectorAll('.priority-indicator').forEach(indicator => {
-            if (indicator.parentNode) {
-                indicator.parentNode.removeChild(indicator);
-            }
-        });
-
-        // Clear tracking arrays and maps
-        this.indicatorElements = [];
-        this.cardIdMap.clear();
-        this.cardContainerMap.clear();
-        this.draggedCards.clear();
-        this.processedCards = new WeakMap();
-    }
-
-    handleScroll() {
-        if (!this.initialized || !this.checkEnabled()) return;
-
-        // Only update positions when scrolling stops
-        clearTimeout(this.scrollTimeout);
-        this.scrollTimeout = setTimeout(() => {
-            this.updatePositions();
-        }, 100);
-    }
-
-    handleResize() {
-        if (!this.initialized || !this.checkEnabled()) return;
-
-        // Only update positions when resizing stops
-        clearTimeout(this.resizeTimeout);
-        this.resizeTimeout = setTimeout(() => {
-            this.updatePositions();
-        }, 100);
-    }
-
-    cleanup() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
-
-        if (this.boardObserver) {
-            this.boardObserver.disconnect();
-            this.boardObserver = null;
-        }
-
-        if (this.updateTimeout) {
-            clearTimeout(this.updateTimeout);
-            this.updateTimeout = null;
-        }
-
-        if (this.scrollTimeout) {
-            clearTimeout(this.scrollTimeout);
-            this.scrollTimeout = null;
-        }
-
-        if (this.resizeTimeout) {
-            clearTimeout(this.resizeTimeout);
-            this.resizeTimeout = null;
-        }
-
-        // Remove drag event listeners
-        document.removeEventListener('dragstart', this.handleDragEvents);
-        document.removeEventListener('dragend', this.handleDragEvents);
-        document.removeEventListener('drop', this.handleDragEvents);
-
-        // Remove scroll/resize listeners
-        window.removeEventListener('scroll', this.handleScroll);
-        window.removeEventListener('resize', this.handleResize);
-
-        // Show all label containers again
-        document.querySelectorAll('.board-card-labels').forEach(container => {
-            container.style.display = '';
-        });
-
-        // Clean up all indicators
-        this.cleanupAllIndicators();
-
-        this.initialized = false;
+        this.updatePositions();
+        this.cleanupOrphanedIndicators();
+      } finally {
         this.isUpdating = false;
+      }
+    };
+    this.updatePositions = function () {
+      if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
+        return;
+      }
+      this.isUpdating = true;
+      try {
+        const validIndicators = [];
+        for (let i = 0; i < this.indicatorElements.length; i++) {
+          const {
+            element,
+            card
+          } = this.indicatorElements[i];
+          if (!element || !element.parentNode || !card || !card.parentNode) {
+            if (element && element.parentNode) {
+              element.parentNode.removeChild(element);
+            }
+            continue;
+          }
+          if (card.classList.contains('is-dragging') || card.classList.contains('is-ghost')) {
+            element.style.opacity = '0';
+            validIndicators.push({
+              element,
+              card
+            });
+            continue;
+          } else {
+            element.style.opacity = '1';
+          }
+          const container = card.closest('[data-testid="board-list-cards-area"]');
+          if (!container) continue;
+          const cardRect = card.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const top = cardRect.top - containerRect.top + container.scrollTop;
+          const left = cardRect.left - containerRect.left + container.scrollLeft + 2;
+          element.style.top = `${top}px`;
+          element.style.left = `${left}px`;
+          element.style.width = `${cardRect.width - 4}px`;
+          validIndicators.push({
+            element,
+            card
+          });
+        }
+        this.indicatorElements = validIndicators;
+      } finally {
+        this.isUpdating = false;
+      }
+    };
+    this.handleScroll = this.handleScroll.bind(this);
+    this.handleResize = this.handleResize.bind(this);
+    this.refreshCards = this.refreshCards.bind(this);
+    this.updatePositions = this.updatePositions.bind(this);
+    this.handleDragEvents = this.handleDragEvents.bind(this);
+    window.addEventListener('scroll', this.handleScroll);
+    window.addEventListener('resize', this.handleResize);
+    document.addEventListener('dragstart', this.handleDragEvents);
+    document.addEventListener('dragend', this.handleDragEvents);
+    document.addEventListener('drop', this.handleDragEvents);
+    this.setupMutationObserver();
+    this.checkEnabled();
+  }
+  handleDragEvents(e) {
+    if (!this.initialized || !this.checkEnabled()) return;
+    let card = null;
+    if (e.target && e.target.classList && e.target.classList.contains('board-card')) {
+      card = e.target;
+    } else if (e.target) {
+      card = e.target.closest('.board-card');
     }
+    if (!card) return;
+    if (e.type === 'dragstart') {
+      if (card.id) {
+        this.draggedCards.add(card.id);
+        const indicator = this.cardIdMap.get(card.id);
+        if (indicator) {
+          indicator.style.opacity = '0';
+        }
+      }
+    } else if (e.type === 'dragend' || e.type === 'drop') {
+      if (card.id) {
+        this.draggedCards.delete(card.id);
+        const indicator = this.cardIdMap.get(card.id);
+        if (indicator) {
+          indicator.style.opacity = '1';
+        }
+      }
+      setTimeout(() => {
+        this.refreshCards();
+      }, 100);
+    }
+  }
+  checkCardContainer(card) {
+    if (!card.id) return;
+    const currentContainer = card.closest('[data-testid="board-list-cards-area"]');
+    if (!currentContainer) return;
+    const previousContainer = this.cardContainerMap.get(card.id);
+    if (previousContainer && previousContainer !== currentContainer) {
+      const indicator = this.cardIdMap.get(card.id);
+      if (indicator && indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator);
+        this.cardIdMap.delete(card.id);
+        this.indicatorElements = this.indicatorElements.filter(item => item.element !== indicator);
+        this.processCard(card);
+      }
+    }
+    this.cardContainerMap.set(card.id, currentContainer);
+  }
+  setupMutationObserver() {
+    if (this.boardObserver) {
+      this.boardObserver.disconnect();
+    }
+    this.boardObserver = new MutationObserver(mutations => {
+      if (!this.initialized || !this.checkEnabled()) {
+        return;
+      }
+      let needsUpdate = false;
+      let cardRemoved = false;
+      let cardMoved = false;
+      let classChanged = false;
+      let dragStateChanged = false;
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList') {
+          const addedCards = Array.from(mutation.addedNodes).filter(node => node.nodeType === Node.ELEMENT_NODE && (node.classList?.contains('board-card') || node.querySelector?.('.board-card')));
+          if (addedCards.length > 0) {
+            needsUpdate = true;
+            cardMoved = true;
+          }
+          const removedCards = Array.from(mutation.removedNodes).filter(node => node.nodeType === Node.ELEMENT_NODE && (node.classList?.contains('board-card') || node.querySelector?.('.board-card')));
+          if (removedCards.length > 0) {
+            cardRemoved = true;
+          }
+        } else if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          if (mutation.target.classList?.contains('board-card')) {
+            classChanged = true;
+            const isDragging = mutation.target.classList.contains('is-dragging') || mutation.target.classList.contains('is-ghost');
+            const wasDragging = this.draggedCards.has(mutation.target.id);
+            if (isDragging !== wasDragging) {
+              dragStateChanged = true;
+              if (isDragging) {
+                if (mutation.target.id) {
+                  this.draggedCards.add(mutation.target.id);
+                  const indicator = this.cardIdMap.get(mutation.target.id);
+                  if (indicator) {
+                    indicator.style.opacity = '0';
+                  }
+                }
+              } else {
+                if (mutation.target.id) {
+                  this.draggedCards.delete(mutation.target.id);
+                  const indicator = this.cardIdMap.get(mutation.target.id);
+                  if (indicator) {
+                    indicator.style.opacity = '1';
+                  } else {
+                    this.processCard(mutation.target);
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+      if (dragStateChanged) {
+        setTimeout(() => this.updatePositions(), 0);
+      }
+      if (classChanged && !dragStateChanged) {
+        setTimeout(() => this.updatePositions(), 50);
+      }
+      if (cardMoved || cardRemoved) {
+        setTimeout(() => {
+          this.cleanupOrphanedIndicators();
+          this.refreshCards();
+        }, 100);
+      } else if (needsUpdate) {
+        this.refreshCards();
+      }
+    });
+    const boardContainers = document.querySelectorAll('.board-list, [data-testid="board-list"], .boards-list');
+    boardContainers.forEach(container => {
+      this.boardObserver.observe(container, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class']
+      });
+    });
+  }
+  initialize() {
+    if (!this.checkEnabled()) {
+      return;
+    }
+    if (this.initialized) {
+      return;
+    }
+    this.initialized = true;
+    this.applyOverflowFixes();
+    this.cleanupAllIndicators();
+    this.processCards();
+    this.refreshInterval = setInterval(() => {
+      if (!this.isUpdating) {
+        this.checkForNewCards();
+        this.updatePositions();
+        this.cleanupOrphanedIndicators();
+      }
+    }, 500);
+  }
+  checkEnabled() {
+    try {
+      const enabled = localStorage.getItem('gitLabHelperHideLabelsEnabled');
+      return enabled === 'true';
+    } catch (e) {
+      console.error('Error checking hide labels enabled state:', e);
+      return false;
+    }
+  }
+  applyOverflowFixes() {
+    this.originalStyles = [];
+    const ulElements = document.querySelectorAll('ul.board-list');
+    ulElements.forEach(ul => {
+      this.originalStyles.push({
+        element: ul,
+        property: 'overflow-x',
+        value: ul.style.overflowX
+      });
+      ul.style.setProperty('overflow-x', 'unset', 'important');
+      ul.style.setProperty('overflow-y', 'unset', 'important');
+    });
+    const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+    cardAreas.forEach(area => {
+      this.originalStyles.push({
+        element: area,
+        property: 'overflow',
+        value: area.style.overflow
+      });
+      this.originalStyles.push({
+        element: area,
+        property: 'position',
+        value: area.style.position
+      });
+      area.style.overflow = 'auto';
+      area.style.position = 'relative';
+    });
+    return cardAreas;
+  }
+  processCards() {
+    if (this.isUpdating) return;
+    this.isUpdating = true;
+    try {
+      const cards = document.querySelectorAll('.board-card');
+      cards.forEach(card => {
+        if (!this.processedCards.has(card)) {
+          this.processCard(card);
+          this.processedCards.set(card, true);
+        }
+      });
+    } finally {
+      this.isUpdating = false;
+    }
+  }
+  processCard(card) {
+    if (card.classList.contains('is-ghost')) {
+      return;
+    }
+    const labelsContainer = card.querySelector('.board-card-labels');
+    if (!labelsContainer) return;
+    labelsContainer.style.display = 'none';
+    const labels = Array.from(labelsContainer.querySelectorAll('.gl-label'));
+    const priorityLabel = labels.find(label => {
+      const labelText = label.textContent.trim();
+      return this.priorityLabels.some(priority => labelText.includes(priority));
+    });
+    if (priorityLabel) {
+      const style = window.getComputedStyle(priorityLabel);
+      const backgroundColor = style.backgroundColor;
+      if (!card.id) {
+        card.id = `card-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      }
+      const container = card.closest('[data-testid="board-list-cards-area"]');
+      if (!container) return;
+      this.cardContainerMap.set(card.id, container);
+      if (this.cardIdMap.has(card.id)) {
+        const existingIndicator = this.cardIdMap.get(card.id);
+        if (existingIndicator && existingIndicator.parentNode) {
+          existingIndicator.parentNode.removeChild(existingIndicator);
+          this.indicatorElements = this.indicatorElements.filter(item => item.element !== existingIndicator);
+        }
+      }
+      const indicator = document.createElement('div');
+      indicator.className = 'priority-indicator';
+      indicator.dataset.cardId = card.id;
+      const cardRect = card.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const top = cardRect.top - containerRect.top + container.scrollTop;
+      const left = cardRect.left - containerRect.left + container.scrollLeft + 2;
+      indicator.style.position = 'absolute';
+      indicator.style.top = `${top}px`;
+      indicator.style.left = `${left}px`;
+      indicator.style.width = `${cardRect.width - 4}px`;
+      indicator.style.height = '4px';
+      indicator.style.backgroundColor = backgroundColor;
+      indicator.style.zIndex = '98';
+      indicator.style.borderRadius = '2px';
+      indicator.style.transition = 'opacity 0.2s ease';
+      if (card.classList.contains('is-dragging')) {
+        indicator.style.opacity = '0';
+        if (card.id) {
+          this.draggedCards.add(card.id);
+        }
+      } else {
+        indicator.style.opacity = '1';
+      }
+      container.appendChild(indicator);
+      this.cardIdMap.set(card.id, indicator);
+      this.indicatorElements.push({
+        element: indicator,
+        card: card
+      });
+    }
+  }
+  checkForNewCards() {
+    if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
+      return;
+    }
+    const cards = document.querySelectorAll('.board-card');
+    let newCardsFound = false;
+    cards.forEach(card => {
+      if (!this.processedCards.has(card)) {
+        newCardsFound = true;
+      }
+    });
+    if (newCardsFound) {
+      this.processCards();
+    }
+  }
+  cleanupOrphanedIndicators() {
+    if (!this.initialized || !this.checkEnabled() || this.isUpdating) {
+      return;
+    }
+    this.isUpdating = true;
+    try {
+      const currentCardIds = new Set();
+      document.querySelectorAll('.board-card').forEach(card => {
+        if (card.id) {
+          currentCardIds.add(card.id);
+        }
+      });
+      for (let i = this.indicatorElements.length - 1; i >= 0; i--) {
+        const {
+          element,
+          card
+        } = this.indicatorElements[i];
+        const elementRemoved = !element || !element.parentNode;
+        const cardMissing = !card || !card.parentNode;
+        const cardIdMissing = card && card.id && !currentCardIds.has(card.id);
+        if (elementRemoved || cardMissing || cardIdMissing) {
+          if (element && element.parentNode) {
+            element.parentNode.removeChild(element);
+          }
+          this.indicatorElements.splice(i, 1);
+          if (card && card.id) {
+            this.cardIdMap.delete(card.id);
+            this.draggedCards.delete(card.id);
+          }
+          if (card) {
+            this.processedCards.delete(card);
+          }
+        }
+      }
+      document.querySelectorAll('.priority-indicator').forEach(indicator => {
+        const cardId = indicator.dataset.cardId;
+        if (!cardId || !currentCardIds.has(cardId)) {
+          if (indicator.parentNode) {
+            indicator.parentNode.removeChild(indicator);
+          }
+          if (cardId) {
+            this.cardIdMap.delete(cardId);
+            this.draggedCards.delete(cardId);
+          }
+        }
+      });
+    } finally {
+      this.isUpdating = false;
+    }
+  }
+  cleanupAllIndicators() {
+    this.indicatorElements.forEach(({
+      element
+    }) => {
+      if (element && element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
+    });
+    document.querySelectorAll('.priority-indicator').forEach(indicator => {
+      if (indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator);
+      }
+    });
+    this.indicatorElements = [];
+    this.cardIdMap.clear();
+    this.cardContainerMap.clear();
+    this.draggedCards.clear();
+    this.processedCards = new WeakMap();
+  }
+  handleScroll() {
+    if (!this.initialized || !this.checkEnabled()) return;
+    clearTimeout(this.scrollTimeout);
+    this.scrollTimeout = setTimeout(() => {
+      this.updatePositions();
+    }, 100);
+  }
+  handleResize() {
+    if (!this.initialized || !this.checkEnabled()) return;
+    clearTimeout(this.resizeTimeout);
+    this.resizeTimeout = setTimeout(() => {
+      this.updatePositions();
+    }, 100);
+  }
+  cleanup() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
+    if (this.boardObserver) {
+      this.boardObserver.disconnect();
+      this.boardObserver = null;
+    }
+    if (this.updateTimeout) {
+      clearTimeout(this.updateTimeout);
+      this.updateTimeout = null;
+    }
+    if (this.scrollTimeout) {
+      clearTimeout(this.scrollTimeout);
+      this.scrollTimeout = null;
+    }
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = null;
+    }
+    document.removeEventListener('dragstart', this.handleDragEvents);
+    document.removeEventListener('dragend', this.handleDragEvents);
+    document.removeEventListener('drop', this.handleDragEvents);
+    window.removeEventListener('scroll', this.handleScroll);
+    window.removeEventListener('resize', this.handleResize);
+    document.querySelectorAll('.board-card-labels').forEach(container => {
+      container.style.display = '';
+    });
+    this.cleanupAllIndicators();
+    this.initialized = false;
+    this.isUpdating = false;
+  }
 }
 
 // File: lib/ui/managers/TabManager.js
@@ -3901,7 +3472,6 @@ window.TabManager = class TabManager {
     this.tabContainer.style.marginBottom = '10px';
     this.tabContainer.style.borderBottom = '1px solid #ddd';
     this.createTab('summary', 'Summary', this.currentTab === 'summary');
-    //this.createTab('boards', 'Boards', this.currentTab === 'boards');
     this.createTab('bulkcomments', 'Issues', this.currentTab === 'bulkcomments');
     this.createTab('sprintmanagement', 'Sprint', this.currentTab === 'sprintmanagement');
     this.createTab('stats', 'Stats', this.currentTab === 'stats');
@@ -4661,9 +4231,7 @@ window.LabelManager = class LabelManager {
       return this.isLabelInWhitelist(label.name);
     });
     this.filteredLabels.sort((a, b) => a.name.localeCompare(b.name));
-    if (typeof this.onLabelsLoaded === 'function') {
-      this.onLabelsLoaded(this.filteredLabels);
-    }
+    if (this.onLabelsLoaded) this.onLabelsLoaded(this.filteredLabels);
   }
   async fetchAllLabels() {
     try {
@@ -6058,18 +5626,12 @@ window.SettingsManager = class SettingsManager {
     saveAssigneeWhitelist([]);
     const defaultShortcut = 'c';
     saveToggleShortcut(defaultShortcut);
-
-    // Clear history data properly
     localStorage.removeItem('gitLabHelperHistory');
     if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
       window.historyManager.clearAllHistory();
     }
-
-    // Clear sprint data more thoroughly
     localStorage.removeItem('gitLabHelperSprintState');
     localStorage.removeItem('gitLabHelperSprintHistory');
-
-    // Reset sprint state in memory if SprintManagementView exists
     if (window.uiManager && window.uiManager.sprintManagementView) {
       window.uiManager.sprintManagementView.sprintState = {
         endSprint: false,
@@ -6080,22 +5642,16 @@ window.SettingsManager = class SettingsManager {
       window.uiManager.sprintManagementView.sprintHistory = [];
       window.uiManager.sprintManagementView.render();
     }
-
-    // Reset other application settings
     localStorage.removeItem('gitLabHelperLinkedItemsEnabled');
     localStorage.removeItem('gitLabHelperHideLabelsEnabled');
-
     if (window.uiManager && typeof window.uiManager.updateKeyboardShortcut === 'function') {
       window.uiManager.updateKeyboardShortcut(defaultShortcut);
     } else if (this.uiManager && typeof this.uiManager.updateKeyboardShortcut === 'function') {
       this.uiManager.updateKeyboardShortcut(defaultShortcut);
     }
-
     if (this.onSettingsChanged) {
       this.onSettingsChanged('all');
     }
-
-    // Reload the page to ensure all settings take effect
     setTimeout(() => {
       window.location.reload();
     }, 1000);
@@ -6264,14 +5820,10 @@ window.SettingsManager = class SettingsManager {
           localStorage.removeItem('gitLabHelperHistory');
           localStorage.removeItem('gitLabHelperSprintHistory');
           localStorage.removeItem('gitLabHelperSprintState');
-
           if (window.historyManager && typeof window.historyManager.clearAllHistory === 'function') {
             window.historyManager.clearAllHistory();
           }
-
           this.notification.success('History data has been reset');
-
-          // Reload the page to ensure all settings take effect
           setTimeout(() => {
             window.location.reload();
           }, 1000);
@@ -6301,8 +5853,6 @@ window.SettingsManager = class SettingsManager {
     description.style.color = '#666';
     appearanceSection.appendChild(title);
     appearanceSection.appendChild(description);
-
-    // Linked Items section
     const linkedItemsSection = document.createElement('div');
     linkedItemsSection.style.marginBottom = '20px';
     linkedItemsSection.style.padding = '15px';
@@ -6380,25 +5930,18 @@ window.SettingsManager = class SettingsManager {
         }
       }
     });
-
-    // Add click handler for the slider itself to toggle the checkbox
-    toggleSlider.addEventListener('click', (e) => {
+    toggleSlider.addEventListener('click', e => {
       e.preventDefault();
       toggleCheckbox.checked = !toggleCheckbox.checked;
-
-      // Trigger the change event to ensure our handler above runs
       const changeEvent = new Event('change');
       toggleCheckbox.dispatchEvent(changeEvent);
     });
-
     toggleContainer.appendChild(toggleLabel);
     toggleContainer.appendChild(toggleSwitch);
     linkedItemsSection.appendChild(linkedItemsTitle);
     linkedItemsSection.appendChild(linkedItemsDescription);
     linkedItemsSection.appendChild(toggleContainer);
     appearanceSection.appendChild(linkedItemsSection);
-
-    // Hide Labels Section
     const hideLabelsSection = document.createElement('div');
     hideLabelsSection.style.marginBottom = '20px';
     hideLabelsSection.style.padding = '15px';
@@ -6476,24 +6019,18 @@ window.SettingsManager = class SettingsManager {
         }
       }
     });
-
-    // Add click handler for the slider to toggle the checkbox
-    hideLabelsToggleSlider.addEventListener('click', (e) => {
+    hideLabelsToggleSlider.addEventListener('click', e => {
       e.preventDefault();
       hideLabelsToggleCheckbox.checked = !hideLabelsToggleCheckbox.checked;
-
-      // Trigger the change event
       const changeEvent = new Event('change');
       hideLabelsToggleCheckbox.dispatchEvent(changeEvent);
     });
-
     hideLabelsToggleContainer.appendChild(hideLabelsToggleLabel);
     hideLabelsToggleContainer.appendChild(hideLabelsToggleSwitch);
     hideLabelsSection.appendChild(hideLabelsTitle);
     hideLabelsSection.appendChild(hideLabelsDescription);
     hideLabelsSection.appendChild(hideLabelsToggleContainer);
     appearanceSection.appendChild(hideLabelsSection);
-
     container.appendChild(appearanceSection);
   }
 }
@@ -6628,7 +6165,7 @@ window.SummaryView = class SummaryView {
       let doneHours = 0;
       for (const boardName in boardData) {
         const lowerBoardName = boardName.toLowerCase();
-        if (lowerBoardName.includes('needs-merge') ||lowerBoardName.includes('done') || lowerBoardName.includes('closed') || lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
+        if (lowerBoardName.includes('needs-merge') || lowerBoardName.includes('done') || lowerBoardName.includes('closed') || lowerBoardName.includes('complete') || lowerBoardName.includes('finished')) {
           doneHours += boardData[boardName].timeEstimate || 0;
         }
       }
@@ -7002,8 +6539,6 @@ window.SummaryView = class SummaryView {
     });
     container.appendChild(table);
   }
-
-
   addAssigneeRow(table, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
     if (!name) name = "Unknown User";
     const row = document.createElement('tr');
@@ -7301,26 +6836,18 @@ window.SummaryView = class SummaryView {
         const hoursFloat = parseFloat(formatHours(assigneeInBoard.timeEstimate || 0));
         return Math.round(hoursFloat);
       });
-
-      // Get all issues to check for "needs-merge" labels
       const issuesWithNeedsMergeLabels = this.findIssuesWithNeedsMergeLabel(name);
-
       const distributionText = distributionValues.map((hours, index) => {
         let spanHTML = `<span style="`;
         if (hours === 0) {
           spanHTML += `color:#aaa;`;
         }
-
-        // Check if this board is the last one (closed board) or if the assignee has "needs-merge" labeled issues
-        if ((index === distributionValues.length - 1 && hours > 0) ||
-            (issuesWithNeedsMergeLabels && issuesWithNeedsMergeLabels[boardNames[index]])) {
+        if (index === distributionValues.length - 1 && hours > 0 || issuesWithNeedsMergeLabels && issuesWithNeedsMergeLabels[boardNames[index]]) {
           spanHTML += `color:#28a745;`;
         }
-
         spanHTML += `">${hours}h</span>`;
         return spanHTML;
       }).join('/');
-
       distributionCell.innerHTML = distributionText;
     } else if (historyboardAssigneeData) {
       const distributionValues = boardNames.map(boardName => {
@@ -7336,7 +6863,7 @@ window.SummaryView = class SummaryView {
         if (hours === 0) {
           spanHTML += `color:#aaa;`;
         }
-        if ((index === distributionValues.length - 1 || index === distributionValues.length - 2) && hours > 0 ) {
+        if ((index === distributionValues.length - 1 || index === distributionValues.length - 2) && hours > 0) {
           spanHTML += `color:#28a745;`;
         }
         spanHTML += `">${hours}h</span>`;
@@ -7355,15 +6882,10 @@ window.SummaryView = class SummaryView {
   }
   findIssuesWithNeedsMergeLabel(assigneeName) {
     if (!assigneeName) return null;
-
-    // Create a map to store which boards have needs-merge labeled issues for this assignee
     const boardWithNeedsMerge = {};
-
     try {
-      // Get all board lists
       const boardLists = document.querySelectorAll('.board-list');
       boardLists.forEach(boardList => {
-        // Get the board title
         let boardTitle = "";
         try {
           if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
@@ -7384,10 +6906,7 @@ window.SummaryView = class SummaryView {
             boardTitle = boardHeader.textContent.trim();
           }
         }
-
         if (!boardTitle) return;
-
-        // Get all cards in this board
         const cards = boardList.querySelectorAll('.board-card');
         cards.forEach(card => {
           try {
@@ -7395,41 +6914,31 @@ window.SummaryView = class SummaryView {
               const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
               if (issue && issue.$props && issue.$props.item) {
                 const item = issue.$props.item;
-
-                // Check if the card is assigned to our target assignee
                 let isAssignedToTarget = false;
                 if (item.assignees) {
                   const assignees = item.assignees.nodes || item.assignees;
                   isAssignedToTarget = assignees.some(assignee => {
-                    return (assignee.name === assigneeName || (assignee.username && assigneeName.toLowerCase().includes(assignee.username.toLowerCase())));
+                    return assignee.name === assigneeName || assignee.username && assigneeName.toLowerCase().includes(assignee.username.toLowerCase());
                   });
                 }
-
-                // If assigned to our target assignee, check for needs-merge label
                 if (isAssignedToTarget) {
                   let hasNeedsMergeLabel = false;
                   if (item.labels) {
-                    const labels = Array.isArray(item.labels) ? item.labels :
-                        (item.labels.nodes ? item.labels.nodes : []);
+                    const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
                     hasNeedsMergeLabel = labels.some(label => {
                       const labelName = label.title || label.name || '';
                       return labelName.toLowerCase() === 'needs-merge';
                     });
                   }
-
-                  // If has needs-merge label, mark this board
                   if (hasNeedsMergeLabel) {
                     boardWithNeedsMerge[boardTitle] = true;
                   }
                 }
               }
             }
-          } catch (e) {
-            // Ignore errors for individual cards
-          }
+          } catch (e) {}
         });
       });
-
       return Object.keys(boardWithNeedsMerge).length > 0 ? boardWithNeedsMerge : null;
     } catch (e) {
       return null;
@@ -7480,26 +6989,24 @@ window.BoardsView = class BoardsView {
     boardSection.style.marginBottom = '15px';
     const boardHeader = document.createElement('div');
     boardHeader.className = 'board-header';
-    boardHeader.style.display = 'flex';
-    boardHeader.style.justifyContent = 'space-between';
-    boardHeader.style.padding = '5px';
-    boardHeader.style.backgroundColor = '#f5f5f5';
-    boardHeader.style.borderRadius = '3px';
-    boardHeader.style.cursor = 'pointer';
-    boardHeader.style.fontWeight = 'bold';
+    Object.assign(boardHeader.style, {
+      display: 'flex',
+      justifyContent: 'space-between',
+      padding: '5px',
+      backgroundColor: '#f5f5f5',
+      borderRadius: '3px',
+      cursor: 'pointer',
+      fontWeight: 'bold'
+    });
     const boardDetails = document.createElement('div');
     boardDetails.className = 'board-details';
     boardDetails.style.display = 'none';
     boardDetails.style.marginTop = '5px';
     boardDetails.style.marginLeft = '10px';
     boardHeader.addEventListener('click', () => {
-      if (boardDetails.style.display === 'none') {
-        boardDetails.style.display = 'block';
-        boardToggle.textContent = '▼';
-      } else {
-        boardDetails.style.display = 'none';
-        boardToggle.textContent = '▶';
-      }
+      const isVisible = boardDetails.style.display !== 'none';
+      boardDetails.style.display = isVisible ? 'none' : 'block';
+      boardToggle.textContent = isVisible ? '▶' : '▼';
     });
     const boardInfo = document.createElement('div');
     boardInfo.textContent = `${boardName} (${boardData.tickets} tickets, ${boardHours}h)`;
@@ -7643,14 +7150,11 @@ window.SprintManagementView = class SprintManagementView {
     this.createStepButton(stepsContainer, '2. Ready for next Sprint', '#6f42c1', () => this.prepareForNextSprint(), this.sprintState.endSprint && !this.sprintState.preparedForNext);
     this.createStepButton(stepsContainer, '3. Copy Sprint Data Summary', '#28a745', () => this.copySprintData(), this.sprintState.preparedForNext);
     this.createStepButton(stepsContainer, '4. Copy Closed Issue Names', '#fd7e14', () => this.copyClosedTickets(), this.sprintState.preparedForNext);
-
-    // Add utility container with Reset and Edit buttons
     const utilityContainer = document.createElement('div');
     utilityContainer.style.display = 'flex';
     utilityContainer.style.justifyContent = 'space-between';
     utilityContainer.style.marginTop = '15px';
     utilityContainer.style.gap = '10px';
-
     const resetButton = document.createElement('button');
     resetButton.textContent = 'Reset Current Sprint';
     resetButton.style.padding = '10px 16px';
@@ -7661,7 +7165,6 @@ window.SprintManagementView = class SprintManagementView {
     resetButton.style.cursor = 'pointer';
     resetButton.style.fontWeight = 'bold';
     resetButton.addEventListener('click', () => this.resetCurrentSprint());
-
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit Data';
     editButton.className = 'edit-sprint-data-button';
@@ -7678,11 +7181,9 @@ window.SprintManagementView = class SprintManagementView {
     if (editEnabled) {
       editButton.addEventListener('click', () => this.editSprintData());
     }
-
     utilityContainer.appendChild(resetButton);
     utilityContainer.appendChild(editButton);
     stepsContainer.appendChild(utilityContainer);
-
     sprintManagementContent.appendChild(stepsContainer);
     if (this.sprintState.totalTickets !== undefined) {
       this.showSprintDataSummary(sprintManagementContent);
@@ -7692,25 +7193,17 @@ window.SprintManagementView = class SprintManagementView {
       this.uiManager.removeLoadingScreen('sprintmanagement-tab');
     }
   }
-
   resetCurrentSprint() {
     if (confirm('Are you sure you want to reset the current sprint? This will delete all sprint data and cannot be undone.')) {
       try {
-        // Reset sprint state
         this.sprintState = {
           endSprint: false,
           preparedForNext: false,
           currentMilestone: null,
           userPerformance: {}
         };
-
-        // Save empty state to storage
         this.saveSprintState();
-
-        // Show notification
         this.notification.success('Current sprint has been reset');
-
-        // Re-render the view
         this.render();
       } catch (error) {
         console.error('Error resetting current sprint:', error);
@@ -7718,7 +7211,6 @@ window.SprintManagementView = class SprintManagementView {
       }
     }
   }
-
   renderLockedState(container) {
     const lockedContainer = document.createElement('div');
     lockedContainer.style.display = 'flex';
@@ -7815,23 +7307,17 @@ window.SprintManagementView = class SprintManagementView {
         }
       }
       const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') || boardTitle.includes('complete') || boardTitle.includes('finished');
-
       const boardCards = boardList.querySelectorAll('.board-card');
       boardCards.forEach(card => {
         try {
-          // Check if the card has needs-merge label
           let hasNeedsMergeLabel = false;
           let item = null;
-
           if (card.__vue__ && card.__vue__.$children) {
             const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
             if (issue && issue.$props && issue.$props.item) {
               item = issue.$props.item;
-
-              // Check for needs-merge label
               if (item.labels) {
-                const labels = Array.isArray(item.labels) ? item.labels :
-                    (item.labels.nodes ? item.labels.nodes : []);
+                const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
                 hasNeedsMergeLabel = labels.some(label => {
                   const labelName = label.title || label.name || '';
                   return labelName.toLowerCase() === 'needs-merge';
@@ -7839,12 +7325,9 @@ window.SprintManagementView = class SprintManagementView {
               }
             }
           }
-
-          // Add to closedTickets if it's in a closed board or has the needs-merge label
           if (isClosedBoard || hasNeedsMergeLabel) {
             let title = '';
             let id = '';
-
             if (item) {
               title = item.title;
               id = item.iid;
@@ -7853,7 +7336,6 @@ window.SprintManagementView = class SprintManagementView {
               if (titleEl) {
                 title = titleEl.textContent.trim();
               }
-
               const idMatch = card.querySelector('[data-issue-id]');
               if (idMatch && idMatch.dataset.issueId) {
                 id = idMatch.dataset.issueId;
@@ -7861,7 +7343,6 @@ window.SprintManagementView = class SprintManagementView {
                 id = 'unknown';
               }
             }
-
             if (title) {
               closedTickets.push({
                 id: id || 'unknown',
@@ -7942,18 +7423,14 @@ window.SprintManagementView = class SprintManagementView {
             if (issue && issue.$props && issue.$props.item) {
               const item = issue.$props.item;
               totalTickets++;
-
-              // Check if this item has the "needs-merge" label
               let hasNeedsMergeLabel = false;
               if (item.labels) {
-                const labels = Array.isArray(item.labels) ? item.labels :
-                    (item.labels.nodes ? item.labels.nodes : []);
+                const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
                 hasNeedsMergeLabel = labels.some(label => {
                   const labelName = label.title || label.name || '';
                   return labelName.toLowerCase() === 'needs-merge';
                 });
               }
-
               if (item.timeEstimate) {
                 const hours = item.timeEstimate / 3600;
                 totalHours += hours;
@@ -9749,27 +9226,31 @@ window.UIManager = class UIManager {
     }
     this.container = document.createElement('div');
     this.container.id = 'assignee-time-summary';
-    this.container.style.position = 'fixed';
-    this.container.style.bottom = '15px';
-    this.container.style.right = '15px';
-    this.container.style.backgroundColor = 'white';
-    this.container.style.border = '1px solid #ddd';
-    this.container.style.borderRadius = '4px';
-    this.container.style.padding = '10px';
-    this.container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-    this.container.style.zIndex = '100';
-    this.container.style.maxHeight = '80vh';
-    this.container.style.overflow = 'hidden';
-    this.container.style.fontSize = '14px';
-    this.container.style.width = '400px';
-    this.container.style.transition = 'height 0.3s ease-in-out';
+    Object.assign(this.container.style, {
+      position: 'fixed',
+      bottom: '15px',
+      right: '15px',
+      backgroundColor: 'white',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      padding: '10px',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      zIndex: '100',
+      maxHeight: '80vh',
+      overflow: 'hidden',
+      fontSize: '14px',
+      width: '400px',
+      transition: 'height 0.3s ease-in-out'
+    });
     this.contentWrapper = document.createElement('div');
     this.contentWrapper.id = 'assignee-time-summary-wrapper';
-    this.contentWrapper.style.display = 'block';
-    this.contentWrapper.style.maxHeight = '70vh';
-    this.contentWrapper.style.minHeight = '350px';
-    this.contentWrapper.style.overflowY = 'auto';
-    this.contentWrapper.style.position = 'relative';
+    Object.assign(this.contentWrapper.style, {
+      display: 'block',
+      maxHeight: '70vh',
+      minHeight: '350px',
+      overflowY: 'auto',
+      position: 'relative'
+    });
     this.createHeader();
     this.createBoardStats();
     this.tabManager.initialize(this.contentWrapper);
@@ -9787,9 +9268,7 @@ window.UIManager = class UIManager {
       const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
       if (isCollapsed) {
         this.contentWrapper.style.display = 'none';
-        if (this.collapseBtn) {
-          this.collapseBtn.textContent = '▲';
-        }
+        if (this.collapseBtn) this.collapseBtn.textContent = '▲';
         this.container.style.height = 'auto';
       }
     } catch (e) {
@@ -10296,9 +9775,21 @@ setTimeout(() => {
 }, 2000);
 
 // File: lib/index.js
+function injectCustomCSS() {
+  const style = document.createElement('style');
+  style.textContent = `
+    [data-testid="board-card-title-link"] {
+      height: 33px !important;
+      display: flex;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  `;
+  document.head.appendChild(style);
+}
+injectCustomCSS();
 let linkedItemsManager = null;
 let labelDisplayManager = null;
-
 function initializeLinkedItemsManager() {
   if (!linkedItemsManager) {
     linkedItemsManager = new LinkedItemsManager({
@@ -10308,7 +9799,6 @@ function initializeLinkedItemsManager() {
     linkedItemsManager.initialize();
   }
 }
-
 function toggleLinkedItems() {
   if (!linkedItemsManager) {
     initializeLinkedItemsManager();
@@ -10320,7 +9810,6 @@ function toggleLinkedItems() {
     }
   }
 }
-
 function initializeLabelDisplayManager() {
   if (!labelDisplayManager) {
     labelDisplayManager = new LabelDisplayManager({
@@ -10330,7 +9819,6 @@ function initializeLabelDisplayManager() {
     labelDisplayManager.initialize();
   }
 }
-
 function toggleHideLabels() {
   if (!labelDisplayManager) {
     initializeLabelDisplayManager();
@@ -10338,19 +9826,16 @@ function toggleHideLabels() {
   } else {
     if (labelDisplayManager.initialized) {
       labelDisplayManager.cleanup();
-      linkedItemsManager.repositionDropdowns()
+      linkedItemsManager.repositionDropdowns();
     } else {
       labelDisplayManager.initialize();
-      linkedItemsManager.repositionDropdowns()
+      linkedItemsManager.repositionDropdowns();
     }
   }
 }
-
 window.toggleLinkedItems = toggleLinkedItems;
 window.toggleHideLabels = toggleHideLabels;
-
 var gitlabApi = window.gitlabApi || new GitLabAPI();
-
 function createUIManager(attachmentElement = document.body) {
   if (!window.gitlabApi) {
     try {
@@ -10390,7 +9875,6 @@ function createUIManager(attachmentElement = document.body) {
     return null;
   }
 }
-
 let isInitialized = false;
 function checkAndInit() {
   if (isInitialized) {
@@ -10464,10 +9948,10 @@ function updateSummary(forceHistoryUpdate = false) {
   let loadingTimeout;
   clearTimeout(loadingTimeout);
   try {
-    // Check if URL has only allowed parameters
-    const { hasOnlyAllowedParams } = window;
+    const {
+      hasOnlyAllowedParams
+    } = window;
     const shouldUpdateCache = hasOnlyAllowedParams() || forceHistoryUpdate;
-
     const result = processBoards();
     const {
       assigneeTimeMap,
