@@ -8037,6 +8037,7 @@ window.SprintManagementView = class SprintManagementView {
         }
     }
 
+    // lib/ui/views/SprintManagementView.js - calculateUserPerformance function
     calculateUserPerformance() {
         const userPerformance = {};
         try {
@@ -8082,6 +8083,17 @@ window.SprintManagementView = class SprintManagementView {
                                 }
                                 const timeEstimate = item.timeEstimate || 0;
                                 const timePerAssignee = timeEstimate / assignees.length;
+
+                                // Check for needs-merge label
+                                let hasNeedsMergeLabel = false;
+                                if (item.labels) {
+                                    const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
+                                    hasNeedsMergeLabel = labels.some(label => {
+                                        const labelName = label.title || label.name || '';
+                                        return labelName.toLowerCase() === 'needs-merge';
+                                    });
+                                }
+
                                 assignees.forEach(assignee => {
                                     const name = assignee.name || assignee.username || 'Unknown';
                                     if (!userPerformance[name]) {
@@ -8094,7 +8106,7 @@ window.SprintManagementView = class SprintManagementView {
                                     }
                                     userPerformance[name].totalTickets++;
                                     userPerformance[name].totalHours += timePerAssignee / 3600;
-                                    if (isClosedBoard) {
+                                    if (isClosedBoard || hasNeedsMergeLabel) {
                                         userPerformance[name].closedTickets++;
                                         userPerformance[name].closedHours += timePerAssignee / 3600;
                                     }
@@ -8240,36 +8252,6 @@ window.SprintManagementView = class SprintManagementView {
         container.appendChild(historySection);
     }
 
-    // lib/ui/views/SprintManagementView.js - archiveCompletedSprint function
-
-    archiveCompletedSprint() {
-        try {
-            if (!this.sprintState.endSprint || !this.sprintState.timestamp) {
-                return;
-            }
-            const archiveEntry = {
-                id: this.sprintState.id || Date.now().toString(),
-                milestone: this.sprintState.currentMilestone,
-                totalTickets: this.sprintState.totalTickets,
-                closedTickets: this.sprintState.closedTickets,
-                totalHours: this.sprintState.totalHours,
-                closedHours: this.sprintState.closedHours,
-                extraHoursClosed: this.sprintState.extraHoursClosed || 0,
-                userPerformance: this.sprintState.userPerformance || {},
-                userDistributions: this.sprintState.userDistributions || {},
-                timestamp: this.sprintState.timestamp,
-                completedAt: new Date().toISOString(),
-                closedTicketsList: this.sprintState.closedTicketsList || []
-            };
-            this.sprintHistory.unshift(archiveEntry);
-            if (this.sprintHistory.length > 10) {
-                this.sprintHistory = this.sprintHistory.slice(0, 10);
-            }
-            this.saveSprintHistory();
-        } catch (error) {
-            console.error('Error archiving sprint:', error);
-        }
-    }
 
 // lib/ui/views/SprintManagementView.js - showSprintDetails function
 
@@ -8326,7 +8308,7 @@ window.SprintManagementView = class SprintManagementView {
 
         // Copy buttons for sprint data
         content += `
-      <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+      <div style="margin-bottom: 20px; display: flex;     justify-content: space-between;">
           <button id="copy-sprint-data-btn" style="padding: 8px 12px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
               Copy Sprint Data Summary
           </button>
