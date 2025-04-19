@@ -15,11 +15,4 @@
 (function () {
     'use strict';
 
-
-    /**
-     * This file is the main entry point for the GitLab Sprint Helper userscript.
-     * Most of the code has been moved to modular files in the lib/ directory.
-     * This file just ensures the initialization is done only once.
-     */
-
 })();
