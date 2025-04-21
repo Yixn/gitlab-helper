@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -7229,8 +7229,8 @@ window.SprintManagementView = class SprintManagementView {
         this.createStepButton(stepsContainer, '2. Ready for next Sprint', '#6f42c1', () => this.prepareForNextSprint(), this.sprintState.endSprint && !this.sprintState.preparedForNext);
         this.createStepButton(stepsContainer, '3. Copy Sprint Data Summary', '#28a745', () => this.copySprintData(), this.sprintState.preparedForNext && !this.sprintState.newMilestoneCreated);
         this.createStepButton(stepsContainer, '4. Copy Closed Issue Names', '#fd7e14', () => this.copyClosedTickets(), this.sprintState.preparedForNext && !this.sprintState.newMilestoneCreated);
-        this.createStepButton(stepsContainer, '5. Create new Milestone', '#17a2b8', () => this.createNewMilestone(), this.sprintState.preparedForNext && !this.sprintState.newMilestoneCreated );
-        this.createStepButton(stepsContainer, '6. Set all except done to sprint survivor and new Milestone', '#6610f2', () => this.setSurvivorAndMilestone(), this.sprintState.newMilestoneCreated &&  !this.sprintState.survivorsSet);
+        this.createStepButton(stepsContainer, '5. Create new Milestone', '#17a2b8', () => this.createNewMilestone(), this.sprintState.preparedForNext && !this.sprintState.newMilestoneCreated);
+        this.createStepButton(stepsContainer, '6. Set all except done to sprint survivor and new Milestone', '#6610f2', () => this.setSurvivorAndMilestone(), this.sprintState.newMilestoneCreated && !this.sprintState.survivorsSet);
         this.createStepButton(stepsContainer, '7. Close old milestone', '#dc3545', () => this.closeOldMilestone(), this.sprintState.survivorsSet);
 
         const utilityContainer = document.createElement('div');
@@ -7271,6 +7271,10 @@ window.SprintManagementView = class SprintManagementView {
         if (this.sprintState.totalTickets !== undefined) {
             this.showSprintDataSummary(sprintManagementContent);
         }
+
+        if (this.sprintState.newMilestoneCreated && this.sprintState.newMilestone) {
+            this.showNewMilestoneDetails(sprintManagementContent);
+        }
         this.renderSprintHistory(sprintManagementContent);
         if (this.uiManager && this.uiManager.removeLoadingScreen) {
             this.uiManager.removeLoadingScreen('sprintmanagement-tab');
@@ -7278,42 +7282,466 @@ window.SprintManagementView = class SprintManagementView {
     }
 
 // New method stubs for the new buttons
-    createNewMilestone() {
+    async createNewMilestone() {
         try {
-            // This is just a placeholder for now
+            if (!this.sprintState.currentMilestone) {
+                this.notification.error('No current milestone detected');
+                return;
+            }
+
+            // Parse the current milestone name (format: "195 KW 15")
+            const milestoneRegex = /(\d+)\s+KW\s+(\d+)/;
+            const match = this.sprintState.currentMilestone.match(milestoneRegex);
+
+            if (!match) {
+                this.notification.error('Could not parse current milestone format');
+                return;
+            }
+
+            let sprintNumber = parseInt(match[1], 10);
+            let weekNumber = parseInt(match[2], 10);
+
+            // Increment week number
+            weekNumber++;
+
+            // Check if we need to roll over to a new year
+            if (weekNumber > 52) {
+                weekNumber = 1;
+            }
+
+            // Always increment sprint number
+            sprintNumber++;
+
+            // Format new milestone name
+            const newMilestoneName = `${sprintNumber} KW ${weekNumber.toString().padStart(2, '0')}`;
+
+            // Calculate dates
+            const startDate = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 7); // One week duration
+
+            // Format dates for the API (YYYY-MM-DD)
+            const formatDate = (date) => {
+                return date.toISOString().split('T')[0];
+            };
+
+            // Get GitLab API
+            const gitlabApi = this.gitlabApi || window.gitlabApi;
+            if (!gitlabApi) {
+                throw new Error('GitLab API not available');
+            }
+
+            // Get the project/group path from the URL
+            const pathInfo = getPathFromUrl();
+            if (!pathInfo) {
+                throw new Error('Could not determine project/group path');
+            }
+
+            // Determine the API endpoint (project or group milestone)
+            let endpoint;
+            if (pathInfo.type === 'project') {
+                endpoint = `projects/${pathInfo.encodedPath}/milestones`;
+            } else if (pathInfo.type === 'group') {
+                endpoint = `groups/${pathInfo.encodedPath}/milestones`;
+            } else {
+                throw new Error('Unsupported path type: ' + pathInfo.type);
+            }
+
+            // Show loading notification
+            this.notification.info(`Creating milestone "${newMilestoneName}"...`);
+
+            // Make the API call to create the milestone
+            const response = await gitlabApi.callGitLabApi(endpoint, {
+                method: 'POST',
+                data: {
+                    title: newMilestoneName,
+                    description: `Sprint from ${formatDate(startDate)} to ${formatDate(endDate)}`,
+                    start_date: formatDate(startDate),
+                    due_date: formatDate(endDate)
+                }
+            });
+
+            // Save the new milestone info
+            this.sprintState.newMilestone = {
+                id: response.id,
+                iid: response.iid,
+                name: newMilestoneName,
+                startDate: formatDate(startDate),
+                endDate: formatDate(endDate),
+                webUrl: response.web_url
+            };
+
             this.sprintState.newMilestoneCreated = true;
             this.saveSprintState();
-            this.notification.success('New milestone created successfully');
+
+            this.notification.success(`New milestone "${newMilestoneName}" created in GitLab`);
             this.render();
         } catch (error) {
             console.error('Error creating new milestone:', error);
-            this.notification.error('Failed to create new milestone: ' + error.message);
+            this.notification.error('Failed to create milestone in GitLab: ' + error.message);
         }
     }
 
-    setSurvivorAndMilestone() {
+    async setSurvivorAndMilestone() {
         try {
-            // This is just a placeholder for now
-            this.sprintState.survivorsSet = true;
-            this.saveSprintState();
-            this.notification.success('Issues set as sprint survivors and assigned to new milestone');
-            this.render();
+            if (!this.sprintState.newMilestone) {
+                this.notification.error('New milestone information not found');
+                return;
+            }
+
+            // Switch to the bulk comments tab
+            if (this.uiManager && this.uiManager.tabManager) {
+                this.uiManager.tabManager.switchToTab('bulkcomments');
+                // Give the tab time to render
+                await new Promise(resolve => setTimeout(resolve, 300));
+            } else {
+                this.notification.error('UI Manager not available');
+                return;
+            }
+
+            // Get all cards that are not in "done" boards
+            const cardsToUpdate = [];
+            const boardLists = document.querySelectorAll('.board-list');
+
+            boardLists.forEach(boardList => {
+                let boardTitle = '';
+                try {
+                    if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+                        const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
+                        if (boardComponent && boardComponent.$props.list.title) {
+                            boardTitle = boardComponent.$props.list.title.toLowerCase();
+                        }
+                    }
+                    if (!boardTitle) {
+                        const boardHeader = boardList.querySelector('.board-title-text');
+                        if (boardHeader) {
+                            boardTitle = boardHeader.textContent.trim().toLowerCase();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error getting board title:', e);
+                    const boardHeader = boardList.querySelector('.board-title-text');
+                    if (boardHeader) {
+                        boardTitle = boardHeader.textContent.trim().toLowerCase();
+                    }
+                }
+
+                // Skip done/closed boards
+                const isDoneBoard = boardTitle.includes('done') ||
+                    boardTitle.includes('closed') ||
+                    boardTitle.includes('complete') ||
+                    boardTitle.includes('finished');
+
+                if (isDoneBoard) {
+                    return;
+                }
+
+                // Get all cards in this non-done board
+                const boardCards = boardList.querySelectorAll('.board-card');
+                boardCards.forEach(card => {
+                    try {
+                        if (card.__vue__ && card.__vue__.$children) {
+                            const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
+                            if (issue && issue.$props && issue.$props.item) {
+                                cardsToUpdate.push(issue.$props.item);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error processing card:', err);
+                    }
+                });
+            });
+
+            if (cardsToUpdate.length === 0) {
+                this.notification.warning('No cards found outside of done boards');
+                return;
+            }
+
+            // Clear any previous selections first
+            if (this.uiManager.bulkCommentsView) {
+                this.uiManager.bulkCommentsView.setSelectedIssues([]);
+            }
+
+            if (this.uiManager.issueSelector) {
+                this.uiManager.issueSelector.setSelectedIssues([]);
+            }
+
+            // Activate UI selection mode first
+            if (this.uiManager.issueSelector) {
+                // First start selection mode
+                this.uiManager.issueSelector.startSelection();
+
+                // Give selection mode time to activate
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // Then set the selected issues
+                this.uiManager.issueSelector.setSelectedIssues(cardsToUpdate);
+
+                // Update the selected issues in bulk comments view
+                if (this.uiManager.bulkCommentsView) {
+                    this.uiManager.bulkCommentsView.setSelectedIssues(cardsToUpdate);
+
+                    // Force UI refresh of selection display
+                    if (this.uiManager.bulkCommentsView.selectionDisplay) {
+                        this.uiManager.bulkCommentsView.selectionDisplay.updateDisplay();
+                    }
+                }
+
+                // Force update of overlays to show visual selection
+                this.uiManager.issueSelector.updateOverlaysFromSelection();
+
+                // Update status text
+                const statusEl = document.getElementById('comment-status');
+                if (statusEl) {
+                    statusEl.textContent = `${cardsToUpdate.length} issue${cardsToUpdate.length !== 1 ? 's' : ''} selected.`;
+                    statusEl.style.color = 'green';
+                }
+
+                // Set up the comment text
+                const commentInput = document.getElementById('issue-comment-input');
+                if (commentInput) {
+                    // Add the milestone and sprint-survivor label commands
+                    commentInput.value = `/milestone %"${this.sprintState.newMilestone.name}"\n/label ~"sprint-survivor"`;
+
+                    // Focus the comment input
+                    commentInput.focus();
+
+                    // Toggle the selection button to "Done" state
+                    const selectButton = document.getElementById('select-issues-button');
+                    if (selectButton) {
+                        selectButton.dataset.active = 'true';
+                        selectButton.style.backgroundColor = '#28a745';
+                        selectButton.textContent = 'Done';
+                    }
+
+                    // Set up listener for the send button click - will mark step as complete
+                    const sendButton = Array.from(document.querySelectorAll('button'))
+                        .find(b => b.textContent && b.textContent.includes('Send'));
+
+                    if (sendButton) {
+                        // Create a one-time event listener
+                        const completeStepListener = () => {
+                            // Set a timeout to give the comment time to be sent
+                            setTimeout(() => {
+                                this.sprintState.survivorsSet = true;
+                                this.saveSprintState();
+                                this.notification.success('Sprint survivors successfully set with new milestone');
+
+                                // Switch back to sprint management tab
+                                if (this.uiManager && this.uiManager.tabManager) {
+                                    this.uiManager.tabManager.switchToTab('sprintmanagement');
+                                }
+                            }, 1000);
+
+                            // Remove this event listener after it's triggered once
+                            sendButton.removeEventListener('click', completeStepListener);
+                        };
+
+                        sendButton.addEventListener('click', completeStepListener);
+                    }
+
+                    this.notification.info(`Selected ${cardsToUpdate.length} issues. Review and click Send to apply changes.`);
+                } else {
+                    this.notification.error('Comment input not found');
+                }
+            } else {
+                this.notification.error('Issue selector not available');
+            }
         } catch (error) {
             console.error('Error setting sprint survivors:', error);
             this.notification.error('Failed to set sprint survivors: ' + error.message);
         }
     }
 
-    closeOldMilestone() {
+    showNewMilestoneDetails(container) {
+        if (!this.sprintState.newMilestone) return;
+
+        const milestoneInfo = document.createElement('div');
+        milestoneInfo.style.padding = '15px';
+        milestoneInfo.style.margin = '10px';
+        milestoneInfo.style.backgroundColor = '#e8f4ff';
+        milestoneInfo.style.borderRadius = '6px';
+        milestoneInfo.style.border = '1px solid #b8daff';
+
+        const titleEl = document.createElement('h4');
+        titleEl.textContent = 'New Milestone Created';
+        titleEl.style.margin = '0 0 10px 0';
+        titleEl.style.color = '#004085';
+
+        const detailsList = document.createElement('ul');
+        detailsList.style.margin = '0';
+        detailsList.style.paddingLeft = '20px';
+
+        const nameItem = document.createElement('li');
+        nameItem.textContent = `Name: ${this.sprintState.newMilestone.name}`;
+        nameItem.style.marginBottom = '5px';
+
+        const dateItem = document.createElement('li');
+        dateItem.textContent = `Duration: ${this.sprintState.newMilestone.startDate} to ${this.sprintState.newMilestone.endDate}`;
+        dateItem.style.marginBottom = '5px';
+
+        detailsList.appendChild(nameItem);
+        detailsList.appendChild(dateItem);
+
+        // Add link to milestone if available
+        if (this.sprintState.newMilestone.webUrl) {
+            const linkItem = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = this.sprintState.newMilestone.webUrl;
+            link.textContent = 'View milestone in GitLab';
+            link.target = '_blank';
+            link.style.color = '#0056b3';
+            linkItem.appendChild(link);
+            detailsList.appendChild(linkItem);
+        }
+
+        milestoneInfo.appendChild(titleEl);
+        milestoneInfo.appendChild(detailsList);
+
+        container.appendChild(milestoneInfo);
+    }
+
+    async closeOldMilestone() {
         try {
-            // This is just a placeholder for now
-            this.sprintState.oldMilestoneClosed = true;
+            // Use the milestone that was saved at the moment of ending the sprint
+            const milestoneToClose = this.sprintState.milestoneToClose || this.sprintState.currentMilestone;
+
+            if (!milestoneToClose) {
+                this.notification.error('No milestone found to close');
+                return;
+            }
+
+            // Get GitLab API
+            const gitlabApi = this.gitlabApi || window.gitlabApi;
+            if (!gitlabApi) {
+                throw new Error('GitLab API not available');
+            }
+
+            // Get the project/group path from the URL
+            const pathInfo = getPathFromUrl();
+            if (!pathInfo) {
+                throw new Error('Could not determine project/group path');
+            }
+
+            // Search for the milestone to get its ID
+            let endpoint;
+            if (pathInfo.type === 'project') {
+                endpoint = `projects/${pathInfo.encodedPath}/milestones`;
+            } else if (pathInfo.type === 'group') {
+                endpoint = `groups/${pathInfo.encodedPath}/milestones`;
+            } else {
+                throw new Error('Unsupported path type: ' + pathInfo.type);
+            }
+
+            // Get list of active milestones
+            const milestones = await gitlabApi.callGitLabApi(endpoint, {
+                params: {
+                    state: 'active',
+                    search: milestoneToClose
+                }
+            });
+
+            // Find the exact match for the milestone title
+            const milestone = milestones.find(m => m.title === milestoneToClose);
+            if (!milestone) {
+                throw new Error(`Milestone "${milestoneToClose}" not found or already closed`);
+            }
+
+            // Close the milestone
+            const closedMilestone = await gitlabApi.callGitLabApi(`${endpoint}/${milestone.id}`, {
+                method: 'PUT',
+                data: {
+                    state_event: 'close'
+                }
+            });
+
+            // Store information about the closed milestone
+            const oldMilestoneInfo = {
+                id: milestone.id,
+                title: milestone.title,
+                webUrl: milestone.web_url,
+                closedAt: new Date().toISOString()
+            };
+
+            // Save the completed sprint to history before resetting
+            if (this.sprintState.id) {
+
+                this.saveSprintHistory();
+            }
+
+            // Reset the sprint state but keep new milestone information
+            const newMilestoneInfo = this.sprintState.newMilestone;
+
+            // Reset to a fresh state
+            this.sprintState = {
+                endSprint: false,
+                preparedForNext: false,
+                newMilestoneCreated: false,
+                survivorsSet: false,
+                oldMilestoneClosed: true,
+                currentMilestone: newMilestoneInfo ? newMilestoneInfo.name : null,
+                newMilestone: null,
+                oldMilestoneInfo: oldMilestoneInfo
+            };
+
             this.saveSprintState();
-            this.notification.success('Old milestone closed successfully');
+
+            this.notification.success(`Successfully closed milestone "${oldMilestoneInfo.title}" and reset sprint state`);
             this.render();
+
+
+            try {
+                // First try using the refreshBoard method from bulkCommentsView
+                if (this.uiManager && this.uiManager.bulkCommentsView &&
+                    typeof this.uiManager.bulkCommentsView.refreshBoard === 'function') {
+
+                    await this.uiManager.bulkCommentsView.refreshBoard();
+
+                    // Reload UI components
+                    setTimeout(() => {
+                        // Update the summary after board refresh
+                        if (typeof window.updateSummary === 'function') {
+                            window.updateSummary(true);
+                        }
+
+                        // Re-initialize UI manager
+                        if (typeof window.createUIManager === 'function') {
+                            window.createUIManager();
+                        }
+
+                        // Refresh the current tab
+                        if (this.uiManager && this.uiManager.tabManager) {
+                            const currentTab = this.uiManager.tabManager.currentTab;
+                            this.uiManager.tabManager.switchToTab(currentTab);
+                        }
+
+                    }, 1000);
+                } else if (typeof window.refreshBoard === 'function') {
+                    // Try using the global refreshBoard function
+                    await window.refreshBoard();
+
+                    setTimeout(() => {
+                        if (typeof window.updateSummary === 'function') {
+                            window.updateSummary(true);
+                        }
+                    }, 1000);
+                } else {
+                    // Fallback to page reload if refreshBoard is not available
+                    this.notification.warning('Board refresh method not found, reloading page...');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
+            } catch (refreshError) {
+                console.error('Error refreshing board:', refreshError);
+                this.notification.warning('Error refreshing board, reloading page...');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            }
         } catch (error) {
             console.error('Error closing old milestone:', error);
-            this.notification.error('Failed to close old milestone: ' + error.message);
+            this.notification.error('Failed to close milestone: ' + error.message);
         }
     }
 
@@ -7712,10 +8140,20 @@ window.SprintManagementView = class SprintManagementView {
 
     endSprint() {
         try {
+            // Get the current milestone from the board first
+            this.getCurrentMilestone();
+
+            // Make sure we have a current milestone before proceeding
+            if (!this.sprintState.currentMilestone) {
+                this.notification.error('No milestone detected on the board');
+                return;
+            }
+
             const sprintData = this.calculateSprintData();
             const closedTickets = this.getClosedTickets();
             const userPerformance = this.calculateUserPerformance();
             const sprintId = Date.now().toString();
+
             this.sprintState.id = sprintId;
             this.sprintState.endSprint = true;
             this.sprintState.totalTickets = sprintData.totalTickets;
@@ -7724,8 +8162,14 @@ window.SprintManagementView = class SprintManagementView {
             this.sprintState.closedHours = sprintData.closedHours;
             this.sprintState.userPerformance = userPerformance;
             this.sprintState.timestamp = new Date().toISOString();
+
+            // Save the milestone name at the moment of ending the sprint
+            // This is the milestone we'll close later
+            this.sprintState.milestoneToClose = this.sprintState.currentMilestone;
+
             this.saveSprintState();
             this.notification.success('Sprint ended. Data captured successfully.');
+
             if (this.uiManager && this.uiManager.issueSelector && typeof this.uiManager.issueSelector.startSelection === 'function') {
                 if (this.uiManager.tabManager && typeof this.uiManager.tabManager.switchToTab === 'function') {
                     this.uiManager.tabManager.switchToTab('bulkcomments');
@@ -8398,6 +8842,7 @@ window.SprintManagementView = class SprintManagementView {
             }
         }, 100);
     }
+
     copySprintDataFromHistory(sprint) {
         try {
             const totalTickets = sprint.totalTickets || 0;
@@ -8428,7 +8873,44 @@ window.SprintManagementView = class SprintManagementView {
             this.notification.error('Error processing sprint data');
         }
     }
+    showClosedMilestoneDetails(container) {
+        if (!this.sprintState.oldMilestoneInfo) return;
 
+        const milestoneInfo = document.createElement('div');
+        milestoneInfo.style.padding = '15px';
+        milestoneInfo.style.margin = '10px';
+        milestoneInfo.style.backgroundColor = '#f8d7da';
+        milestoneInfo.style.borderRadius = '6px';
+        milestoneInfo.style.border = '1px solid #f5c6cb';
+
+        const titleEl = document.createElement('h4');
+        titleEl.textContent = 'Milestone Closed';
+        titleEl.style.margin = '0 0 10px 0';
+        titleEl.style.color = '#721c24';
+
+        const message = document.createElement('p');
+        message.textContent = `The milestone "${this.sprintState.oldMilestoneInfo.title}" has been successfully closed.`;
+        message.style.margin = '0 0 10px 0';
+
+        const newSprintMessage = document.createElement('p');
+        newSprintMessage.innerHTML = `Sprint state has been reset. You can now start a new sprint with <strong>${this.sprintState.currentMilestone || 'the new milestone'}</strong>.`;
+        newSprintMessage.style.margin = '0 0 10px 0';
+        newSprintMessage.style.fontWeight = 'bold';
+
+        const link = document.createElement('a');
+        link.href = this.sprintState.oldMilestoneInfo.webUrl;
+        link.textContent = 'View closed milestone in GitLab';
+        link.target = '_blank';
+        link.style.color = '#721c24';
+        link.style.textDecoration = 'underline';
+
+        milestoneInfo.appendChild(titleEl);
+        milestoneInfo.appendChild(message);
+        milestoneInfo.appendChild(newSprintMessage);
+        milestoneInfo.appendChild(link);
+
+        container.appendChild(milestoneInfo);
+    }
     copyClosedTicketsFromHistory(sprint) {
         try {
             const closedTickets = sprint.closedTicketsList || [];
@@ -8955,9 +9437,6 @@ window.BulkCommentsView = class BulkCommentsView {
     if (statusEl) {
       statusEl.textContent = 'Selection cleared.';
       statusEl.style.color = '#666';
-    }
-    if (this.notification) {
-      this.notification.info('Selection cleared');
     }
     if (this.uiManager && this.uiManager.issueSelector) {
       this.uiManager.issueSelector.setSelectedIssues([]);
