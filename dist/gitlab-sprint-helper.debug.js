@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.5";
+window.gitLabHelperVersion = "1.6";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -8016,6 +8016,48 @@ window.SprintManagementView = class SprintManagementView {
       this.sprintState.closedTicketsList = closedTickets;
       this.sprintState.preparedForNext = true;
       this.sprintState.extraHoursClosed = extraHoursClosed;
+
+      // Add carried over hours to users based on missing work
+      if (extraHoursClosed > 0 && this.sprintState.userPerformance) {
+        const prevStateUsers = Object.keys(this.sprintState.userPerformance);
+
+        // Find differences between previous state and current state for each user
+        const userMissingHoursMap = {};
+        let totalMissingUserHours = 0;
+
+        for (const userName of prevStateUsers) {
+          const prevUserData = this.sprintState.userPerformance[userName];
+
+          // Calculate how many hours are missing for this user compared to the current board
+          const currentUserState = this.calculateUserHoursInCurrentBoard(userName);
+          const userMissingHours = Math.max(0, prevUserData.totalHours - currentUserState.totalHours);
+
+          if (userMissingHours > 0) {
+            userMissingHoursMap[userName] = userMissingHours;
+            totalMissingUserHours += userMissingHours;
+          }
+        }
+
+        // Distribute extra hours to users proportional to their missing work
+        if (totalMissingUserHours > 0) {
+          for (const [userName, missingHours] of Object.entries(userMissingHoursMap)) {
+            // Calculate share of extra hours based on proportion of missing work
+            const proportion = missingHours / totalMissingUserHours;
+            const extraHoursForUser = extraHoursClosed * proportion;
+
+            // Add to user's closed hours
+            this.sprintState.userPerformance[userName].closedHours += extraHoursForUser;
+
+            // Round to one decimal place
+            this.sprintState.userPerformance[userName].closedHours =
+                Math.round(this.sprintState.userPerformance[userName].closedHours * 10) / 10;
+          }
+        } else {
+          // If we can't determine missing hours by user, distribute proportionally to total work
+          this.distributeExtraHoursProportionally(extraHoursClosed);
+        }
+      }
+
       this.saveSprintState();
       this.archiveCompletedSprint();
       this.notification.success(`Sprint preparation complete. ${extraHoursClosed}h of carried over work identified.`);
@@ -8023,6 +8065,129 @@ window.SprintManagementView = class SprintManagementView {
     } catch (error) {
       console.error('Error preparing for next sprint:', error);
       this.notification.error('Failed to prepare for next sprint: ' + error.message);
+    }
+  }
+  calculateUserHoursInCurrentBoard(userName) {
+    const result = {
+      totalHours: 0,
+      closedHours: 0,
+      tickets: 0,
+      closedTickets: 0
+    };
+
+    try {
+      const boardLists = document.querySelectorAll('.board-list');
+
+      boardLists.forEach(boardList => {
+        let boardTitle = '';
+        try {
+          if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
+            const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
+            if (boardComponent && boardComponent.$props.list.title) {
+              boardTitle = boardComponent.$props.list.title.toLowerCase();
+            }
+          }
+          if (!boardTitle) {
+            const boardHeader = boardList.querySelector('.board-title-text');
+            if (boardHeader) {
+              boardTitle = boardHeader.textContent.trim().toLowerCase();
+            }
+          }
+        } catch (e) {
+          const boardHeader = boardList.querySelector('.board-title-text');
+          if (boardHeader) {
+            boardTitle = boardHeader.textContent.trim().toLowerCase();
+          }
+        }
+
+        const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') ||
+            boardTitle.includes('complete') || boardTitle.includes('finished');
+
+        const boardCards = boardList.querySelectorAll('.board-card');
+        boardCards.forEach(card => {
+          try {
+            if (card.__vue__ && card.__vue__.$children) {
+              const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
+              if (issue && issue.$props && issue.$props.item) {
+                const item = issue.$props.item;
+
+                // Check if this ticket is assigned to the user we're looking for
+                let assignees = [];
+                if (item.assignees && item.assignees.nodes && item.assignees.nodes.length) {
+                  assignees = item.assignees.nodes;
+                } else if (item.assignees && item.assignees.length > 0) {
+                  assignees = item.assignees;
+                }
+
+                const isAssignedToUser = assignees.some(assignee =>
+                    (assignee.name === userName) || (assignee.username === userName)
+                );
+
+                if (isAssignedToUser) {
+                  const timeEstimate = item.timeEstimate || 0;
+                  const hoursEstimate = timeEstimate / 3600;
+                  const assigneeCount = assignees.length;
+                  const hoursPerAssignee = hoursEstimate / assigneeCount;
+
+                  result.totalHours += hoursPerAssignee;
+                  result.tickets++;
+
+                  let hasNeedsMergeLabel = false;
+                  if (item.labels) {
+                    const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
+                    hasNeedsMergeLabel = labels.some(label => {
+                      const labelName = label.title || label.name || '';
+                      return labelName.toLowerCase() === 'needs-merge';
+                    });
+                  }
+
+                  if (isClosedBoard || hasNeedsMergeLabel) {
+                    result.closedHours += hoursPerAssignee;
+                    result.closedTickets++;
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error processing card for user hours:', err);
+          }
+        });
+      });
+    } catch (error) {
+      console.error(`Error calculating hours for user ${userName}:`, error);
+    }
+
+    // Round to one decimal place
+    result.totalHours = Math.round(result.totalHours * 10) / 10;
+    result.closedHours = Math.round(result.closedHours * 10) / 10;
+
+    return result;
+  }
+  distributeExtraHoursProportionally(extraHoursClosed) {
+    try {
+      // Calculate total assigned hours to use as basis for distribution
+      let totalAssignedHours = 0;
+      for (const user in this.sprintState.userPerformance) {
+        totalAssignedHours += this.sprintState.userPerformance[user].totalHours;
+      }
+
+      // Only distribute if there are total hours to distribute by
+      if (totalAssignedHours > 0) {
+        for (const user in this.sprintState.userPerformance) {
+          const userPerf = this.sprintState.userPerformance[user];
+          // Calculate extra hours proportional to user's total hours
+          const userRatio = userPerf.totalHours / totalAssignedHours;
+          const userExtraHours = extraHoursClosed * userRatio;
+
+          // Add the extra hours to closed hours
+          userPerf.closedHours += userExtraHours;
+
+          // Round to one decimal place for display
+          userPerf.closedHours = Math.round(userPerf.closedHours * 10) / 10;
+        }
+      }
+    } catch (error) {
+      console.error('Error distributing extra hours proportionally:', error);
     }
   }
   editSprintData() {
