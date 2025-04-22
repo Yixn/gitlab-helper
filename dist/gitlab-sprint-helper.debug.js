@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.8
+// @version      1.9
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.8";
+window.gitLabHelperVersion = "1.9";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -3487,13 +3487,17 @@ window.TabManager = class TabManager {
   }
   initialize(parentElement) {
     this.tabContainer = document.createElement('div');
+    this.tabContainer.className = 'tabs-container';
     this.tabContainer.style.display = 'flex';
     this.tabContainer.style.marginBottom = '10px';
     this.tabContainer.style.borderBottom = '1px solid #ddd';
+    this.tabContainer.style.position = 'relative'; // Add relative positioning
+
     this.createTab('summary', 'Summary', this.currentTab === 'summary');
     this.createTab('bulkcomments', 'Issues', this.currentTab === 'bulkcomments');
     this.createTab('sprintmanagement', 'Sprint', this.currentTab === 'sprintmanagement');
     this.createTab('stats', 'Stats', this.currentTab === 'stats');
+
     parentElement.appendChild(this.tabContainer);
     this.createContentAreas(parentElement);
   }
@@ -10581,17 +10585,8 @@ window.UIManager = class UIManager {
     this.boardStats.style.display = 'flex';
     this.boardStats.style.justifyContent = 'space-between';
     this.boardStats.textContent = 'Loading board statistics...';
-    this.versionDisplay = document.createElement('div');
-    this.versionDisplay.id = 'gitlab-helper-version';
-    this.versionDisplay.style.fontSize = '10px';
-    this.versionDisplay.style.color = '#888';
-    this.versionDisplay.style.position = 'absolute';
-    this.versionDisplay.style.bottom = '3px';
-    this.versionDisplay.style.right = '5px';
-    const version = window.gitLabHelperVersion || '1.0.0';
-    this.versionDisplay.textContent = `v${version}`;
+
     this.container.appendChild(this.boardStats);
-    this.container.appendChild(this.versionDisplay);
   }
   updateBoardStats(stats) {
     if (!this.boardStats) return;
@@ -10779,7 +10774,6 @@ window.UIManager = class UIManager {
     const wrapper = document.getElementById('assignee-time-summary-wrapper');
     const headerDiv = this.headerDiv || document.querySelector('#assignee-time-summary > div:first-child');
     if (!wrapper || !headerDiv) {
-      console.warn('Could not find wrapper or header elements for height calculation');
       tabContents.forEach(content => {
         if (content) {
           content.style.minHeight = '300px';
@@ -10846,9 +10840,20 @@ window.UIManager = class UIManager {
       this.versionDisplay.style.fontSize = '10px';
       this.versionDisplay.style.color = '#888';
       this.versionDisplay.style.position = 'absolute';
-      this.versionDisplay.style.bottom = '3px';
-      this.versionDisplay.style.right = '5px';
-      this.container.appendChild(this.versionDisplay);
+      this.versionDisplay.style.top = '6px'; // Position at the top near the tabs
+      this.versionDisplay.style.right = '5px'; // Right position to be next to tab controls
+      this.versionDisplay.style.zIndex = '1'; // Ensure it's above other elements
+
+      // Find the tabs container and place the version display after it
+      const tabContainer = this.container.querySelector('.tabs-container') ||
+          this.container.querySelector('#assignee-time-summary div:nth-child(3)');
+
+      if (tabContainer) {
+        tabContainer.style.position = 'relative'; // Ensure relative positioning
+        tabContainer.appendChild(this.versionDisplay);
+      } else {
+        this.container.appendChild(this.versionDisplay);
+      }
     }
     const version = window.gitLabHelperVersion || '1.0.0';
     this.versionDisplay.textContent = `v${version}`;
