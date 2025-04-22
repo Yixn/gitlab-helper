@@ -7144,7 +7144,6 @@ window.BoardsView = class BoardsView {
 window.SprintManagementView = class SprintManagementView {
   constructor(uiManager) {
     this.uiManager = uiManager;
-    this.pako = require('pako');
     this.notification = null;
     try {
       if (typeof Notification === 'function') {
@@ -8721,7 +8720,7 @@ window.SprintManagementView = class SprintManagementView {
   compressData(data) {
     try {
       const jsonString = JSON.stringify(data);
-      const compressed = this.pako.deflate(jsonString, { to: 'string' });
+      const compressed = pako.deflate(jsonString, { to: 'string' });
       return btoa(compressed);
     } catch (error) {
       console.error('Error compressing data:', error);
@@ -8733,7 +8732,7 @@ window.SprintManagementView = class SprintManagementView {
   decompressData(base64String) {
     try {
       const compressed = atob(base64String);
-      const decompressed = this.pako.inflate(compressed, { to: 'string' });
+      const decompressed = pako.inflate(compressed, { to: 'string' });
       return JSON.parse(decompressed);
     } catch (error) {
       console.error('Error decompressing data:', error);
