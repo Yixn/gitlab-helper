@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -14,6 +14,8 @@
 
 // GitLab Sprint Helper - Combined Script
 (function(window) {
+// Add version as window variable
+window.gitLabHelperVersion = "1.3";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {

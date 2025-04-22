@@ -10,6 +10,9 @@ const path = require('path');
 const { minify } = require('terser');
 const glob = require('glob');
 
+// Define version number in a single place
+const VERSION = '1.3';
+
 // Load .env file if it exists
 let envConfig = {};
 try {
@@ -137,7 +140,11 @@ function extractUserScriptHeader(filePath) {
     process.exit(1);
   }
 
-  return headerMatch[0];
+  // Replace version in header with the VERSION constant
+  let header = headerMatch[0];
+  header = header.replace(/(\/\/ @version\s+).*/, `$1${VERSION}`);
+
+  return header;
 }
 
 // Find all JS files in the source directory including subdirectories
@@ -237,6 +244,8 @@ async function buildBundle() {
   bundle += `
 // GitLab Sprint Helper - Combined Script
 (function(window) {
+// Add version as window variable
+window.gitLabHelperVersion = "${VERSION}";
 `;
 
   // Process files in the specified order
