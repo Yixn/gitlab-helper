@@ -293,6 +293,7 @@ window.processBoards = function processBoards() {
   let cardsWithTime = 0;
   let currentMilestone = null;
   let closedBoardCards = 0;
+  let closedWithTimeCards = 0;
   let needsMergeCards = 0;
   const userDistributionMap = {};
   const userDataMap = {};
@@ -337,13 +338,10 @@ window.processBoards = function processBoards() {
     const boardItems = boardList.querySelectorAll('.board-card');
     const lowerTitle = boardTitle.toLowerCase();
     const isClosedBoard = lowerTitle.includes('done') || lowerTitle.includes('closed') || lowerTitle.includes('complete') || lowerTitle.includes('finished');
-    if (isClosedBoard) {
-      closedBoardCards += boardItems.length;
-    }
+
     boardItems.forEach(item => {
       try {
         cardsProcessed++;
-        boardData[boardTitle].tickets++;
         if (item.__vue__ && item.__vue__.$children) {
           const issue = item.__vue__.$children.find(child => child.$props && child.$props.item && child.$props.item.timeEstimate !== undefined);
           if (issue && issue.$props) {
@@ -353,9 +351,16 @@ window.processBoards = function processBoards() {
             }
             if (props.item && props.item.timeEstimate) {
               cardsWithTime++;
+              boardData[boardTitle].tickets++;
               const timeEstimate = props.item.timeEstimate;
               totalEstimate += timeEstimate;
               boardData[boardTitle].timeEstimate += timeEstimate;
+
+              // Count closed tickets that have time estimates
+              if (isClosedBoard) {
+                closedWithTimeCards++;
+              }
+
               let hasNeedsMergeLabel = false;
               if (props.item.labels) {
                 const labels = Array.isArray(props.item.labels) ? props.item.labels : props.item.labels.nodes ? props.item.labels.nodes : [];
@@ -439,6 +444,7 @@ window.processBoards = function processBoards() {
     });
     uiManager.issueSelector.applyOverflowFixes();
   });
+
   const formattedUserDistributions = {};
   Object.keys(userDistributionMap).forEach(name => {
     const orderedBoards = Object.keys(userDistributionMap[name]).sort((a, b) => {
@@ -457,6 +463,7 @@ window.processBoards = function processBoards() {
       avatar_url: userDataMap[name]?.avatar_url || ''
     };
   });
+
   try {
     if (window.historyManager) {
       const {
@@ -472,6 +479,7 @@ window.processBoards = function processBoards() {
           cardsWithTime,
           currentMilestone,
           closedBoardCards,
+          closedWithTimeCards,
           userDistributions: formattedUserDistributions,
           userData: userDataMap
         });
@@ -480,6 +488,7 @@ window.processBoards = function processBoards() {
   } catch (e) {
     console.error('Error saving history data:', e);
   }
+
   return {
     assigneeTimeMap,
     boardData,
@@ -489,6 +498,7 @@ window.processBoards = function processBoards() {
     cardsWithTime,
     currentMilestone,
     closedBoardCards,
+    closedWithTimeCards,
     needsMergeCards,
     userDistributions: formattedUserDistributions,
     userData: userDataMap
@@ -1001,9 +1011,6 @@ window.CommandShortcut = class CommandShortcut {
         value: '',
         label: 'Estimate Hours'
       }, {
-        value: '0',
-        label: '0h'
-      }, {
         value: '1',
         label: '1h'
       }, {
@@ -1021,6 +1028,9 @@ window.CommandShortcut = class CommandShortcut {
       }, {
         value: '32',
         label: '32h'
+      }, {
+        value: '0',
+        label: '0h'
       }, {
         value: 'custom',
         label: 'Custom...'
@@ -7723,10 +7733,16 @@ window.SprintManagementView = class SprintManagementView {
         try {
           let hasNeedsMergeLabel = false;
           let item = null;
+          let hasEstimate = false;
+
           if (card.__vue__ && card.__vue__.$children) {
             const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
             if (issue && issue.$props && issue.$props.item) {
               item = issue.$props.item;
+
+              // Check if the card has a time estimate
+              hasEstimate = !!item.timeEstimate;
+
               if (item.labels) {
                 const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
                 hasNeedsMergeLabel = labels.some(label => {
@@ -7736,7 +7752,8 @@ window.SprintManagementView = class SprintManagementView {
               }
             }
           }
-          if (isClosedBoard || hasNeedsMergeLabel) {
+
+          if ((isClosedBoard || hasNeedsMergeLabel)) {
             let title = '';
             let id = '';
             if (item) {
@@ -7758,7 +7775,8 @@ window.SprintManagementView = class SprintManagementView {
               closedTickets.push({
                 id: id || 'unknown',
                 title: title,
-                hasNeedsMergeLabel: isClosedBoard ? false : hasNeedsMergeLabel
+                hasNeedsMergeLabel: isClosedBoard ? false : hasNeedsMergeLabel,
+                hasEstimate: hasEstimate
               });
             }
           }
@@ -7834,18 +7852,22 @@ window.SprintManagementView = class SprintManagementView {
             const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
             if (issue && issue.$props && issue.$props.item) {
               const item = issue.$props.item;
-              totalTickets++;
-              let hasNeedsMergeLabel = false;
-              if (item.labels) {
-                const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
-                hasNeedsMergeLabel = labels.some(label => {
-                  const labelName = label.title || label.name || '';
-                  return labelName.toLowerCase() === 'needs-merge';
-                });
-              }
+
+              // Only count tickets with time estimates
               if (item.timeEstimate) {
+                totalTickets++;
                 const hours = item.timeEstimate / 3600;
                 totalHours += hours;
+
+                let hasNeedsMergeLabel = false;
+                if (item.labels) {
+                  const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
+                  hasNeedsMergeLabel = labels.some(label => {
+                    const labelName = label.title || label.name || '';
+                    return labelName.toLowerCase() === 'needs-merge';
+                  });
+                }
+
                 if (isClosedBoard || hasNeedsMergeLabel) {
                   closedHours += hours;
                 }
@@ -7860,7 +7882,7 @@ window.SprintManagementView = class SprintManagementView {
     totalHours = Math.round(totalHours * 10) / 10;
     closedHours = Math.round(closedHours * 10) / 10;
     let prediction = 'schlecht';
-    const closedTickets = this.getClosedTickets().length;
+    const closedTickets = this.getClosedTickets().filter(ticket => ticket.hasEstimate).length;
     const ticketRatio = totalTickets > 0 ? closedTickets / totalTickets : 0;
     const hoursRatio = totalHours > 0 ? closedHours / totalHours : 0;
     if (ticketRatio > 0.7 || hoursRatio > 0.7) {
@@ -7954,7 +7976,7 @@ window.SprintManagementView = class SprintManagementView {
         return;
       }
       const sprintData = this.calculateSprintData();
-      const closedTickets = this.getClosedTickets();
+      const closedTickets = this.getClosedTickets().filter(ticket => ticket.hasEstimate);
       const userPerformance = this.calculateUserPerformance();
       const sprintId = Date.now().toString();
       this.sprintState.id = sprintId;
@@ -8011,7 +8033,7 @@ window.SprintManagementView = class SprintManagementView {
     try {
       const currentData = this.calculateSprintData();
       const extraHoursClosed = Math.max(0, this.sprintState.totalHours - currentData.totalHours) - currentData.closedHours - this.sprintState.closedHours;
-      const closedTickets = this.getClosedTickets();
+      const closedTickets = this.getClosedTickets().filter(ticket => ticket.hasEstimate);
       this.sprintState.closedTickets = closedTickets.length;
       this.sprintState.closedTicketsList = closedTickets;
       this.sprintState.preparedForNext = true;
@@ -8446,6 +8468,12 @@ window.SprintManagementView = class SprintManagementView {
                 if (assignees.length === 0) {
                   return;
                 }
+
+                // Skip if there's no time estimate
+                if (!item.timeEstimate) {
+                  return;
+                }
+
                 const timeEstimate = item.timeEstimate || 0;
                 const timePerAssignee = timeEstimate / assignees.length;
                 let hasNeedsMergeLabel = false;
@@ -10410,6 +10438,7 @@ window.UIManager = class UIManager {
   updateBoardStats(stats) {
     if (!this.boardStats) return;
     const totalCards = stats?.totalCards || 0;
+    const withTimeCards = stats?.withTimeCards || 0;
     const closedCards = stats?.closedCards || 0;
     const needsMergeCards = stats?.needsMergeCards || 0;
     const totalClosedCards = closedCards + needsMergeCards;
@@ -10418,10 +10447,12 @@ window.UIManager = class UIManager {
     totalStats.style.display = 'flex';
     totalStats.style.gap = '8px';
     const totalText = document.createElement('span');
-    totalText.textContent = `Total: ${totalCards} cards`;
+    // Only show cards with time estimates
+    totalText.textContent = `Total: ${withTimeCards} cards`;
     totalStats.appendChild(totalText);
     const closedStats = document.createElement('div');
-    closedStats.textContent = `Done: ${totalClosedCards} cards`;
+    // Only consider cards with time estimates as "done"
+    closedStats.textContent = `Done: ${stats?.closedWithTimeCards || 0} cards`;
     closedStats.style.color = '#28a745';
     this.boardStats.appendChild(totalStats);
     this.boardStats.appendChild(closedStats);
