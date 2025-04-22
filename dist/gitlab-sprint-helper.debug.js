@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.7";
+window.gitLabHelperVersion = "1.8";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -11137,6 +11137,7 @@ function waitForBoardsElement(maxAttempts = 30, interval = 500) {
     checkForElement();
   });
 }
+
 function updateSummary() {
   if (!window.uiManager) {
     console.warn('UI Manager not initialized, cannot update summary');
@@ -11162,7 +11163,22 @@ function updateSummary() {
       needsMergeCards: needsMergeCards
     });
     const totalHours = totalEstimate / 3600;
-    window.uiManager.updateHeader(`Summary ${totalHours}h`);
+
+    // Calculate done hours
+    let doneHours = 0;
+    for (const boardName in boardData) {
+      const lowerBoardName = boardName.toLowerCase();
+      if (lowerBoardName.includes('done') || lowerBoardName.includes('closed') ||
+          lowerBoardName.includes('complete') || lowerBoardName.includes('finished') ||
+          lowerBoardName.includes('needs-merge')) {
+        doneHours += boardData[boardName].timeEstimate || 0;
+      }
+    }
+    const doneHoursFormatted = doneHours / 3600;
+
+    // Update header with both total hours and done hours
+    window.uiManager.updateHeader(`Summary ${totalHours.toFixed(1)}h - <span style="color:#28a745">${doneHoursFormatted.toFixed(1)}h</span>`);
+
     const validBoardData = boardData || {};
     const validBoardAssigneeData = boardAssigneeData || {};
     if (window.uiManager.summaryView) {
@@ -11183,6 +11199,7 @@ function updateSummary() {
     console.error('Error updating summary:', e);
   }
 }
+
 function addBoardChangeListeners() {
   try {
     const boardLists = document.querySelectorAll('.board-list');
