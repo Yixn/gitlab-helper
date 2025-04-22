@@ -8100,8 +8100,19 @@ window.SprintManagementView = class SprintManagementView {
           }
         }
 
-        const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') ||
-            boardTitle.includes('complete') || boardTitle.includes('finished');
+        // Skip calculating missing hours for tickets in 'done' or 'needs-review' boards
+        // since we don't want to add these to carried over hours
+        const isDoneOrReviewBoard =
+            boardTitle.includes('done') ||
+            boardTitle.includes('closed') ||
+            boardTitle.includes('complete') ||
+            boardTitle.includes('finished') ||
+            boardTitle.includes('needs-review') ||
+            boardTitle.includes('review');
+
+        if (isDoneOrReviewBoard) {
+          return; // Skip this board
+        }
 
         const boardCards = boardList.querySelectorAll('.board-card');
         boardCards.forEach(card => {
@@ -8132,19 +8143,8 @@ window.SprintManagementView = class SprintManagementView {
                   result.totalHours += hoursPerAssignee;
                   result.tickets++;
 
-                  let hasNeedsMergeLabel = false;
-                  if (item.labels) {
-                    const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
-                    hasNeedsMergeLabel = labels.some(label => {
-                      const labelName = label.title || label.name || '';
-                      return labelName.toLowerCase() === 'needs-merge';
-                    });
-                  }
-
-                  if (isClosedBoard || hasNeedsMergeLabel) {
-                    result.closedHours += hoursPerAssignee;
-                    result.closedTickets++;
-                  }
+                  // We don't need to check for "needs-merge" label here
+                  // as we're just calculating what remains in active boards
                 }
               }
             }
@@ -8280,7 +8280,6 @@ window.SprintManagementView = class SprintManagementView {
     modalOverlay.style.display = 'flex';
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
-    modalOverlay.style.cursor = 'pointer';
     const modalContent = document.createElement('div');
     modalContent.style.backgroundColor = 'white';
     modalContent.style.borderRadius = '6px';
