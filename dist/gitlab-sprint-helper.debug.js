@@ -1001,6 +1001,9 @@ window.CommandShortcut = class CommandShortcut {
         value: '',
         label: 'Estimate Hours'
       }, {
+        value: '0',
+        label: '0h'
+      }, {
         value: '1',
         label: '1h'
       }, {
@@ -1046,7 +1049,7 @@ window.CommandShortcut = class CommandShortcut {
       return;
     }
     const parsedValue = parseInt(customValue, 10);
-    if (isNaN(parsedValue) || parsedValue <= 0 || parsedValue !== parseFloat(customValue)) {
+    if (isNaN(parsedValue) || parsedValue < 0 || parsedValue !== parseFloat(customValue)) {
       alert('Please enter a valid positive whole number.');
       return;
     }
@@ -7668,14 +7671,9 @@ window.SprintManagementView = class SprintManagementView {
         return;
       }
       const regularClosed = closedTickets.filter(ticket => !ticket.hasNeedsMergeLabel);
-      const needsMerge = closedTickets.filter(ticket => ticket.hasNeedsMergeLabel);
       let formattedText = "";
       if (regularClosed.length > 0) {
         formattedText += regularClosed.map(ticket => `- ${ticket.title}`).join('\n');
-      }
-      if (needsMerge.length > 0) {
-        formattedText += "\n\nNeeds-merge:\n";
-        formattedText += needsMerge.map(ticket => `- ${ticket.title}`).join('\n');
       }
       formattedText = `"${formattedText}"`;
       navigator.clipboard.writeText(formattedText).then(() => {
@@ -8016,10 +8014,10 @@ window.SprintManagementView = class SprintManagementView {
       const closedTickets = this.getClosedTickets();
       this.sprintState.closedTickets = closedTickets.length;
       this.sprintState.closedTicketsList = closedTickets;
-      this.archiveCompletedSprint();
       this.sprintState.preparedForNext = true;
       this.sprintState.extraHoursClosed = extraHoursClosed;
       this.saveSprintState();
+      this.archiveCompletedSprint();
       this.notification.success(`Sprint preparation complete. ${extraHoursClosed}h of carried over work identified.`);
       this.render();
     } catch (error) {
@@ -8347,9 +8345,6 @@ window.SprintManagementView = class SprintManagementView {
         closedTicketsList: this.sprintState.closedTicketsList || []
       };
       this.sprintHistory.unshift(archiveEntry);
-      if (this.sprintHistory.length > 10) {
-        this.sprintHistory = this.sprintHistory.slice(0, 10);
-      }
       this.saveSprintHistory();
     } catch (error) {
       console.error('Error archiving sprint:', error);
@@ -8375,80 +8370,107 @@ window.SprintManagementView = class SprintManagementView {
       this.sprintHistory = [];
     }
   }
+  // lib/ui/views/SprintManagementView.js - renderSprintHistory method
+
   renderSprintHistory(container) {
-    if (!this.sprintHistory || this.sprintHistory.length === 0) {
-      return;
-    }
+    // Create a container for history section regardless of whether there's history data
     const historySection = document.createElement('div');
     historySection.style.margin = '10px';
     historySection.style.padding = '15px';
     historySection.style.backgroundColor = '#f8f9fa';
     historySection.style.borderRadius = '6px';
     historySection.style.border = '1px solid #dee2e6';
+
     const titleEl = document.createElement('h3');
     titleEl.textContent = 'Sprint History';
     titleEl.style.margin = '0 0 15px 0';
     titleEl.style.fontSize = '16px';
     historySection.appendChild(titleEl);
-    const table = document.createElement('table');
-    table.style.width = '100%';
-    table.style.borderCollapse = 'collapse';
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-    ['Sprint', 'Tickets', 'Hours', 'Completed'].forEach(text => {
-      const th = document.createElement('th');
-      th.textContent = text;
-      th.style.padding = '8px';
-      th.style.textAlign = 'left';
-      th.style.borderBottom = '2px solid #dee2e6';
-      headerRow.appendChild(th);
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-    const tbody = document.createElement('tbody');
-    this.sprintHistory.forEach(sprint => {
-      const row = document.createElement('tr');
-      row.style.borderBottom = '1px solid #dee2e6';
-      row.style.transition = 'background-color 0.2s';
-      row.style.cursor = 'pointer';
-      row.addEventListener('mouseenter', () => {
-        row.style.backgroundColor = '#f1f1f1';
+
+    // Determine if there's data to export - defined at the beginning to avoid reference error
+    const hasHistory = this.sprintHistory && this.sprintHistory.length > 0;
+
+    // Only create and populate the table if history exists
+    if (hasHistory) {
+      const table = document.createElement('table');
+      table.style.width = '100%';
+      table.style.borderCollapse = 'collapse';
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Sprint', 'Tickets', 'Hours', 'Completed'].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        th.style.padding = '8px';
+        th.style.textAlign = 'left';
+        th.style.borderBottom = '2px solid #dee2e6';
+        headerRow.appendChild(th);
       });
-      row.addEventListener('mouseleave', () => {
-        row.style.backgroundColor = '';
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      this.sprintHistory.forEach(sprint => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #dee2e6';
+        row.style.transition = 'background-color 0.2s';
+        row.style.cursor = 'pointer';
+        row.addEventListener('mouseenter', () => {
+          row.style.backgroundColor = '#f1f1f1';
+        });
+        row.addEventListener('mouseleave', () => {
+          row.style.backgroundColor = '';
+        });
+        row.addEventListener('click', () => {
+          this.showSprintDetails(sprint);
+        });
+
+        const tdMilestone = document.createElement('td');
+        tdMilestone.style.padding = '8px';
+        tdMilestone.textContent = sprint.milestone || 'Unnamed Sprint';
+        tdMilestone.style.color = '#1f75cb';
+        tdMilestone.style.fontWeight = 'bold';
+        row.appendChild(tdMilestone);
+
+        const tdTickets = document.createElement('td');
+        tdTickets.style.padding = '8px';
+        tdTickets.textContent = `${sprint.closedTickets}/${sprint.totalTickets}`;
+        row.appendChild(tdTickets);
+
+        const totalClosedHours = (sprint.closedHours || 0) + (sprint.extraHoursClosed || 0);
+        const tdHours = document.createElement('td');
+        tdHours.style.padding = '8px';
+        tdHours.textContent = `${totalClosedHours}/${sprint.totalHours}h`;
+        row.appendChild(tdHours);
+
+        const tdDate = document.createElement('td');
+        tdDate.style.padding = '8px';
+        const date = new Date(sprint.completedAt || sprint.timestamp);
+        tdDate.textContent = date.toLocaleDateString();
+        row.appendChild(tdDate);
+
+        tbody.appendChild(row);
       });
-      row.addEventListener('click', () => {
-        this.showSprintDetails(sprint);
-      });
-      const tdMilestone = document.createElement('td');
-      tdMilestone.style.padding = '8px';
-      tdMilestone.textContent = sprint.milestone || 'Unnamed Sprint';
-      tdMilestone.style.color = '#1f75cb';
-      tdMilestone.style.fontWeight = 'bold';
-      row.appendChild(tdMilestone);
-      const tdTickets = document.createElement('td');
-      tdTickets.style.padding = '8px';
-      tdTickets.textContent = `${sprint.closedTickets}/${sprint.totalTickets}`;
-      row.appendChild(tdTickets);
-      const totalClosedHours = (sprint.closedHours || 0) + (sprint.extraHoursClosed || 0);
-      const tdHours = document.createElement('td');
-      tdHours.style.padding = '8px';
-      tdHours.textContent = `${totalClosedHours}/${sprint.totalHours}h`;
-      row.appendChild(tdHours);
-      const tdDate = document.createElement('td');
-      tdDate.style.padding = '8px';
-      const date = new Date(sprint.completedAt || sprint.timestamp);
-      tdDate.textContent = date.toLocaleDateString();
-      row.appendChild(tdDate);
-      tbody.appendChild(row);
-    });
-    table.appendChild(tbody);
-    historySection.appendChild(table);
+
+      table.appendChild(tbody);
+      historySection.appendChild(table);
+    } else {
+      // Display a message when no history is available
+      const noHistoryMessage = document.createElement('div');
+      noHistoryMessage.textContent = 'No sprint history available yet.';
+      noHistoryMessage.style.padding = '10px';
+      noHistoryMessage.style.color = '#666';
+      noHistoryMessage.style.fontStyle = 'italic';
+      noHistoryMessage.style.textAlign = 'center';
+      historySection.appendChild(noHistoryMessage);
+    }
+
+    // Add Export/Import buttons
     const buttonContainer = document.createElement('div');
     buttonContainer.style.display = 'flex';
     buttonContainer.style.justifyContent = 'space-between';
     buttonContainer.style.marginTop = '15px';
     buttonContainer.style.gap = '10px';
+
     const exportBtn = document.createElement('button');
     exportBtn.textContent = '⬇️ Export Sprint Data';
     exportBtn.style.padding = '8px 12px';
@@ -8456,9 +8478,17 @@ window.SprintManagementView = class SprintManagementView {
     exportBtn.style.color = 'white';
     exportBtn.style.border = 'none';
     exportBtn.style.borderRadius = '4px';
-    exportBtn.style.cursor = 'pointer';
+    exportBtn.style.cursor = hasHistory ? 'pointer' : 'not-allowed';
     exportBtn.style.flex = '1';
-    exportBtn.addEventListener('click', () => this.exportSprintData());
+    exportBtn.disabled = !hasHistory;
+
+    if (!hasHistory) {
+      exportBtn.style.opacity = '0.6';
+      exportBtn.title = 'No data to export';
+    } else {
+      exportBtn.addEventListener('click', () => this.exportSprintData());
+    }
+
     const importBtn = document.createElement('button');
     importBtn.textContent = '⬆️ Import Sprint Data';
     importBtn.style.padding = '8px 12px';
@@ -8469,11 +8499,14 @@ window.SprintManagementView = class SprintManagementView {
     importBtn.style.cursor = 'pointer';
     importBtn.style.flex = '1';
     importBtn.addEventListener('click', () => this.importSprintData());
+
     buttonContainer.appendChild(exportBtn);
     buttonContainer.appendChild(importBtn);
     historySection.appendChild(buttonContainer);
+
     container.appendChild(historySection);
   }
+
   showSprintDetails(sprint) {
     const totalClosedHours = (sprint.closedHours || 0) + (sprint.extraHoursClosed || 0);
     const ticketCompletion = sprint.totalTickets > 0 ? sprint.closedTickets / sprint.totalTickets * 100 : 0;
@@ -8689,14 +8722,9 @@ window.SprintManagementView = class SprintManagementView {
         return;
       }
       const regularClosed = closedTickets.filter(ticket => !ticket.hasNeedsMergeLabel);
-      const needsMerge = closedTickets.filter(ticket => ticket.hasNeedsMergeLabel);
       let formattedText = "";
       if (regularClosed.length > 0) {
         formattedText += regularClosed.map(ticket => `- ${ticket.title}`).join('\n');
-      }
-      if (needsMerge.length > 0) {
-        formattedText += "\n\nNeeds-merge:\n";
-        formattedText += needsMerge.map(ticket => `- ${ticket.title}`).join('\n');
       }
       formattedText = `"${formattedText}"`;
       navigator.clipboard.writeText(formattedText).then(() => {
