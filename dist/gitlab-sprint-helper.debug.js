@@ -8010,7 +8010,7 @@ window.SprintManagementView = class SprintManagementView {
   prepareForNextSprint() {
     try {
       const currentData = this.calculateSprintData();
-      const extraHoursClosed = Math.max(0, this.sprintState.totalHours - currentData.totalHours);
+      const extraHoursClosed = Math.max(0, this.sprintState.totalHours - currentData.totalHours) - currentData.closedHours - this.sprintState.closedHours;
       const closedTickets = this.getClosedTickets();
       this.sprintState.closedTickets = closedTickets.length;
       this.sprintState.closedTicketsList = closedTickets;
