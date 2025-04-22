@@ -10,6 +10,7 @@
 // @run-at       document-idle
 // @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/dist/gitlab-sprint-helper.js
 // @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/dist/gitlab-sprint-helper.js
+// @require https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js
 // ==/UserScript==
 
 // GitLab Sprint Helper - Combined Script
@@ -7143,6 +7144,7 @@ window.BoardsView = class BoardsView {
 window.SprintManagementView = class SprintManagementView {
   constructor(uiManager) {
     this.uiManager = uiManager;
+    this.pako = require('pako');
     this.notification = null;
     try {
       if (typeof Notification === 'function') {
@@ -8444,6 +8446,40 @@ window.SprintManagementView = class SprintManagementView {
     });
     table.appendChild(tbody);
     historySection.appendChild(table);
+
+    // Add Export/Import buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.justifyContent = 'space-between';
+    buttonContainer.style.marginTop = '15px';
+    buttonContainer.style.gap = '10px';
+
+    const exportBtn = document.createElement('button');
+    exportBtn.textContent = '⬇️ Export Sprint Data';
+    exportBtn.style.padding = '8px 12px';
+    exportBtn.style.backgroundColor = '#6c757d';
+    exportBtn.style.color = 'white';
+    exportBtn.style.border = 'none';
+    exportBtn.style.borderRadius = '4px';
+    exportBtn.style.cursor = 'pointer';
+    exportBtn.style.flex = '1';
+    exportBtn.addEventListener('click', () => this.exportSprintData());
+
+    const importBtn = document.createElement('button');
+    importBtn.textContent = '⬆️ Import Sprint Data';
+    importBtn.style.padding = '8px 12px';
+    importBtn.style.backgroundColor = '#1f75cb';
+    importBtn.style.color = 'white';
+    importBtn.style.border = 'none';
+    importBtn.style.borderRadius = '4px';
+    importBtn.style.cursor = 'pointer';
+    importBtn.style.flex = '1';
+    importBtn.addEventListener('click', () => this.importSprintData());
+
+    buttonContainer.appendChild(exportBtn);
+    buttonContainer.appendChild(importBtn);
+    historySection.appendChild(buttonContainer);
+
     container.appendChild(historySection);
   }
   showSprintDetails(sprint) {
@@ -8680,6 +8716,196 @@ window.SprintManagementView = class SprintManagementView {
     } catch (error) {
       console.error('Error copying closed tickets from history:', error);
       this.notification.error('Error processing issues');
+    }
+  }
+  compressData(data) {
+    try {
+      const jsonString = JSON.stringify(data);
+      const compressed = this.pako.deflate(jsonString, { to: 'string' });
+      return btoa(compressed);
+    } catch (error) {
+      console.error('Error compressing data:', error);
+      this.notification.error('Failed to compress data for export');
+      return null;
+    }
+  }
+
+  decompressData(base64String) {
+    try {
+      const compressed = atob(base64String);
+      const decompressed = this.pako.inflate(compressed, { to: 'string' });
+      return JSON.parse(decompressed);
+    } catch (error) {
+      console.error('Error decompressing data:', error);
+      this.notification.error('Failed to decompress imported data');
+      return null;
+    }
+  }
+  exportSprintData() {
+    try {
+      const exportData = {
+        sprintState: this.sprintState,
+        sprintHistory: this.sprintHistory,
+        exportedAt: new Date().toISOString(),
+        version: window.gitLabHelperVersion || '1.0.0'
+      };
+
+      const base64Data = this.compressData(exportData);
+      if (!base64Data) return;
+
+      const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(base64Data);
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "gitlab-sprint-data.txt");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+
+      this.notification.success('Sprint data exported successfully');
+    } catch (error) {
+      console.error('Error exporting sprint data:', error);
+      this.notification.error('Failed to export sprint data');
+    }
+  }
+  importSprintData() {
+    try {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.txt';
+      fileInput.style.display = 'none';
+
+      fileInput.addEventListener('change', async (event) => {
+        try {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const base64Data = e.target.result;
+              const importedData = this.decompressData(base64Data);
+
+              if (!importedData || !importedData.sprintState || !importedData.sprintHistory) {
+                this.notification.error('Invalid import file format');
+                return;
+              }
+
+              this.showImportConfirmation(importedData);
+            } catch (error) {
+              console.error('Error reading import file:', error);
+              this.notification.error('Failed to read import file');
+            }
+          };
+
+          reader.readAsText(file);
+        } catch (error) {
+          console.error('Error handling import file:', error);
+          this.notification.error('Failed to process import file');
+        }
+      });
+
+      document.body.appendChild(fileInput);
+      fileInput.click();
+      fileInput.remove();
+    } catch (error) {
+      console.error('Error importing sprint data:', error);
+      this.notification.error('Failed to start import process');
+    }
+  }
+  showImportConfirmation(importedData) {
+    const exportDate = new Date(importedData.exportedAt);
+    const exportVersion = importedData.version || 'unknown';
+    const historyCount = importedData.sprintHistory.length;
+
+    const message = `
+    <div style="margin-bottom: 15px;">
+      <p><strong>Import Details:</strong></p>
+      <ul style="margin-bottom: 15px;">
+        <li>Exported on: ${exportDate.toLocaleString()}</li>
+        <li>From version: ${exportVersion}</li>
+        <li>Contains ${historyCount} sprint history entries</li>
+      </ul>
+      <p style="color: #dc3545; font-weight: bold;">Warning: This will replace all your current sprint data!</p>
+    </div>
+    <div>
+      <p><strong>Options:</strong></p>
+      <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <button id="import-merge-btn" style="padding: 8px 12px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; flex: 1;">Merge with current data</button>
+        <button id="import-replace-btn" style="padding: 8px 12px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; flex: 1;">Replace all data</button>
+      </div>
+    </div>
+  `;
+
+    this.showModal('Confirm Sprint Data Import', message);
+
+    setTimeout(() => {
+      const mergeButton = document.getElementById('import-merge-btn');
+      const replaceButton = document.getElementById('import-replace-btn');
+
+      if (mergeButton) {
+        mergeButton.addEventListener('click', () => {
+          this.processMergeImport(importedData);
+          const modalOverlay = document.querySelector('div[style*="position: fixed"][style*="z-index: 1000"]');
+          if (modalOverlay && modalOverlay.parentNode) {
+            modalOverlay.parentNode.removeChild(modalOverlay);
+          }
+        });
+      }
+
+      if (replaceButton) {
+        replaceButton.addEventListener('click', () => {
+          this.processReplaceImport(importedData);
+          const modalOverlay = document.querySelector('div[style*="position: fixed"][style*="z-index: 1000"]');
+          if (modalOverlay && modalOverlay.parentNode) {
+            modalOverlay.parentNode.removeChild(modalOverlay);
+          }
+        });
+      }
+    }, 100);
+  }
+  processMergeImport(importedData) {
+    try {
+      const mergedHistory = [...this.sprintHistory];
+
+      importedData.sprintHistory.forEach(importedSprint => {
+        const existingIndex = mergedHistory.findIndex(sprint => sprint.id === importedSprint.id);
+        if (existingIndex >= 0) {
+          mergedHistory[existingIndex] = importedSprint;
+        } else {
+          mergedHistory.push(importedSprint);
+        }
+      });
+
+      mergedHistory.sort((a, b) => {
+        const dateA = new Date(a.timestamp || a.completedAt || 0);
+        const dateB = new Date(b.timestamp || b.completedAt || 0);
+        return dateB - dateA;
+      });
+
+      this.sprintHistory = mergedHistory;
+      this.saveSprintHistory();
+
+      this.notification.success(`Successfully merged ${importedData.sprintHistory.length} sprint history entries`);
+      this.render();
+    } catch (error) {
+      console.error('Error merging sprint data:', error);
+      this.notification.error('Failed to merge imported data');
+    }
+  }
+
+  processReplaceImport(importedData) {
+    try {
+      this.sprintState = importedData.sprintState;
+      this.sprintHistory = importedData.sprintHistory;
+
+      this.saveSprintState();
+      this.saveSprintHistory();
+
+      this.notification.success('Sprint data replaced successfully');
+      this.render();
+    } catch (error) {
+      console.error('Error replacing sprint data:', error);
+      this.notification.error('Failed to replace sprint data');
     }
   }
 }
@@ -9753,6 +9979,7 @@ window.UIManager = class UIManager {
     this.recalculateBtn = null;
     this.collapseBtn = null;
     this.boardStats = null;
+    this.versionDisplay = null;
     this.initializeManagers();
     this.tabManager = new TabManager(this);
     this.summaryView = new SummaryView(this);
@@ -9774,8 +10001,10 @@ window.UIManager = class UIManager {
       this.container = document.getElementById('assignee-time-summary');
       this.contentWrapper = document.getElementById('assignee-time-summary-wrapper');
       this.container.style.position = 'relative';
+      this.updateVersionDisplay();
       return;
     }
+
     this.container = document.createElement('div');
     this.container.id = 'assignee-time-summary';
     Object.assign(this.container.style, {
@@ -9794,6 +10023,7 @@ window.UIManager = class UIManager {
       width: '400px',
       transition: 'height 0.3s ease-in-out'
     });
+
     this.contentWrapper = document.createElement('div');
     this.contentWrapper.id = 'assignee-time-summary-wrapper';
     Object.assign(this.contentWrapper.style, {
@@ -9803,6 +10033,7 @@ window.UIManager = class UIManager {
       overflowY: 'auto',
       position: 'relative'
     });
+
     this.createHeader();
     this.createBoardStats();
     this.tabManager.initialize(this.contentWrapper);
@@ -9810,12 +10041,16 @@ window.UIManager = class UIManager {
     this.container.appendChild(this.contentWrapper);
     attachmentElement.appendChild(this.container);
     this.attachmentElement = attachmentElement;
+
     this.container.addEventListener('click', e => {
       if (this.issueSelector && this.issueSelector.isSelectingIssue && !e.target.classList.contains('card-selection-overlay') && !e.target.classList.contains('selection-badge') && !e.target.closest('#bulk-comments-content button') && !e.target.closest('#issue-comment-input') && !e.target.closest('#shortcuts-wrapper') && !e.target.closest('#selected-issues-list') && !e.target.closest('#selection-cancel-button')) {
         this.issueSelector.exitSelectionMode();
       }
     });
+
     this.initializeKeyboardShortcuts();
+    this.updateVersionDisplay();
+
     try {
       const isCollapsed = loadFromStorage('gitlabTimeSummaryCollapsed', 'false') === 'true';
       if (isCollapsed) {
@@ -9963,7 +10198,19 @@ window.UIManager = class UIManager {
     this.boardStats.style.display = 'flex';
     this.boardStats.style.justifyContent = 'space-between';
     this.boardStats.textContent = 'Loading board statistics...';
+
+    this.versionDisplay = document.createElement('div');
+    this.versionDisplay.id = 'gitlab-helper-version';
+    this.versionDisplay.style.fontSize = '10px';
+    this.versionDisplay.style.color = '#888';
+    this.versionDisplay.style.position = 'absolute';
+    this.versionDisplay.style.bottom = '3px';
+    this.versionDisplay.style.right = '5px';
+    const version = window.gitLabHelperVersion || '1.0.0';
+    this.versionDisplay.textContent = `v${version}`;
+
     this.container.appendChild(this.boardStats);
+    this.container.appendChild(this.versionDisplay);
   }
   updateBoardStats(stats) {
     if (!this.boardStats) return;
@@ -10208,6 +10455,21 @@ window.UIManager = class UIManager {
       console.error('Error updating keyboard shortcut:', error);
     }
   }
+    updateVersionDisplay() {
+      if (!this.versionDisplay) {
+        this.versionDisplay = document.createElement('div');
+        this.versionDisplay.id = 'gitlab-helper-version';
+        this.versionDisplay.style.fontSize = '10px';
+        this.versionDisplay.style.color = '#888';
+        this.versionDisplay.style.position = 'absolute';
+        this.versionDisplay.style.bottom = '3px';
+        this.versionDisplay.style.right = '5px';
+        this.container.appendChild(this.versionDisplay);
+      }
+
+      const version = window.gitLabHelperVersion || '1.0.0';
+      this.versionDisplay.textContent = `v${version}`;
+    }
 }
 
 // File: lib/ui/index.js

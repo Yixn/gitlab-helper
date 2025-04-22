@@ -10,6 +10,7 @@
 // @run-at       document-idle
 // @updateURL    https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/dist/gitlab-sprint-helper.js
 // @downloadURL  https://gitlab.com/daniel_linkster/gitlab-helper/-/raw/main/dist/gitlab-sprint-helper.js
+// @require https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js
 // ==/UserScript==
 
 (function () {
