@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.4";
+window.gitLabHelperVersion = "1.5";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -3211,7 +3211,7 @@ window.LabelDisplayManager = class LabelDisplayManager {
   checkEnabled() {
     try {
       const enabled = localStorage.getItem('gitLabHelperHideLabelsEnabled');
-      return enabled === 'true';
+      return enabled !== 'false';
     } catch (e) {
       console.error('Error checking hide labels enabled state:', e);
       return false;
@@ -5982,7 +5982,7 @@ window.SettingsManager = class SettingsManager {
     hideLabelsToggleCheckbox.style.height = '0';
     try {
       const hideLabelsEnabled = localStorage.getItem('gitLabHelperHideLabelsEnabled');
-      hideLabelsToggleCheckbox.checked = hideLabelsEnabled === 'true';
+      hideLabelsToggleCheckbox.checked = hideLabelsEnabled !== 'false';
     } catch (e) {
       console.error('Error loading hide labels state:', e);
       hideLabelsToggleCheckbox.checked = false;

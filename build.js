@@ -11,7 +11,7 @@ const { minify } = require('terser');
 const glob = require('glob');
 
 // Define version number in a single place
-const VERSION = '1.4';
+const VERSION = '1.5';
 
 // Load .env file if it exists
 let envConfig = {};
