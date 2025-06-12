@@ -339,6 +339,11 @@ window.processBoards = function processBoards() {
     const lowerTitle = boardTitle.toLowerCase();
     const isClosedBoard = lowerTitle.includes('done') || lowerTitle.includes('closed') || lowerTitle.includes('complete') || lowerTitle.includes('finished');
 
+    // Count closed board cards regardless of time estimate
+    if (isClosedBoard) {
+      closedBoardCards += boardItems.length;
+    }
+
     boardItems.forEach(item => {
       try {
         cardsProcessed++;
@@ -504,6 +509,7 @@ window.processBoards = function processBoards() {
     userData: userDataMap
   };
 }
+
 
 // File: lib/core/HistoryManager.js
 window.HistoryManager = class HistoryManager {
@@ -1054,16 +1060,21 @@ window.CommandShortcut = class CommandShortcut {
     }
   }
   handleCustomEstimate() {
-    const customValue = prompt('Enter custom estimate hours (whole numbers only):', '');
+    const customValue = prompt('Enter custom estimate hours (decimals allowed):', '');
     if (customValue === null || customValue === '') {
       return;
     }
-    const parsedValue = parseInt(customValue, 10);
-    if (isNaN(parsedValue) || parsedValue < 0 || parsedValue !== parseFloat(customValue)) {
-      alert('Please enter a valid positive whole number.');
+
+    // Allow decimal numbers with dots
+    const parsedValue = parseFloat(customValue);
+    if (isNaN(parsedValue) || parsedValue < 0) {
+      alert('Please enter a valid positive number.');
       return;
     }
-    this.insertEstimateText(parsedValue.toString());
+
+    // Format to remove unnecessary decimal places
+    const formattedValue = parsedValue % 1 === 0 ? parsedValue.toString() : parsedValue.toFixed(1);
+    this.insertEstimateText(formattedValue);
   }
   insertEstimateText(hours) {
     if (!this.targetElement) return;
@@ -1257,6 +1268,7 @@ window.SelectionDisplay = class SelectionDisplay {
     selectedIssuesContainer.style.border = '1px dashed #ccc';
     selectedIssuesContainer.style.backgroundColor = '#f9f9f9';
     selectedIssuesContainer.style.maxHeight = '150px';
+    selectedIssuesContainer.style.minHeight = '150px';
     selectedIssuesContainer.style.overflowY = 'auto';
     const issueLabel = document.createElement('div');
     issueLabel.style.fontSize = '12px';
@@ -1770,6 +1782,94 @@ window.IssueSelector = class IssueSelector {
       console.error('Error positioning overlay:', e);
     }
   }
+  selectAllCards() {
+    if (!this.isSelectingIssue) return;
+
+    const allCards = [];
+    const cardOverlays = this.selectionOverlays.filter(o => o.className === 'card-selection-overlay');
+
+    cardOverlays.forEach(overlay => {
+      if (overlay.dataset && overlay.originalCard && overlay.dataset.selected !== 'true') {
+        const card = overlay.originalCard;
+        const issueItem = this.getIssueItemFromCard(card);
+        if (issueItem) {
+          allCards.push({
+            overlay: overlay,
+            issueItem: issueItem
+          });
+        }
+      }
+    });
+
+    // Clear current selection
+    this.selectedIssues = [];
+    this.selectedOverlays = [];
+
+    // Reset all overlays
+    cardOverlays.forEach(overlay => {
+      overlay.dataset.selected = 'false';
+      overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+      overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
+      overlay.style.boxShadow = 'none';
+      overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
+    });
+
+    // Select all cards
+    allCards.forEach((item, index) => {
+      const overlay = item.overlay;
+      const issueItem = item.issueItem;
+
+      overlay.dataset.selected = 'true';
+      overlay.style.backgroundColor = 'rgba(0, 177, 106, 0.3)';
+      overlay.style.borderColor = 'rgba(0, 177, 106, 0.8)';
+      overlay.style.boxShadow = '0 0 12px rgba(0, 177, 106, 0.3)';
+
+      const badge = document.createElement('div');
+      badge.className = 'selection-badge';
+      badge.textContent = index + 1;
+      badge.style.position = 'absolute';
+      badge.style.top = '-10px';
+      badge.style.right = '-10px';
+      badge.style.width = '20px';
+      badge.style.height = '20px';
+      badge.style.borderRadius = '50%';
+      badge.style.backgroundColor = 'rgba(0, 177, 106, 1)';
+      badge.style.color = 'white';
+      badge.style.display = 'flex';
+      badge.style.alignItems = 'center';
+      badge.style.justifyContent = 'center';
+      badge.style.fontWeight = 'bold';
+      badge.style.fontSize = '12px';
+      badge.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+      overlay.appendChild(badge);
+
+      this.selectedIssues.push(issueItem);
+      this.selectedOverlays.push(overlay);
+    });
+
+    this.updateSelectionCounter();
+    this.syncSelectionWithBulkCommentsView();
+  }
+  deselectAllCards() {
+    if (!this.isSelectingIssue) return;
+
+    // Clear selection
+    this.selectedIssues = [];
+    this.selectedOverlays = [];
+
+    // Reset all overlays
+    const cardOverlays = this.selectionOverlays.filter(o => o.className === 'card-selection-overlay');
+    cardOverlays.forEach(overlay => {
+      overlay.dataset.selected = 'false';
+      overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+      overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
+      overlay.style.boxShadow = 'none';
+      overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
+    });
+
+    this.updateSelectionCounter();
+    this.syncSelectionWithBulkCommentsView();
+  }
   updateOverlaysFromSelection() {
     if (!this.isSelectingIssue) return;
     try {
@@ -1840,6 +1940,7 @@ window.IssueSelector = class IssueSelector {
     this.helpText = helpText;
     document.body.appendChild(helpText);
     this.selectionOverlays.push(helpText);
+
     const selectionCounter = document.createElement('div');
     selectionCounter.id = 'selection-counter';
     selectionCounter.textContent = `${this.selectedIssues.length} issues selected`;
@@ -7867,33 +7968,17 @@ window.SprintManagementView = class SprintManagementView {
   getClosedTickets() {
     const closedTickets = [];
     const boardLists = document.querySelectorAll('.board-list');
-    boardLists.forEach(boardList => {
-      let boardTitle = '';
-      try {
-        if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
-          const boardComponent = boardList.__vue__.$children.find(child => child.$props && child.$props.list && child.$props.list.title);
-          if (boardComponent && boardComponent.$props.list.title) {
-            boardTitle = boardComponent.$props.list.title.toLowerCase();
-          }
-        }
-        if (!boardTitle) {
-          const boardHeader = boardList.querySelector('.board-title-text');
-          if (boardHeader) {
-            boardTitle = boardHeader.textContent.trim().toLowerCase();
-          }
-        }
-      } catch (e) {
-        console.error('Error getting board title:', e);
-        const boardHeader = boardList.querySelector('.board-title-text');
-        if (boardHeader) {
-          boardTitle = boardHeader.textContent.trim().toLowerCase();
-        }
-      }
-      const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') || boardTitle.includes('complete') || boardTitle.includes('finished');
+    const lastBoardIndex = boardLists.length - 1;
+
+    boardLists.forEach((boardList, index) => {
+      const isLastBoard = index === lastBoardIndex;
+
+      // Only process cards from the last board
+      if (!isLastBoard) return;
+
       const boardCards = boardList.querySelectorAll('.board-card');
       boardCards.forEach(card => {
         try {
-          let hasNeedsMergeLabel = false;
           let item = null;
           let hasEstimate = false;
 
@@ -7901,52 +7986,43 @@ window.SprintManagementView = class SprintManagementView {
             const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
             if (issue && issue.$props && issue.$props.item) {
               item = issue.$props.item;
-
               // Check if the card has a time estimate
               hasEstimate = !!item.timeEstimate;
-
-              if (item.labels) {
-                const labels = Array.isArray(item.labels) ? item.labels : item.labels.nodes ? item.labels.nodes : [];
-                hasNeedsMergeLabel = labels.some(label => {
-                  const labelName = label.title || label.name || '';
-                  return labelName.toLowerCase() === 'needs-merge';
-                });
-              }
             }
           }
 
-          if ((isClosedBoard || hasNeedsMergeLabel)) {
-            let title = '';
-            let id = '';
-            if (item) {
-              title = item.title;
-              id = item.iid;
+          let title = '';
+          let id = '';
+          if (item) {
+            title = item.title;
+            id = item.iid;
+          } else {
+            const titleEl = card.querySelector('.board-card-title');
+            if (titleEl) {
+              title = titleEl.textContent.trim();
+            }
+            const idMatch = card.querySelector('[data-issue-id]');
+            if (idMatch && idMatch.dataset.issueId) {
+              id = idMatch.dataset.issueId;
             } else {
-              const titleEl = card.querySelector('.board-card-title');
-              if (titleEl) {
-                title = titleEl.textContent.trim();
-              }
-              const idMatch = card.querySelector('[data-issue-id]');
-              if (idMatch && idMatch.dataset.issueId) {
-                id = idMatch.dataset.issueId;
-              } else {
-                id = 'unknown';
-              }
+              id = 'unknown';
             }
-            if (title) {
-              closedTickets.push({
-                id: id || 'unknown',
-                title: title,
-                hasNeedsMergeLabel: isClosedBoard ? false : hasNeedsMergeLabel,
-                hasEstimate: hasEstimate
-              });
-            }
+          }
+
+          if (title) {
+            closedTickets.push({
+              id: id || 'unknown',
+              title: title,
+              hasNeedsMergeLabel: false,
+              hasEstimate: hasEstimate
+            });
           }
         } catch (err) {
           console.error('Error processing card:', err);
         }
       });
     });
+
     return closedTickets;
   }
   copySprintData() {
@@ -7983,8 +8059,12 @@ window.SprintManagementView = class SprintManagementView {
     let totalTickets = 0;
     let totalHours = 0;
     let closedHours = 0;
+    let closedTickets = 0;
+
     const boardLists = document.querySelectorAll('.board-list');
-    boardLists.forEach(boardList => {
+    const lastBoardIndex = boardLists.length - 1;
+
+    boardLists.forEach((boardList, index) => {
       let boardTitle = '';
       try {
         if (boardList.__vue__ && boardList.__vue__.$children && boardList.__vue__.$children.length > 0) {
@@ -8006,18 +8086,27 @@ window.SprintManagementView = class SprintManagementView {
           boardTitle = boardHeader.textContent.trim().toLowerCase();
         }
       }
-      const isClosedBoard = boardTitle.includes('done') || boardTitle.includes('closed') || boardTitle.includes('complete') || boardTitle.includes('finished');
+
+      const isLastBoard = index === lastBoardIndex;
       const boardCards = boardList.querySelectorAll('.board-card');
+
       boardCards.forEach(card => {
         try {
+          // Count all cards as tickets
+          totalTickets++;
+
+          // If it's the last board, count it as closed
+          if (isLastBoard) {
+            closedTickets++;
+          }
+
           if (card.__vue__ && card.__vue__.$children) {
             const issue = card.__vue__.$children.find(child => child.$props && child.$props.item);
             if (issue && issue.$props && issue.$props.item) {
               const item = issue.$props.item;
 
-              // Only count tickets with time estimates
+              // Only add to hours if there's a time estimate
               if (item.timeEstimate) {
-                totalTickets++;
                 const hours = item.timeEstimate / 3600;
                 totalHours += hours;
 
@@ -8030,7 +8119,7 @@ window.SprintManagementView = class SprintManagementView {
                   });
                 }
 
-                if (isClosedBoard || hasNeedsMergeLabel) {
+                if (isLastBoard || hasNeedsMergeLabel) {
                   closedHours += hours;
                 }
               }
@@ -8041,24 +8130,29 @@ window.SprintManagementView = class SprintManagementView {
         }
       });
     });
+
     totalHours = Math.round(totalHours * 10) / 10;
     closedHours = Math.round(closedHours * 10) / 10;
+
     let prediction = 'schlecht';
-    const closedTickets = this.getClosedTickets().filter(ticket => ticket.hasEstimate).length;
     const ticketRatio = totalTickets > 0 ? closedTickets / totalTickets : 0;
     const hoursRatio = totalHours > 0 ? closedHours / totalHours : 0;
+
     if (ticketRatio > 0.7 || hoursRatio > 0.7) {
       prediction = 'gut';
     } else if (ticketRatio > 0.5 || hoursRatio > 0.5) {
       prediction = 'mittel';
     }
+
     return {
       totalTickets,
+      closedTickets,
       totalHours,
       closedHours,
       prediction
     };
   }
+
   createStepButton(container, title, color, onClick, enabled = true) {
     const buttonWrapper = document.createElement('div');
     buttonWrapper.style.display = 'flex';
@@ -8138,13 +8232,13 @@ window.SprintManagementView = class SprintManagementView {
         return;
       }
       const sprintData = this.calculateSprintData();
-      const closedTickets = this.getClosedTickets().filter(ticket => ticket.hasEstimate);
+      const closedTickets = this.getClosedTickets();
       const userPerformance = this.calculateUserPerformance();
       const sprintId = Date.now().toString();
       this.sprintState.id = sprintId;
       this.sprintState.endSprint = true;
       this.sprintState.totalTickets = sprintData.totalTickets;
-      this.sprintState.closedTickets = closedTickets.length;
+      this.sprintState.closedTickets = sprintData.closedTickets;
       this.sprintState.totalHours = sprintData.totalHours;
       this.sprintState.closedHours = sprintData.closedHours;
       this.sprintState.userPerformance = userPerformance;
@@ -8194,8 +8288,8 @@ window.SprintManagementView = class SprintManagementView {
   prepareForNextSprint() {
     try {
       const currentData = this.calculateSprintData();
-      const extraHoursClosed = Math.max(0, this.sprintState.totalHours - currentData.totalHours) - currentData.closedHours - this.sprintState.closedHours;
-      const closedTickets = this.getClosedTickets().filter(ticket => ticket.hasEstimate);
+      const extraHoursClosed = Math.max(0, this.sprintState.totalHours - currentData.totalHours);
+      const closedTickets = this.getClosedTickets();
       this.sprintState.closedTickets = closedTickets.length;
       this.sprintState.closedTicketsList = closedTickets;
       this.sprintState.preparedForNext = true;
@@ -9703,6 +9797,7 @@ window.BulkCommentsView = class BulkCommentsView {
     buttonContainer.style.display = 'flex';
     buttonContainer.style.gap = '8px';
     buttonContainer.style.marginBottom = '8px';
+
     const selectBtn = document.createElement('button');
     selectBtn.id = 'select-issues-button';
     selectBtn.textContent = 'Select';
@@ -9748,6 +9843,58 @@ window.BulkCommentsView = class BulkCommentsView {
       }
     };
     buttonContainer.appendChild(selectBtn);
+
+    const selectAllBtn = document.createElement('button');
+    selectAllBtn.id = 'select-all-button';
+    selectAllBtn.textContent = 'Select All';
+    selectAllBtn.style.padding = '8px 12px';
+    selectAllBtn.style.backgroundColor = '#17a2b8';
+    selectAllBtn.style.color = 'white';
+    selectAllBtn.style.border = 'none';
+    selectAllBtn.style.borderRadius = '4px';
+    selectAllBtn.style.cursor = 'pointer';
+    selectAllBtn.style.fontSize = '14px';
+    selectAllBtn.style.transition = 'background-color 0.2s ease';
+    selectAllBtn.style.display = 'none'; // Hidden by default
+    selectAllBtn.style.alignItems = 'center';
+    selectAllBtn.style.justifyContent = 'center';
+    selectAllBtn.style.minWidth = '80px';
+    selectAllBtn.addEventListener('mouseenter', () => {
+      selectAllBtn.style.backgroundColor = '#138496';
+    });
+    selectAllBtn.addEventListener('mouseleave', () => {
+      selectAllBtn.style.backgroundColor = '#17a2b8';
+    });
+    selectAllBtn.onclick = () => {
+      if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
+        if (selectAllBtn.textContent === 'Select All') {
+          this.uiManager.issueSelector.selectAllCards();
+          selectAllBtn.textContent = 'Deselect All';
+        } else {
+          this.uiManager.issueSelector.deselectAllCards();
+          selectAllBtn.textContent = 'Select All';
+        }
+      }
+    };
+    buttonContainer.appendChild(selectAllBtn);
+
+    // Store reference to selectAllBtn for later use
+    this.selectAllBtn = selectAllBtn;
+
+    // Update the select button click handler to show/hide select all button
+    const originalOnClick = selectBtn.onclick;
+    selectBtn.onclick = () => {
+      originalOnClick();
+      if (this.uiManager && this.uiManager.issueSelector) {
+        if (this.uiManager.issueSelector.isSelectingIssue) {
+          selectAllBtn.style.display = 'flex';
+        } else {
+          selectAllBtn.style.display = 'none';
+          selectAllBtn.textContent = 'Select All';
+        }
+      }
+    };
+
     const submitBtn = document.createElement('button');
     submitBtn.textContent = 'Send';
     submitBtn.style.padding = '8px 12px';
@@ -10179,7 +10326,6 @@ window.BulkCommentsView = class BulkCommentsView {
       this.refreshBoard().then(function () {
         progressContainer.style.display = 'none';
         that.clearSelectedIssues();
-        that.uiManager.issueSelector.exitSelectionMode();
         that.uiManager.removeLoadingScreen('comment-submit');
       });
     } else {
@@ -10188,7 +10334,6 @@ window.BulkCommentsView = class BulkCommentsView {
         this.refreshBoard().then(function () {
           progressContainer.style.display = 'none';
           that.clearSelectedIssues();
-          that.uiManager.issueSelector.exitSelectionMode();
           that.uiManager.removeLoadingScreen('comment-submit');
         });
       } else {
@@ -10303,6 +10448,29 @@ window.BulkCommentsView = class BulkCommentsView {
       if (typeof window.updateSummary === 'function') {
         window.updateSummary(true);
       }
+
+      // Return to selection mode after refresh and update button states
+      if (window.uiManager && window.uiManager.issueSelector) {
+        setTimeout(() => {
+          window.uiManager.issueSelector.startSelection();
+
+          // Update button states to reflect selection mode
+          const selectButton = document.getElementById('select-issues-button');
+          if (selectButton) {
+            selectButton.dataset.active = 'true';
+            selectButton.style.backgroundColor = '#28a745';
+            selectButton.textContent = 'Done';
+          }
+
+          // Show Select All button
+          const selectAllButton = document.getElementById('select-all-button');
+          if (selectAllButton) {
+            selectAllButton.style.display = 'flex';
+            selectAllButton.textContent = 'Select All';
+          }
+        }, 500);
+      }
+
       return true;
     } catch (error) {
       console.error("Error refreshing boards:", error);
@@ -10600,12 +10768,12 @@ window.UIManager = class UIManager {
     totalStats.style.display = 'flex';
     totalStats.style.gap = '8px';
     const totalText = document.createElement('span');
-    // Only show cards with time estimates
-    totalText.textContent = `Total: ${withTimeCards} cards`;
+    // Show all cards, not just those with time estimates
+    totalText.textContent = `Total: ${totalCards} cards`;
     totalStats.appendChild(totalText);
     const closedStats = document.createElement('div');
-    // Only consider cards with time estimates as "done"
-    closedStats.textContent = `Done: ${stats?.closedWithTimeCards || 0} cards`;
+    // Show all closed cards, not just those with time estimates
+    closedStats.textContent = `Done: ${closedCards} cards`;
     closedStats.style.color = '#28a745';
     this.boardStats.appendChild(totalStats);
     this.boardStats.appendChild(closedStats);
@@ -11219,6 +11387,45 @@ function addBoardChangeListeners() {
         subtree: true
       });
     });
+
+    // Watch for new cards added under tree-root-wrapper
+    const treeRootObserver = new MutationObserver((mutations) => {
+      let newCardAdded = false;
+
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          mutation.addedNodes.forEach(node => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Check if the added node is a board card or contains board cards
+              if (node.matches && (
+                  node.matches('[data-testid="board-card"]') ||
+                  node.querySelector && node.querySelector('[data-testid="board-card"]')
+              )) {
+                newCardAdded = true;
+              }
+            }
+          });
+        }
+      });
+
+      if (newCardAdded && $(".is-dragging").length === 0) {
+        // Debounce the update
+        clearTimeout(window.boardCardUpdateTimeout);
+        window.boardCardUpdateTimeout = setTimeout(() => {
+          updateSummary();
+        }, 500);
+      }
+    });
+
+    // Find and observe tree-root-wrapper
+    const treeRootWrapper = document.querySelector('[data-testid="tree-root-wrapper"]');
+    if (treeRootWrapper) {
+      treeRootObserver.observe(treeRootWrapper, {
+        childList: true,
+        subtree: true
+      });
+    }
+
   } catch (e) {
     console.error('Error adding board change listeners:', e);
   }
