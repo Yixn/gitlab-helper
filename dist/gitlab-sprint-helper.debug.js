@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.10
+// @version      1.11
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.10";
+window.gitLabHelperVersion = "1.11";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -1644,7 +1644,7 @@ window.IssueSelector = class IssueSelector {
     if (selectButton) {
       selectButton.dataset.active = 'false';
       selectButton.style.backgroundColor = '#6c757d';
-      selectButton.textContent = '📎 Select Issues';
+      selectButton.textContent = 'Select';
     }
     this.syncSelectionWithBulkCommentsView();
     if (typeof this.onSelectionComplete === 'function') {
@@ -3614,7 +3614,9 @@ window.TabManager = class TabManager {
       this.currentTab = id;
     }
     tab.addEventListener('click', () => {
-      this.switchToTab(id);
+      // Mark that this is a user-initiated tab switch
+      const previousTab = this.currentTab;
+      this.switchToTab(id, previousTab !== id);
     });
     this.tabs[id] = tab;
     this.tabContainer.appendChild(tab);
@@ -3681,7 +3683,7 @@ window.TabManager = class TabManager {
       this.uiManager.addLoadingScreen(statsContent, 'stats-tab', 'Loading statistics...');
     }
   }
-  switchToTab(tabId) {
+  switchToTab(tabId, isUserClick = false) {
     Object.keys(this.tabs).forEach(id => {
       this.tabs[id].style.borderBottom = 'none';
       this.tabs[id].style.fontWeight = 'normal';
@@ -3701,6 +3703,12 @@ window.TabManager = class TabManager {
       if (this.uiManager && this.uiManager.removeLoadingScreen) {
         this.uiManager.removeLoadingScreen('bulkcomments-tab');
       }
+      // Start selection mode immediately when user clicks the Issues tab
+      if (isUserClick && this.uiManager.issueSelector && !this.uiManager.issueSelector.isSelectingIssue) {
+        setTimeout(() => {
+          this.uiManager.issueSelector.startSelection();
+        }, 100);
+      }
     }
     if (tabId === 'sprintmanagement' && this.uiManager.sprintManagementView) {
       this.uiManager.sprintManagementView.render();
@@ -3714,7 +3722,7 @@ window.TabManager = class TabManager {
         this.uiManager.removeLoadingScreen('stats-tab');
       }
     }
-    uiManager.issueSelector.applyOverflowFixes();
+    this.uiManager.issueSelector.applyOverflowFixes();
   }
 }
 
@@ -9797,6 +9805,12 @@ window.BulkCommentsView = class BulkCommentsView {
     buttonContainer.style.display = 'flex';
     buttonContainer.style.gap = '8px';
     buttonContainer.style.marginBottom = '8px';
+    buttonContainer.style.justifyContent = 'space-between';
+
+    // Create button group for selection controls
+    const selectionControls = document.createElement('div');
+    selectionControls.style.display = 'flex';
+    selectionControls.style.gap = '8px';
 
     const selectBtn = document.createElement('button');
     selectBtn.id = 'select-issues-button';
@@ -9842,8 +9856,8 @@ window.BulkCommentsView = class BulkCommentsView {
         }
       }
     };
-    buttonContainer.appendChild(selectBtn);
 
+    // Add Select All button
     const selectAllBtn = document.createElement('button');
     selectAllBtn.id = 'select-all-button';
     selectAllBtn.textContent = 'Select All';
@@ -9855,10 +9869,6 @@ window.BulkCommentsView = class BulkCommentsView {
     selectAllBtn.style.cursor = 'pointer';
     selectAllBtn.style.fontSize = '14px';
     selectAllBtn.style.transition = 'background-color 0.2s ease';
-    selectAllBtn.style.display = 'none'; // Hidden by default
-    selectAllBtn.style.alignItems = 'center';
-    selectAllBtn.style.justifyContent = 'center';
-    selectAllBtn.style.minWidth = '80px';
     selectAllBtn.addEventListener('mouseenter', () => {
       selectAllBtn.style.backgroundColor = '#138496';
     });
@@ -9866,34 +9876,111 @@ window.BulkCommentsView = class BulkCommentsView {
       selectAllBtn.style.backgroundColor = '#17a2b8';
     });
     selectAllBtn.onclick = () => {
-      if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
-        if (selectAllBtn.textContent === 'Select All') {
-          this.uiManager.issueSelector.selectAllCards();
-          selectAllBtn.textContent = 'Deselect All';
-        } else {
-          this.uiManager.issueSelector.deselectAllCards();
-          selectAllBtn.textContent = 'Select All';
-        }
-      }
-    };
-    buttonContainer.appendChild(selectAllBtn);
-
-    // Store reference to selectAllBtn for later use
-    this.selectAllBtn = selectAllBtn;
-
-    // Update the select button click handler to show/hide select all button
-    const originalOnClick = selectBtn.onclick;
-    selectBtn.onclick = () => {
-      originalOnClick();
       if (this.uiManager && this.uiManager.issueSelector) {
-        if (this.uiManager.issueSelector.isSelectingIssue) {
-          selectAllBtn.style.display = 'flex';
-        } else {
-          selectAllBtn.style.display = 'none';
-          selectAllBtn.textContent = 'Select All';
+        // Get all cards from the board
+        const allCards = [];
+        const cardAreas = document.querySelectorAll('[data-testid="board-list-cards-area"]');
+        cardAreas.forEach(cardArea => {
+          const cards = cardArea.querySelectorAll('.board-card');
+          cards.forEach(card => {
+            const issueItem = this.uiManager.issueSelector.getIssueItemFromCard(card);
+            if (issueItem) {
+              allCards.push(issueItem);
+            }
+          });
+        });
+
+        // Start selection mode if not already active
+        if (!this.uiManager.issueSelector.isSelectingIssue) {
+          this.uiManager.issueSelector.startSelection();
+          selectBtn.dataset.active = 'true';
+          selectBtn.style.backgroundColor = '#28a745';
+          selectBtn.textContent = 'Done';
         }
+
+        // Set all issues as selected
+        this.selectedIssues = allCards;
+        this.uiManager.issueSelector.setSelectedIssues(allCards);
+        this.selectionDisplay.setSelectedIssues(allCards);
+
+        // Update status
+        const statusEl = document.getElementById('comment-status');
+        if (statusEl) {
+          statusEl.textContent = `${allCards.length} issues selected.`;
+          statusEl.style.color = 'green';
+        }
+
+        this.notification.success(`Selected all ${allCards.length} issues`);
       }
     };
+
+    // Add Deselect All button (trash icon)
+    const deselectAllBtn = document.createElement('button');
+    deselectAllBtn.id = 'deselect-all-button';
+    deselectAllBtn.textContent = '🗑️';
+    deselectAllBtn.title = 'Deselect All';
+    deselectAllBtn.style.padding = '8px 12px';
+    deselectAllBtn.style.backgroundColor = '#dc3545';
+    deselectAllBtn.style.color = 'white';
+    deselectAllBtn.style.border = 'none';
+    deselectAllBtn.style.borderRadius = '4px';
+    deselectAllBtn.style.cursor = 'pointer';
+    deselectAllBtn.style.fontSize = '14px';
+    deselectAllBtn.style.transition = 'background-color 0.2s ease';
+    deselectAllBtn.style.minWidth = '40px';
+    deselectAllBtn.addEventListener('mouseenter', () => {
+      deselectAllBtn.style.backgroundColor = '#c82333';
+    });
+    deselectAllBtn.addEventListener('mouseleave', () => {
+      deselectAllBtn.style.backgroundColor = '#dc3545';
+    });
+    deselectAllBtn.onclick = () => {
+      // Clear all selections
+      this.selectedIssues = [];
+      if (this.uiManager && this.uiManager.issueSelector) {
+        this.uiManager.issueSelector.setSelectedIssues([]);
+
+        // If in selection mode, update the UI
+        if (this.uiManager.issueSelector.isSelectingIssue) {
+          // Clear all overlay selections
+          const overlays = document.querySelectorAll('.card-selection-overlay');
+          overlays.forEach(overlay => {
+            if (overlay.dataset.selected === 'true') {
+              overlay.dataset.selected = 'false';
+              overlay.style.backgroundColor = 'rgba(31, 117, 203, 0.2)';
+              overlay.style.borderColor = 'rgba(31, 117, 203, 0.6)';
+              overlay.style.boxShadow = 'none';
+              overlay.querySelectorAll('.selection-badge').forEach(b => b.remove());
+            }
+          });
+
+          // Update selection counter
+          if (this.uiManager.issueSelector.selectionCounter) {
+            this.uiManager.issueSelector.selectionCounter.textContent = '0 issues selected';
+            this.uiManager.issueSelector.selectionCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+          }
+        }
+      }
+
+      // Update selection display
+      if (this.selectionDisplay) {
+        this.selectionDisplay.setSelectedIssues([]);
+      }
+
+      // Update status
+      const statusEl = document.getElementById('comment-status');
+      if (statusEl) {
+        statusEl.textContent = 'No issues selected. Click "Select" to choose issues.';
+        statusEl.style.color = '#666';
+      }
+
+      this.notification.info('All issues deselected');
+    };
+
+    selectionControls.appendChild(selectBtn);
+    selectionControls.appendChild(selectAllBtn);
+    selectionControls.appendChild(deselectAllBtn);
+    buttonContainer.appendChild(selectionControls);
 
     const submitBtn = document.createElement('button');
     submitBtn.textContent = 'Send';
@@ -9908,7 +9995,6 @@ window.BulkCommentsView = class BulkCommentsView {
     submitBtn.style.display = 'flex';
     submitBtn.style.alignItems = 'center';
     submitBtn.style.justifyContent = 'center';
-    submitBtn.style.flex = '1';
     submitBtn.style.minWidth = '80px';
     submitBtn.addEventListener('mouseenter', () => {
       submitBtn.style.backgroundColor = '#1a63ac';
@@ -10600,7 +10686,7 @@ window.UIManager = class UIManager {
     attachmentElement.appendChild(this.container);
     this.attachmentElement = attachmentElement;
     this.container.addEventListener('click', e => {
-      if (this.issueSelector && this.issueSelector.isSelectingIssue && !e.target.classList.contains('card-selection-overlay') && !e.target.classList.contains('selection-badge') && !e.target.closest('#bulk-comments-content button') && !e.target.closest('#issue-comment-input') && !e.target.closest('#shortcuts-wrapper') && !e.target.closest('#selected-issues-list') && !e.target.closest('#selection-cancel-button')) {
+      if (this.issueSelector && this.issueSelector.isSelectingIssue && !e.target.classList.contains('card-selection-overlay') && !e.target.classList.contains('selection-badge') && !e.target.closest('#bulk-comments-content button') && !e.target.closest('#issue-comment-input') && !e.target.closest('#bulk-comments-content') && !e.target.closest('#shortcuts-wrapper') && !e.target.closest('#selected-issues-list') && !e.target.closest('#selection-cancel-button')) {
         this.issueSelector.exitSelectionMode();
       }
     });
