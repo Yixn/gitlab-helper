@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      1.10
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.9";
+window.gitLabHelperVersion = "1.10";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -7448,7 +7448,7 @@ window.SprintManagementView = class SprintManagementView {
     sprintManagementContent.innerHTML = '';
     const urlParams = new URLSearchParams(window.location.search);
     let isValidUrl = false;
-    if (urlParams.has('milestone_title') && urlParams.get('milestone_title') === 'Started') {
+    if (urlParams.has('milestone_title')) {
       let paramCount = 0;
       urlParams.forEach(() => {
         paramCount++;
@@ -7560,7 +7560,7 @@ window.SprintManagementView = class SprintManagementView {
       const newMilestoneName = `${sprintNumber} KW ${weekNumber.toString().padStart(2, '0')}`;
       const startDate = new Date();
       const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 7);
+      endDate.setDate(endDate.getDate() + 8);
       const formatDate = date => {
         return date.toISOString().split('T')[0];
       };
