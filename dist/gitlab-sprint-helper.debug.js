@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.11
+// @version      1.12
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.11";
+window.gitLabHelperVersion = "1.12";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -10034,16 +10034,30 @@ window.BulkCommentsView = class BulkCommentsView {
         this.uiManager.bulkCommentsView.selectionDisplay.setSelectedIssues([]);
       }
     }
+
+    // Exit selection mode if active
+    if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
+      this.uiManager.issueSelector.exitSelectionMode();
+    }
+
+    // Update the Select button state
+    const selectButton = document.getElementById('select-issues-button');
+    if (selectButton) {
+      selectButton.dataset.active = 'false';
+      selectButton.style.backgroundColor = '#6c757d';
+      selectButton.textContent = 'Select';
+    }
+
+    // Hide Select All button
+    const selectAllButton = document.getElementById('select-all-button');
+    if (selectAllButton) {
+      selectAllButton.style.display = 'none';
+    }
+
     const statusEl = document.getElementById('comment-status');
     if (statusEl) {
-      statusEl.textContent = 'Selection cleared.';
+      statusEl.textContent = 'Selection cleared. Ready to select new issues.';
       statusEl.style.color = '#666';
-    }
-    if (this.uiManager && this.uiManager.issueSelector) {
-      this.uiManager.issueSelector.setSelectedIssues([]);
-    }
-    if (typeof this.$forceUpdate === 'function') {
-      this.$forceUpdate();
     }
   }
   render() {
@@ -10552,26 +10566,29 @@ window.BulkCommentsView = class BulkCommentsView {
         window.updateSummary(true);
       }
 
-      // Return to selection mode after refresh and update button states
-      if (window.uiManager && window.uiManager.issueSelector) {
-        setTimeout(() => {
-          window.uiManager.issueSelector.startSelection();
+      // Only return to selection mode if the bulk comments tab is currently active
+      if (window.uiManager && window.uiManager.issueSelector && window.uiManager.tabManager) {
+        const currentTab = window.uiManager.tabManager.currentTab;
+        if (currentTab === 'bulkcomments') {
+          setTimeout(() => {
+            window.uiManager.issueSelector.startSelection();
 
-          // Update button states to reflect selection mode
-          const selectButton = document.getElementById('select-issues-button');
-          if (selectButton) {
-            selectButton.dataset.active = 'true';
-            selectButton.style.backgroundColor = '#28a745';
-            selectButton.textContent = 'Done';
-          }
+            // Update button states to reflect selection mode
+            const selectButton = document.getElementById('select-issues-button');
+            if (selectButton) {
+              selectButton.dataset.active = 'true';
+              selectButton.style.backgroundColor = '#28a745';
+              selectButton.textContent = 'Done';
+            }
 
-          // Show Select All button
-          const selectAllButton = document.getElementById('select-all-button');
-          if (selectAllButton) {
-            selectAllButton.style.display = 'flex';
-            selectAllButton.textContent = 'Select All';
-          }
-        }, 500);
+            // Show Select All button
+            const selectAllButton = document.getElementById('select-all-button');
+            if (selectAllButton) {
+              selectAllButton.style.display = 'flex';
+              selectAllButton.textContent = 'Select All';
+            }
+          }, 500);
+        }
       }
 
       return true;
