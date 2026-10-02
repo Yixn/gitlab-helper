@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.15
+// @version      1.16
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.15";
+window.gitLabHelperVersion = "1.16";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -8221,7 +8221,7 @@ window.SprintManagementView = class SprintManagementView {
     const button = document.createElement('button');
     button.textContent = title;
     button.style.padding = '12px 16px';
-    button.style.backgroundColor = enabled ? color : 'var(--gl-text-color-subtle, #6c757d)';
+    button.style.backgroundColor = enabled ? color : '#6c757d';
     button.style.color = 'white';
     button.style.border = 'none';
     button.style.borderRadius = '4px';
