@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.13
+// @version      1.14
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.13";
+window.gitLabHelperVersion = "1.14";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -4034,6 +4034,7 @@ window.CommandManager = class CommandManager {
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
     const modalContent = document.createElement('div');
+    modalContent.className = 'gsh-panel';
     modalContent.style.backgroundColor = 'white';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
@@ -4635,6 +4636,7 @@ window.AssigneeManager = class AssigneeManager {
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
     const modalContent = document.createElement('div');
+    modalContent.className = 'gsh-panel';
     modalContent.style.backgroundColor = 'white';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
@@ -4923,6 +4925,7 @@ window.SettingsManager = class SettingsManager {
     modalOverlay.style.cursor = 'pointer';
     this.currentModal = modalOverlay;
     const modalContent = document.createElement('div');
+    modalContent.className = 'gsh-panel';
     modalContent.style.backgroundColor = 'white';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
@@ -7588,27 +7591,38 @@ window.SprintManagementView = class SprintManagementView {
       } else {
         throw new Error('Unsupported path type: ' + pathInfo.type);
       }
-      this.notification.info(`Creating milestone "${newMilestoneName}"...`);
-      const response = await gitlabApi.callGitLabApi(endpoint, {
-        method: 'POST',
-        data: {
+      // Pre-planned sprint: the milestone may already exist, then use it and go on
+      const existing = await gitlabApi.callGitLabApi(endpoint, {
+        params: {
           title: newMilestoneName,
-          description: `Sprint from ${formatDate(startDate)} to ${formatDate(endDate)}`,
-          start_date: formatDate(startDate),
-          due_date: formatDate(endDate)
+          include_ancestors: true
         }
       });
+      const found = Array.isArray(existing) ? existing.find(m => m.title === newMilestoneName) : null;
+      let response = found;
+      if (!found) {
+        this.notification.info(`Creating milestone "${newMilestoneName}"...`);
+        response = await gitlabApi.callGitLabApi(endpoint, {
+          method: 'POST',
+          data: {
+            title: newMilestoneName,
+            description: `Sprint from ${formatDate(startDate)} to ${formatDate(endDate)}`,
+            start_date: formatDate(startDate),
+            due_date: formatDate(endDate)
+          }
+        });
+      }
       this.sprintState.newMilestone = {
         id: response.id,
         iid: response.iid,
         name: newMilestoneName,
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
+        startDate: response.start_date || formatDate(startDate),
+        endDate: response.due_date || formatDate(endDate),
         webUrl: response.web_url
       };
       this.sprintState.newMilestoneCreated = true;
       this.saveSprintState();
-      this.notification.success(`New milestone "${newMilestoneName}" created in GitLab`);
+      this.notification.success(found ? `Milestone "${newMilestoneName}" already exists, using it` : `New milestone "${newMilestoneName}" created in GitLab`);
       this.render();
     } catch (error) {
       console.error('Error creating new milestone:', error);
@@ -8608,6 +8622,7 @@ window.SprintManagementView = class SprintManagementView {
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
     const modalContent = document.createElement('div');
+    modalContent.className = 'gsh-panel';
     modalContent.style.backgroundColor = 'white';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
@@ -10035,24 +10050,11 @@ window.BulkCommentsView = class BulkCommentsView {
       }
     }
 
-    // Exit selection mode if active
-    if (this.uiManager && this.uiManager.issueSelector && this.uiManager.issueSelector.isSelectingIssue) {
-      this.uiManager.issueSelector.exitSelectionMode();
+    // Clear selection in IssueSelector (but stay in selection mode)
+    if (this.uiManager && this.uiManager.issueSelector) {
+      this.uiManager.issueSelector.setSelectedIssues([]);
     }
 
-    // Update the Select button state
-    const selectButton = document.getElementById('select-issues-button');
-    if (selectButton) {
-      selectButton.dataset.active = 'false';
-      selectButton.style.backgroundColor = '#6c757d';
-      selectButton.textContent = 'Select';
-    }
-
-    // Hide Select All button
-    const selectAllButton = document.getElementById('select-all-button');
-    if (selectAllButton) {
-      selectAllButton.style.display = 'none';
-    }
 
     const statusEl = document.getElementById('comment-status');
     if (statusEl) {
@@ -10434,12 +10436,12 @@ window.BulkCommentsView = class BulkCommentsView {
       submitBtn.style.opacity = '1';
       submitBtn.style.cursor = 'pointer';
     }
+    let that = this;
     if (successCount === this.selectedIssues.length) {
       this.notification.success(`Added comment to ${successCount} issues`);
       if (this.commentInput) {
         this.commentInput.value = '';
       }
-      let that = this;
       this.refreshBoard().then(function () {
         progressContainer.style.display = 'none';
         that.clearSelectedIssues();
@@ -11274,6 +11276,15 @@ function injectCustomCSS() {
       display: flex;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    
+    .gl-dark #assignee-time-summary,
+    .gl-dark .gsh-panel {
+      filter: invert(0.9) hue-rotate(180deg);
+    }
+    .gl-dark #assignee-time-summary img,
+    .gl-dark .gsh-panel img {
+      filter: invert(1) hue-rotate(180deg);
     }
   `;
   document.head.appendChild(style);
