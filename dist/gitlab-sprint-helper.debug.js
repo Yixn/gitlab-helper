@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitLab Sprint Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.14
+// @version      1.15
 // @description  Display a summary of assignees' time estimates on GitLab boards with API integration and comment shortcuts
 // @author       Daniel Samer | Linkster
 // @match        https://gitlab.com/*/boards*
@@ -15,7 +15,7 @@
 // GitLab Sprint Helper - Combined Script
 (function(window) {
 // Add version as window variable
-window.gitLabHelperVersion = "1.14";
+window.gitLabHelperVersion = "1.15";
 
 // File: lib/core/Utils.js
 window.formatHours = function formatHours(seconds) {
@@ -1115,10 +1115,10 @@ window.CommandShortcut = class CommandShortcut {
     shortcutContainer.style.width = '100%';
     shortcutContainer.style.marginBottom = '8px';
     shortcutContainer.style.justifyContent = 'space-between';
-    shortcutContainer.style.border = '1px solid #ddd';
+    shortcutContainer.style.border = '1px solid var(--gl-border-color-default, #ddd)';
     shortcutContainer.style.borderRadius = '4px';
     shortcutContainer.style.padding = '6px 10px';
-    shortcutContainer.style.backgroundColor = '#f8f9fa';
+    shortcutContainer.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     shortcutContainer.style.height = '36px';
     shortcutContainer.style.boxSizing = 'border-box';
     shortcutContainer.dataset.shortcutType = options.type;
@@ -1131,7 +1131,7 @@ window.CommandShortcut = class CommandShortcut {
     shortcutLabel.textContent = options.label;
     shortcutLabel.style.fontSize = '13px';
     shortcutLabel.style.fontWeight = 'bold';
-    shortcutLabel.style.color = '#555';
+    shortcutLabel.style.color = 'var(--gl-text-color-subtle, #555)';
     shortcutLabel.style.whiteSpace = 'nowrap';
     labelContainer.appendChild(shortcutLabel);
     let toggleButton = null;
@@ -1148,7 +1148,7 @@ window.CommandShortcut = class CommandShortcut {
       toggleButton.style.display = 'flex';
       toggleButton.style.alignItems = 'center';
       toggleButton.style.justifyContent = 'center';
-      toggleButton.style.border = '1px solid #ccc';
+      toggleButton.style.border = '1px solid var(--gl-border-color-default, #ccc)';
       toggleButton.style.borderRadius = '50%';
       toggleButton.style.backgroundColor = '#28a745';
       toggleButton.style.color = 'white';
@@ -1191,9 +1191,9 @@ window.CommandShortcut = class CommandShortcut {
     dropdown.style.appearance = 'auto';
     dropdown.style.padding = '0 25px 0 8px';
     dropdown.style.fontSize = '13px';
-    dropdown.style.border = '1px solid #ccc';
+    dropdown.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     dropdown.style.borderRadius = '4px';
-    dropdown.style.backgroundColor = '#fff';
+    dropdown.style.backgroundColor = 'var(--gl-background-color-default, #fff)';
     dropdown.style.boxSizing = 'border-box';
     dropdown.dataset.mode = 'add';
     const placeholderOption = document.createElement('option');
@@ -1265,14 +1265,14 @@ window.SelectionDisplay = class SelectionDisplay {
     selectedIssuesContainer.style.marginBottom = '12px';
     selectedIssuesContainer.style.padding = '8px';
     selectedIssuesContainer.style.borderRadius = '4px';
-    selectedIssuesContainer.style.border = '1px dashed #ccc';
-    selectedIssuesContainer.style.backgroundColor = '#f9f9f9';
+    selectedIssuesContainer.style.border = '1px dashed var(--gl-border-color-default, #ccc)';
+    selectedIssuesContainer.style.backgroundColor = 'var(--gl-background-color-subtle, #f9f9f9)';
     selectedIssuesContainer.style.maxHeight = '150px';
     selectedIssuesContainer.style.minHeight = '150px';
     selectedIssuesContainer.style.overflowY = 'auto';
     const issueLabel = document.createElement('div');
     issueLabel.style.fontSize = '12px';
-    issueLabel.style.color = '#666';
+    issueLabel.style.color = 'var(--gl-text-color-subtle, #666)';
     issueLabel.style.marginBottom = '5px';
     issueLabel.textContent = 'Selected Issues:';
     selectedIssuesContainer.appendChild(issueLabel);
@@ -1292,7 +1292,7 @@ window.SelectionDisplay = class SelectionDisplay {
     const noIssuesSelected = document.createElement('div');
     noIssuesSelected.id = 'no-issues-selected';
     noIssuesSelected.textContent = 'No issues selected';
-    noIssuesSelected.style.color = '#666';
+    noIssuesSelected.style.color = 'var(--gl-text-color-subtle, #666)';
     noIssuesSelected.style.fontStyle = 'italic';
     this.issuesList.appendChild(noIssuesSelected);
   }
@@ -1306,8 +1306,8 @@ window.SelectionDisplay = class SelectionDisplay {
       this.displayNoIssuesMessage();
       const container = this.issuesList.parentElement;
       if (container) {
-        container.style.borderColor = '#ccc';
-        container.style.backgroundColor = '#f9f9f9';
+        container.style.borderColor = 'var(--gl-border-color-default, #ccc)';
+        container.style.backgroundColor = 'var(--gl-background-color-subtle, #f9f9f9)';
       }
       return;
     }
@@ -1382,7 +1382,7 @@ window.SelectionDisplay = class SelectionDisplay {
           statusEl.style.color = 'green';
         } else {
           statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
-          statusEl.style.color = '#666';
+          statusEl.style.color = 'var(--gl-text-color-subtle, #666)';
         }
       }
     }
@@ -1763,7 +1763,7 @@ window.IssueSelector = class IssueSelector {
         statusEl.style.color = 'green';
       } else {
         statusEl.textContent = 'No issues selected. Click "Select" to choose issues.';
-        statusEl.style.color = '#666';
+        statusEl.style.color = 'var(--gl-text-color-subtle, #666)';
       }
     }
     this.syncSelectionWithBulkCommentsView();
@@ -2222,7 +2222,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
     const emptyMessage = document.createElement('div');
     emptyMessage.textContent = 'No linked items found';
     emptyMessage.style.padding = '10px 12px';
-    emptyMessage.style.color = '#666';
+    emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
     emptyMessage.style.fontStyle = 'italic';
     emptyMessage.style.fontSize = '13px';
     emptyMessage.style.textAlign = 'center';
@@ -2288,13 +2288,13 @@ window.LinkedItemsManager = class LinkedItemsManager {
     });
     const createSectionHeader = title => {
       const header = document.createElement('div');
-      header.style.backgroundColor = '#f8f9fa';
+      header.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
       header.style.padding = '5px 12px';
       header.style.fontSize = '11px';
       header.style.fontWeight = 'bold';
-      header.style.color = '#6c757d';
+      header.style.color = 'var(--gl-text-color-subtle, #6c757d)';
       header.style.textTransform = 'uppercase';
-      header.style.borderBottom = '1px solid #eee';
+      header.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
       header.textContent = title;
       return header;
     };
@@ -2373,18 +2373,18 @@ window.LinkedItemsManager = class LinkedItemsManager {
     dropdownContent.className = 'linked-items-content';
     dropdownContent.style.display = 'none';
     dropdownContent.style.position = 'absolute';
-    dropdownContent.style.backgroundColor = 'white';
+    dropdownContent.style.backgroundColor = 'var(--gl-background-color-default, white)';
     dropdownContent.style.width = `${$(card).width() + 1}px`;
     dropdownContent.style.boxShadow = '    box-shadow: rgba(0, 0, 0, 0.6) 0px 0px 6px;';
     dropdownContent.style.zIndex = '100';
     dropdownContent.style.borderRadius = '4px';
-    dropdownContent.style.border = '1px solid #ddd';
+    dropdownContent.style.border = '1px solid var(--gl-border-color-default, #ddd)';
     dropdownContent.style.left = '9px';
     dropdownContent.style.top = `${$(card).height()}px`;
     const loadingItem = document.createElement('div');
     loadingItem.textContent = 'Loading linked items...';
     loadingItem.style.padding = '10px 12px';
-    loadingItem.style.color = '#666';
+    loadingItem.style.color = 'var(--gl-text-color-subtle, #666)';
     loadingItem.style.fontStyle = 'italic';
     loadingItem.style.fontSize = '13px';
     loadingItem.style.textAlign = 'center';
@@ -2626,8 +2626,8 @@ window.LinkedItemsManager = class LinkedItemsManager {
     link.style.display = 'flex';
     link.style.alignItems = 'center';
     link.style.textDecoration = 'none';
-    link.style.color = '#333';
-    link.style.borderBottom = '1px solid #eee';
+    link.style.color = 'var(--gl-text-color-default, #333)';
+    link.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     const icon = document.createElement('span');
     switch (item.type) {
       case 'merge_request':
@@ -2649,7 +2649,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
         } else if (mrStatusText === 'Closed') {
           icon.style.color = '#dc3545';
         } else if (mrStatusText === 'Draft') {
-          icon.style.color = '#6c757d';
+          icon.style.color = 'var(--gl-text-color-subtle, #6c757d)';
         } else if (mrStatusText === 'Pipeline Failed') {
           icon.style.color = '#dc3545';
         } else if (mrStatusText === 'Pipeline Failed') {
@@ -2679,7 +2679,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
         break;
       default:
         icon.textContent = '🔗';
-        icon.style.color = '#6c757d';
+        icon.style.color = 'var(--gl-text-color-subtle, #6c757d)';
     }
     icon.style.marginRight = '8px';
     icon.style.fontSize = '16px';
@@ -2759,7 +2759,7 @@ window.LinkedItemsManager = class LinkedItemsManager {
             avatar.style.height = '25px';
             avatar.style.borderRadius = '50%';
             avatar.style.objectFit = 'cover';
-            avatar.style.border = '1px solid #e0e0e0';
+            avatar.style.border = '1px solid var(--gl-border-color-default, #e0e0e0)';
             avatarContainer.appendChild(avatar);
             const totalReviewers = reviewers.length + approvers.length;
             if (totalReviewers > 1) {
@@ -2831,10 +2831,10 @@ window.LinkedItemsManager = class LinkedItemsManager {
     link.appendChild(text);
     link.appendChild(infoContainer);
     link.addEventListener('mouseenter', function () {
-      this.style.backgroundColor = '#f8f9fa';
+      this.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     });
     link.addEventListener('mouseleave', function () {
-      this.style.backgroundColor = 'white';
+      this.style.backgroundColor = 'var(--gl-background-color-default, white)';
     });
     return link;
   }
@@ -3591,7 +3591,7 @@ window.TabManager = class TabManager {
     this.tabContainer.className = 'tabs-container';
     this.tabContainer.style.display = 'flex';
     this.tabContainer.style.marginBottom = '10px';
-    this.tabContainer.style.borderBottom = '1px solid #ddd';
+    this.tabContainer.style.borderBottom = '1px solid var(--gl-border-color-default, #ddd)';
     this.tabContainer.style.position = 'relative'; // Add relative positioning
 
     this.createTab('summary', 'Summary', this.currentTab === 'summary');
@@ -4034,8 +4034,7 @@ window.CommandManager = class CommandManager {
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
     const modalContent = document.createElement('div');
-    modalContent.className = 'gsh-panel';
-    modalContent.style.backgroundColor = 'white';
+    modalContent.style.backgroundColor = 'var(--gl-background-color-default, white)';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
     modalContent.style.width = '500px';
@@ -4072,7 +4071,7 @@ window.CommandManager = class CommandManager {
     const createEmptyMessage = () => {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No assignees added yet. Add some below.';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       emptyMessage.style.padding = '10px 0';
       return emptyMessage;
@@ -4083,7 +4082,7 @@ window.CommandManager = class CommandManager {
       assigneeItem.style.justifyContent = 'space-between';
       assigneeItem.style.alignItems = 'center';
       assigneeItem.style.padding = '8px';
-      assigneeItem.style.borderBottom = '1px solid #eee';
+      assigneeItem.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
       const assigneeInfo = document.createElement('div');
       assigneeInfo.style.display = 'flex';
       assigneeInfo.style.alignItems = 'center';
@@ -4093,7 +4092,7 @@ window.CommandManager = class CommandManager {
       assigneeName.style.marginRight = '5px';
       const assigneeUsername = document.createElement('div');
       assigneeUsername.textContent = `@${assignee.username}`;
-      assigneeUsername.style.color = '#666';
+      assigneeUsername.style.color = 'var(--gl-text-color-subtle, #666)';
       assigneeUsername.style.fontSize = '13px';
       assigneeInfo.appendChild(assigneeName);
       assigneeInfo.appendChild(assigneeUsername);
@@ -4124,7 +4123,7 @@ window.CommandManager = class CommandManager {
     addForm.style.marginTop = '20px';
     addForm.style.marginBottom = '20px';
     addForm.style.padding = '15px';
-    addForm.style.backgroundColor = '#f8f9fa';
+    addForm.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     addForm.style.borderRadius = '4px';
     const formTitle = document.createElement('div');
     formTitle.textContent = 'Add New Assignee';
@@ -4142,7 +4141,7 @@ window.CommandManager = class CommandManager {
     nameInput.style.width = '100%';
     nameInput.style.padding = '8px';
     nameInput.style.borderRadius = '4px';
-    nameInput.style.border = '1px solid #ccc';
+    nameInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     nameContainer.appendChild(nameLabel);
     nameContainer.appendChild(nameInput);
     const usernameContainer = document.createElement('div');
@@ -4157,7 +4156,7 @@ window.CommandManager = class CommandManager {
     usernameInput.style.width = '100%';
     usernameInput.style.padding = '8px';
     usernameInput.style.borderRadius = '4px';
-    usernameInput.style.border = '1px solid #ccc';
+    usernameInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     usernameContainer.appendChild(usernameLabel);
     usernameContainer.appendChild(usernameInput);
     const addButton = document.createElement('button');
@@ -4195,7 +4194,7 @@ window.CommandManager = class CommandManager {
       assigneeItem.style.justifyContent = 'space-between';
       assigneeItem.style.alignItems = 'center';
       assigneeItem.style.padding = '8px';
-      assigneeItem.style.borderBottom = '1px solid #eee';
+      assigneeItem.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
       const assigneeInfo = document.createElement('div');
       assigneeInfo.style.display = 'flex';
       assigneeInfo.style.alignItems = 'center';
@@ -4205,7 +4204,7 @@ window.CommandManager = class CommandManager {
       assigneeName.style.marginRight = '5px';
       const assigneeUsername = document.createElement('div');
       assigneeUsername.textContent = `@${newAssignee.username}`;
-      assigneeUsername.style.color = '#666';
+      assigneeUsername.style.color = 'var(--gl-text-color-subtle, #666)';
       assigneeUsername.style.fontSize = '13px';
       assigneeInfo.appendChild(assigneeName);
       assigneeInfo.appendChild(assigneeUsername);
@@ -4636,8 +4635,7 @@ window.AssigneeManager = class AssigneeManager {
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
     const modalContent = document.createElement('div');
-    modalContent.className = 'gsh-panel';
-    modalContent.style.backgroundColor = 'white';
+    modalContent.style.backgroundColor = 'var(--gl-background-color-default, white)';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
     modalContent.style.width = '600px';
@@ -4650,7 +4648,7 @@ window.AssigneeManager = class AssigneeManager {
     modalHeader.style.justifyContent = 'space-between';
     modalHeader.style.alignItems = 'center';
     modalHeader.style.marginBottom = '15px';
-    modalHeader.style.borderBottom = '1px solid #eee';
+    modalHeader.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     modalHeader.style.paddingBottom = '10px';
     const modalTitle = document.createElement('h3');
     modalTitle.textContent = 'Manage Assignees';
@@ -4679,7 +4677,7 @@ window.AssigneeManager = class AssigneeManager {
     const assigneeList = document.createElement('div');
     assigneeList.style.height = '300px';
     assigneeList.style.overflowY = 'auto';
-    assigneeList.style.border = '1px solid #eee';
+    assigneeList.style.border = '1px solid var(--gl-border-color-default, #eee)';
     assigneeList.style.borderRadius = '4px';
     if (this.assigneeWhitelist.length > 0) {
       this.assigneeWhitelist.forEach((assignee, index) => {
@@ -4688,7 +4686,7 @@ window.AssigneeManager = class AssigneeManager {
         assigneeItem.style.justifyContent = 'space-between';
         assigneeItem.style.alignItems = 'center';
         assigneeItem.style.padding = '10px';
-        assigneeItem.style.borderBottom = index < this.assigneeWhitelist.length - 1 ? '1px solid #eee' : 'none';
+        assigneeItem.style.borderBottom = index < this.assigneeWhitelist.length - 1 ? '1px solid var(--gl-border-color-default, #eee)' : 'none';
         const assigneeInfo = document.createElement('div');
         assigneeInfo.style.display = 'flex';
         assigneeInfo.style.alignItems = 'center';
@@ -4696,14 +4694,14 @@ window.AssigneeManager = class AssigneeManager {
         avatarPlaceholder.style.width = '32px';
         avatarPlaceholder.style.height = '32px';
         avatarPlaceholder.style.borderRadius = '50%';
-        avatarPlaceholder.style.backgroundColor = '#e0e0e0';
+        avatarPlaceholder.style.backgroundColor = 'var(--gl-background-color-strong, #e0e0e0)';
         avatarPlaceholder.style.display = 'flex';
         avatarPlaceholder.style.alignItems = 'center';
         avatarPlaceholder.style.justifyContent = 'center';
         avatarPlaceholder.style.marginRight = '10px';
         avatarPlaceholder.style.fontSize = '14px';
         avatarPlaceholder.style.fontWeight = 'bold';
-        avatarPlaceholder.style.color = '#666';
+        avatarPlaceholder.style.color = 'var(--gl-text-color-subtle, #666)';
         const name = assignee.name || assignee.username || '';
         avatarPlaceholder.textContent = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
         assigneeInfo.appendChild(avatarPlaceholder);
@@ -4714,7 +4712,7 @@ window.AssigneeManager = class AssigneeManager {
         const username = document.createElement('div');
         username.textContent = `@${assignee.username}`;
         username.style.fontSize = '12px';
-        username.style.color = '#666';
+        username.style.color = 'var(--gl-text-color-subtle, #666)';
         nameContainer.appendChild(displayName);
         nameContainer.appendChild(username);
         assigneeInfo.appendChild(nameContainer);
@@ -4734,7 +4732,7 @@ window.AssigneeManager = class AssigneeManager {
             const emptyMessage = document.createElement('div');
             emptyMessage.textContent = 'No assignees added yet. Add some below.';
             emptyMessage.style.padding = '10px';
-            emptyMessage.style.color = '#666';
+            emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
             emptyMessage.style.fontStyle = 'italic';
             assigneeList.appendChild(emptyMessage);
           }
@@ -4747,7 +4745,7 @@ window.AssigneeManager = class AssigneeManager {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No assignees added yet. Add some below.';
       emptyMessage.style.padding = '10px';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       assigneeList.appendChild(emptyMessage);
     }
@@ -4755,7 +4753,7 @@ window.AssigneeManager = class AssigneeManager {
     const addForm = document.createElement('div');
     addForm.style.marginTop = '20px';
     addForm.style.padding = '15px';
-    addForm.style.backgroundColor = '#f8f9fa';
+    addForm.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     addForm.style.borderRadius = '4px';
     const formTitle = document.createElement('h4');
     formTitle.textContent = 'Add New Assignee';
@@ -4773,7 +4771,7 @@ window.AssigneeManager = class AssigneeManager {
     nameInput.style.width = '100%';
     nameInput.style.padding = '8px';
     nameInput.style.borderRadius = '4px';
-    nameInput.style.border = '1px solid #ccc';
+    nameInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     nameContainer.appendChild(nameLabel);
     nameContainer.appendChild(nameInput);
     const usernameContainer = document.createElement('div');
@@ -4788,7 +4786,7 @@ window.AssigneeManager = class AssigneeManager {
     usernameInput.style.width = '100%';
     usernameInput.style.padding = '8px';
     usernameInput.style.borderRadius = '4px';
-    usernameInput.style.border = '1px solid #ccc';
+    usernameInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     usernameContainer.appendChild(usernameLabel);
     usernameContainer.appendChild(usernameInput);
     const buttonContainer = document.createElement('div');
@@ -4925,8 +4923,7 @@ window.SettingsManager = class SettingsManager {
     modalOverlay.style.cursor = 'pointer';
     this.currentModal = modalOverlay;
     const modalContent = document.createElement('div');
-    modalContent.className = 'gsh-panel';
-    modalContent.style.backgroundColor = 'white';
+    modalContent.style.backgroundColor = 'var(--gl-background-color-default, white)';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
     modalContent.style.width = '700px';
@@ -4939,7 +4936,7 @@ window.SettingsManager = class SettingsManager {
     modalHeader.style.justifyContent = 'space-between';
     modalHeader.style.alignItems = 'center';
     modalHeader.style.marginBottom = '15px';
-    modalHeader.style.borderBottom = '1px solid #eee';
+    modalHeader.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     modalHeader.style.paddingBottom = '10px';
     const modalTitle = document.createElement('h3');
     modalTitle.textContent = 'Settings';
@@ -4964,7 +4961,7 @@ window.SettingsManager = class SettingsManager {
     buttonContainer.style.display = 'flex';
     buttonContainer.style.justifyContent = 'space-between';
     buttonContainer.style.alignItems = 'center';
-    buttonContainer.style.borderTop = '1px solid #eee';
+    buttonContainer.style.borderTop = '1px solid var(--gl-border-color-default, #eee)';
     buttonContainer.style.paddingTop = '15px';
     const resetButton = document.createElement('button');
     resetButton.textContent = 'Reset to Defaults';
@@ -5007,24 +5004,24 @@ window.SettingsManager = class SettingsManager {
     const section = document.createElement('div');
     section.className = 'gitlab-helper-settings-section';
     section.style.marginBottom = '15px';
-    section.style.border = '1px solid #ddd';
+    section.style.border = '1px solid var(--gl-border-color-default, #ddd)';
     section.style.borderRadius = '6px';
     section.style.overflow = 'hidden';
     const header = document.createElement('div');
     header.className = 'gitlab-helper-settings-header';
     header.style.padding = '12px 15px';
-    header.style.backgroundColor = '#f8f9fa';
-    header.style.borderBottom = startExpanded ? '1px solid #ddd' : 'none';
+    header.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
+    header.style.borderBottom = startExpanded ? '1px solid var(--gl-border-color-default, #ddd)' : 'none';
     header.style.display = 'flex';
     header.style.justifyContent = 'space-between';
     header.style.alignItems = 'center';
     header.style.cursor = 'pointer';
     header.style.transition = 'background-color 0.2s ease';
     header.addEventListener('mouseenter', () => {
-      header.style.backgroundColor = '#e9ecef';
+      header.style.backgroundColor = 'var(--gl-background-color-strong, #e9ecef)';
     });
     header.addEventListener('mouseleave', () => {
-      header.style.backgroundColor = '#f8f9fa';
+      header.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     });
     const titleContainer = document.createElement('div');
     const titleEl = document.createElement('h4');
@@ -5034,7 +5031,7 @@ window.SettingsManager = class SettingsManager {
     const descEl = document.createElement('div');
     descEl.textContent = description;
     descEl.style.fontSize = '13px';
-    descEl.style.color = '#6c757d';
+    descEl.style.color = 'var(--gl-text-color-subtle, #6c757d)';
     descEl.style.marginTop = '4px';
     titleContainer.appendChild(titleEl);
     titleContainer.appendChild(descEl);
@@ -5048,13 +5045,13 @@ window.SettingsManager = class SettingsManager {
     content.className = 'gitlab-helper-settings-content';
     content.style.padding = '5px';
     content.style.display = startExpanded ? 'block' : 'none';
-    content.style.backgroundColor = 'white';
+    content.style.backgroundColor = 'var(--gl-background-color-default, white)';
     let contentBuilt = false;
     header.addEventListener('click', () => {
       const isExpanded = content.style.display === 'block';
       content.style.display = isExpanded ? 'none' : 'block';
       toggle.textContent = isExpanded ? '▶' : '▼';
-      header.style.borderBottom = isExpanded ? 'none' : '1px solid #ddd';
+      header.style.borderBottom = isExpanded ? 'none' : '1px solid var(--gl-border-color-default, #ddd)';
       if (!contentBuilt && !isExpanded) {
         contentBuilder(content);
         contentBuilt = true;
@@ -5080,7 +5077,7 @@ window.SettingsManager = class SettingsManager {
     searchInput.style.width = '100%';
     searchInput.style.padding = '8px 10px';
     searchInput.style.borderRadius = '4px';
-    searchInput.style.border = '1px solid #ccc';
+    searchInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     searchContainer.appendChild(searchInput);
     const fetchButton = document.createElement('button');
     fetchButton.textContent = 'Fetch GitLab Users';
@@ -5096,7 +5093,7 @@ window.SettingsManager = class SettingsManager {
     assigneeSection.appendChild(actionsRow);
     const tabsContainer = document.createElement('div');
     tabsContainer.style.display = 'flex';
-    tabsContainer.style.borderBottom = '1px solid #dee2e6';
+    tabsContainer.style.borderBottom = '1px solid var(--gl-border-color-default, #dee2e6)';
     tabsContainer.style.marginBottom = '15px';
     const tabs = [{
       id: 'whitelisted',
@@ -5121,7 +5118,7 @@ window.SettingsManager = class SettingsManager {
       }
       tabElement.addEventListener('mouseenter', () => {
         if (!tab.active) {
-          tabElement.style.backgroundColor = '#f5f5f5';
+          tabElement.style.backgroundColor = 'var(--gl-background-color-subtle, #f5f5f5)';
         }
       });
       tabElement.addEventListener('mouseleave', () => {
@@ -5158,13 +5155,13 @@ window.SettingsManager = class SettingsManager {
     const assigneeListContainer = document.createElement('div');
     assigneeListContainer.style.height = '300px';
     assigneeListContainer.style.overflowY = 'auto';
-    assigneeListContainer.style.border = '1px solid #eee';
+    assigneeListContainer.style.border = '1px solid var(--gl-border-color-default, #eee)';
     assigneeListContainer.style.borderRadius = '4px';
     const createEmptyMessage = () => {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
       emptyMessage.style.padding = '15px';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       emptyMessage.style.textAlign = 'center';
       return emptyMessage;
@@ -5187,12 +5184,12 @@ window.SettingsManager = class SettingsManager {
     availableListContainer.className = 'available-assignees-list';
     availableListContainer.style.height = '300px';
     availableListContainer.style.overflowY = 'auto';
-    availableListContainer.style.border = '1px solid #eee';
+    availableListContainer.style.border = '1px solid var(--gl-border-color-default, #eee)';
     availableListContainer.style.borderRadius = '4px';
     const availableEmptyMessage = document.createElement('div');
     availableEmptyMessage.textContent = 'Click "Fetch GitLab Users" to load available assignees.';
     availableEmptyMessage.style.padding = '15px';
-    availableEmptyMessage.style.color = '#666';
+    availableEmptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
     availableEmptyMessage.style.fontStyle = 'italic';
     availableEmptyMessage.style.textAlign = 'center';
     availableListContainer.appendChild(availableEmptyMessage);
@@ -5225,7 +5222,7 @@ window.SettingsManager = class SettingsManager {
     const addForm = document.createElement('div');
     addForm.style.marginTop = '15px';
     addForm.style.padding = '15px';
-    addForm.style.backgroundColor = '#f8f9fa';
+    addForm.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     addForm.style.borderRadius = '4px';
     const formTitle = document.createElement('h5');
     formTitle.textContent = 'Add New Assignee';
@@ -5243,7 +5240,7 @@ window.SettingsManager = class SettingsManager {
     nameInput.style.width = '100%';
     nameInput.style.padding = '6px 10px';
     nameInput.style.borderRadius = '4px';
-    nameInput.style.border = '1px solid #ccc';
+    nameInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     nameContainer.appendChild(nameLabel);
     nameContainer.appendChild(nameInput);
     const usernameContainer = document.createElement('div');
@@ -5258,7 +5255,7 @@ window.SettingsManager = class SettingsManager {
     usernameInput.style.width = '100%';
     usernameInput.style.padding = '6px 10px';
     usernameInput.style.borderRadius = '4px';
-    usernameInput.style.border = '1px solid #ccc';
+    usernameInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     usernameContainer.appendChild(usernameLabel);
     usernameContainer.appendChild(usernameInput);
     const buttonContainer = document.createElement('div');
@@ -5379,7 +5376,7 @@ window.SettingsManager = class SettingsManager {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No users found. Try fetching again.';
       emptyMessage.style.padding = '15px';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       emptyMessage.style.textAlign = 'center';
       container.appendChild(emptyMessage);
@@ -5394,7 +5391,7 @@ window.SettingsManager = class SettingsManager {
       userItem.style.justifyContent = 'space-between';
       userItem.style.alignItems = 'center';
       userItem.style.padding = '10px 15px';
-      userItem.style.borderBottom = '1px solid #eee';
+      userItem.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
       userItem.style.backgroundColor = isWhitelisted ? 'rgba(40, 167, 69, 0.05)' : '';
       const userInfo = document.createElement('div');
       userInfo.style.display = 'flex';
@@ -5412,13 +5409,13 @@ window.SettingsManager = class SettingsManager {
         avatarPlaceholder.style.width = '30px';
         avatarPlaceholder.style.height = '30px';
         avatarPlaceholder.style.borderRadius = '50%';
-        avatarPlaceholder.style.backgroundColor = '#e0e0e0';
+        avatarPlaceholder.style.backgroundColor = 'var(--gl-background-color-strong, #e0e0e0)';
         avatarPlaceholder.style.display = 'flex';
         avatarPlaceholder.style.alignItems = 'center';
         avatarPlaceholder.style.justifyContent = 'center';
         avatarPlaceholder.style.marginRight = '10px';
         avatarPlaceholder.style.fontWeight = 'bold';
-        avatarPlaceholder.style.color = '#666';
+        avatarPlaceholder.style.color = 'var(--gl-text-color-subtle, #666)';
         const name = user.name || user.username;
         const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
         avatarPlaceholder.textContent = initials;
@@ -5433,14 +5430,14 @@ window.SettingsManager = class SettingsManager {
       userUsername.className = 'assignee-username';
       userUsername.textContent = `@${user.username}`;
       userUsername.style.fontSize = '12px';
-      userUsername.style.color = '#666';
+      userUsername.style.color = 'var(--gl-text-color-subtle, #666)';
       userDetails.appendChild(userName);
       userDetails.appendChild(userUsername);
       userInfo.appendChild(userDetails);
       const actionButton = document.createElement('button');
       if (isWhitelisted) {
         actionButton.textContent = 'Added ✓';
-        actionButton.style.backgroundColor = '#e9ecef';
+        actionButton.style.backgroundColor = 'var(--gl-background-color-strong, #e9ecef)';
         actionButton.style.color = '#28a745';
         actionButton.style.cursor = 'default';
       } else {
@@ -5461,7 +5458,7 @@ window.SettingsManager = class SettingsManager {
             saveAssigneeWhitelist(whitelist);
           }
           actionButton.textContent = 'Added ✓';
-          actionButton.style.backgroundColor = '#e9ecef';
+          actionButton.style.backgroundColor = 'var(--gl-background-color-strong, #e9ecef)';
           actionButton.style.color = '#28a745';
           actionButton.style.cursor = 'default';
           userItem.style.backgroundColor = 'rgba(40, 167, 69, 0.05)';
@@ -5490,7 +5487,7 @@ window.SettingsManager = class SettingsManager {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
       emptyMessage.style.padding = '15px';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       emptyMessage.style.textAlign = 'center';
       return emptyMessage;
@@ -5500,7 +5497,7 @@ window.SettingsManager = class SettingsManager {
     loadingIndicator.textContent = 'Refreshing assignees...';
     loadingIndicator.style.padding = '15px';
     loadingIndicator.style.textAlign = 'center';
-    loadingIndicator.style.color = '#666';
+    loadingIndicator.style.color = 'var(--gl-text-color-subtle, #666)';
     assigneeListContainer.appendChild(loadingIndicator);
     setTimeout(() => {
       let assignees = [];
@@ -5526,7 +5523,7 @@ window.SettingsManager = class SettingsManager {
     item.style.justifyContent = 'space-between';
     item.style.alignItems = 'center';
     item.style.padding = '10px 15px';
-    item.style.borderBottom = '1px solid #eee';
+    item.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     const info = document.createElement('div');
     info.style.display = 'flex';
     info.style.alignItems = 'center';
@@ -5534,13 +5531,13 @@ window.SettingsManager = class SettingsManager {
     avatar.style.width = '30px';
     avatar.style.height = '30px';
     avatar.style.borderRadius = '50%';
-    avatar.style.backgroundColor = '#e0e0e0';
+    avatar.style.backgroundColor = 'var(--gl-background-color-strong, #e0e0e0)';
     avatar.style.display = 'flex';
     avatar.style.alignItems = 'center';
     avatar.style.justifyContent = 'center';
     avatar.style.marginRight = '10px';
     avatar.style.fontWeight = 'bold';
-    avatar.style.color = '#666';
+    avatar.style.color = 'var(--gl-text-color-subtle, #666)';
     const name = assignee.name || assignee.username;
     const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
     avatar.textContent = initials;
@@ -5554,7 +5551,7 @@ window.SettingsManager = class SettingsManager {
     username.className = 'assignee-username';
     username.textContent = `@${assignee.username}`;
     username.style.fontSize = '12px';
-    username.style.color = '#666';
+    username.style.color = 'var(--gl-text-color-subtle, #666)';
     nameContainer.appendChild(displayName);
     nameContainer.appendChild(username);
     info.appendChild(nameContainer);
@@ -5603,14 +5600,14 @@ window.SettingsManager = class SettingsManager {
     whitelistDescription.textContent = 'Select which labels should appear in the dropdown. The system will show any label that contains these terms.';
     whitelistDescription.style.marginBottom = '15px';
     whitelistDescription.style.fontSize = '14px';
-    whitelistDescription.style.color = '#666';
+    whitelistDescription.style.color = 'var(--gl-text-color-subtle, #666)';
     whitelistSection.appendChild(whitelistTitle);
     whitelistSection.appendChild(whitelistDescription);
     const loadingMessage = document.createElement('div');
     loadingMessage.id = 'whitelist-loading-message';
     loadingMessage.textContent = 'Loading all labels from GitLab...';
     loadingMessage.style.fontStyle = 'italic';
-    loadingMessage.style.color = '#666';
+    loadingMessage.style.color = 'var(--gl-text-color-subtle, #666)';
     whitelistSection.appendChild(loadingMessage);
     const whitelistContainer = document.createElement('div');
     whitelistContainer.id = 'whitelist-container';
@@ -5620,7 +5617,7 @@ window.SettingsManager = class SettingsManager {
     whitelistContainer.style.marginTop = '15px';
     whitelistContainer.style.height = '300px';
     whitelistContainer.style.overflowY = 'auto';
-    whitelistContainer.style.border = '1px solid #eee';
+    whitelistContainer.style.border = '1px solid var(--gl-border-color-default, #eee)';
     whitelistContainer.style.borderRadius = '4px';
     whitelistContainer.style.padding = '10px';
     whitelistSection.appendChild(whitelistContainer);
@@ -5655,7 +5652,7 @@ window.SettingsManager = class SettingsManager {
         noLabelsMessage.style.width = '100%';
         noLabelsMessage.style.textAlign = 'center';
         noLabelsMessage.style.marginBottom = '15px';
-        noLabelsMessage.style.color = '#666';
+        noLabelsMessage.style.color = 'var(--gl-text-color-subtle, #666)';
         whitelistContainer.appendChild(noLabelsMessage);
         return;
       }
@@ -5699,14 +5696,14 @@ window.SettingsManager = class SettingsManager {
     loadingIndicator.textContent = 'Refreshing assignees...';
     loadingIndicator.style.padding = '15px';
     loadingIndicator.style.textAlign = 'center';
-    loadingIndicator.style.color = '#666';
+    loadingIndicator.style.color = 'var(--gl-text-color-subtle, #666)';
     container.innerHTML = '';
     container.appendChild(loadingIndicator);
     const createEmptyMessage = () => {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No assignees added yet. Add from Available Users or add manually below.';
       emptyMessage.style.padding = '15px';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       emptyMessage.style.textAlign = 'center';
       return emptyMessage;
@@ -5824,13 +5821,13 @@ window.SettingsManager = class SettingsManager {
     description.textContent = 'Configure general behavior of the GitLab Sprint Helper.';
     description.style.marginBottom = '15px';
     description.style.fontSize = '14px';
-    description.style.color = '#666';
+    description.style.color = 'var(--gl-text-color-subtle, #666)';
     generalSection.appendChild(title);
     generalSection.appendChild(description);
     const shortcutSection = document.createElement('div');
     shortcutSection.style.marginBottom = '20px';
     shortcutSection.style.padding = '15px';
-    shortcutSection.style.backgroundColor = '#f8f9fa';
+    shortcutSection.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     shortcutSection.style.borderRadius = '4px';
     const shortcutTitle = document.createElement('h5');
     shortcutTitle.textContent = 'Toggle Visibility Shortcut';
@@ -5841,7 +5838,7 @@ window.SettingsManager = class SettingsManager {
     shortcutDescription.textContent = 'Set a keyboard shortcut to toggle the visibility of GitLab Sprint Helper. The shortcut will only work when not typing in an input field.';
     shortcutDescription.style.marginBottom = '15px';
     shortcutDescription.style.fontSize = '14px';
-    shortcutDescription.style.color = '#666';
+    shortcutDescription.style.color = 'var(--gl-text-color-subtle, #666)';
     const shortcutInputContainer = document.createElement('div');
     shortcutInputContainer.style.display = 'flex';
     shortcutInputContainer.style.alignItems = 'center';
@@ -5857,13 +5854,13 @@ window.SettingsManager = class SettingsManager {
     shortcutInput.style.width = '60px';
     shortcutInput.style.textAlign = 'center';
     shortcutInput.style.fontSize = '16px';
-    shortcutInput.style.border = '1px solid #ccc';
+    shortcutInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     shortcutInput.style.borderRadius = '4px';
     const currentShortcut = getToggleShortcut();
     shortcutInput.value = currentShortcut;
     const shortcutPreview = document.createElement('div');
     shortcutPreview.style.marginLeft = '10px';
-    shortcutPreview.style.color = '#666';
+    shortcutPreview.style.color = 'var(--gl-text-color-subtle, #666)';
     shortcutPreview.textContent = `Current: Press '${currentShortcut}' to toggle`;
     shortcutInput.addEventListener('input', () => {
       if (shortcutInput.value.length === 0) return;
@@ -5908,7 +5905,7 @@ window.SettingsManager = class SettingsManager {
     resetDescription.textContent = 'Reset various data stored by GitLab Sprint Helper. Warning: These actions cannot be undone!';
     resetDescription.style.marginBottom = '15px';
     resetDescription.style.fontSize = '14px';
-    resetDescription.style.color = '#666';
+    resetDescription.style.color = 'var(--gl-text-color-subtle, #666)';
     const resetButtonsContainer = document.createElement('div');
     resetButtonsContainer.style.display = 'flex';
     resetButtonsContainer.style.gap = '10px';
@@ -5985,13 +5982,13 @@ window.SettingsManager = class SettingsManager {
     description.textContent = 'Customize the appearance of the GitLab Sprint Helper.';
     description.style.marginBottom = '15px';
     description.style.fontSize = '14px';
-    description.style.color = '#666';
+    description.style.color = 'var(--gl-text-color-subtle, #666)';
     appearanceSection.appendChild(title);
     appearanceSection.appendChild(description);
     const linkedItemsSection = document.createElement('div');
     linkedItemsSection.style.marginBottom = '20px';
     linkedItemsSection.style.padding = '15px';
-    linkedItemsSection.style.backgroundColor = '#f8f9fa';
+    linkedItemsSection.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     linkedItemsSection.style.borderRadius = '4px';
     const linkedItemsTitle = document.createElement('h5');
     linkedItemsTitle.textContent = 'Linked Items Feature';
@@ -6002,7 +5999,7 @@ window.SettingsManager = class SettingsManager {
     linkedItemsDescription.textContent = 'Show linked items button on cards to quickly access branches, merge requests, and other related items.';
     linkedItemsDescription.style.marginBottom = '15px';
     linkedItemsDescription.style.fontSize = '14px';
-    linkedItemsDescription.style.color = '#666';
+    linkedItemsDescription.style.color = 'var(--gl-text-color-subtle, #666)';
     const toggleContainer = document.createElement('div');
     toggleContainer.style.display = 'flex';
     toggleContainer.style.alignItems = 'center';
@@ -6044,7 +6041,7 @@ window.SettingsManager = class SettingsManager {
     toggleKnob.style.width = '16px';
     toggleKnob.style.left = toggleCheckbox.checked ? '30px' : '4px';
     toggleKnob.style.bottom = '4px';
-    toggleKnob.style.backgroundColor = 'white';
+    toggleKnob.style.backgroundColor = 'var(--gl-background-color-default, white)';
     toggleKnob.style.transition = '.4s';
     toggleKnob.style.borderRadius = '50%';
     toggleSlider.appendChild(toggleKnob);
@@ -6080,7 +6077,7 @@ window.SettingsManager = class SettingsManager {
     const hideLabelsSection = document.createElement('div');
     hideLabelsSection.style.marginBottom = '20px';
     hideLabelsSection.style.padding = '15px';
-    hideLabelsSection.style.backgroundColor = '#f8f9fa';
+    hideLabelsSection.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     hideLabelsSection.style.borderRadius = '4px';
     const hideLabelsTitle = document.createElement('h5');
     hideLabelsTitle.textContent = 'Hide Labels Feature';
@@ -6091,7 +6088,7 @@ window.SettingsManager = class SettingsManager {
     hideLabelsDescription.textContent = 'Hide all labels on cards but show priority label colors as a small indicator line at the top of cards.';
     hideLabelsDescription.style.marginBottom = '15px';
     hideLabelsDescription.style.fontSize = '14px';
-    hideLabelsDescription.style.color = '#666';
+    hideLabelsDescription.style.color = 'var(--gl-text-color-subtle, #666)';
     const hideLabelsToggleContainer = document.createElement('div');
     hideLabelsToggleContainer.style.display = 'flex';
     hideLabelsToggleContainer.style.alignItems = 'center';
@@ -6133,7 +6130,7 @@ window.SettingsManager = class SettingsManager {
     hideLabelsToggleKnob.style.width = '16px';
     hideLabelsToggleKnob.style.left = hideLabelsToggleCheckbox.checked ? '30px' : '4px';
     hideLabelsToggleKnob.style.bottom = '4px';
-    hideLabelsToggleKnob.style.backgroundColor = 'white';
+    hideLabelsToggleKnob.style.backgroundColor = 'var(--gl-background-color-default, white)';
     hideLabelsToggleKnob.style.transition = '.4s';
     hideLabelsToggleKnob.style.borderRadius = '50%';
     hideLabelsToggleSlider.appendChild(hideLabelsToggleKnob);
@@ -6499,7 +6496,7 @@ window.SummaryView = class SummaryView {
   renderNoDataMessage(container) {
     const noDataMsg = document.createElement('p');
     noDataMsg.textContent = 'No time estimate data found. Make sure the board is fully loaded and try again.';
-    noDataMsg.style.color = '#666';
+    noDataMsg.style.color = 'var(--gl-text-color-subtle, #666)';
     container.appendChild(noDataMsg);
     const tipMsg = document.createElement('p');
     tipMsg.style.fontSize = '12px';
@@ -6512,7 +6509,7 @@ window.SummaryView = class SummaryView {
     const milestoneInfo = document.createElement('div');
     milestoneInfo.style.marginBottom = '10px';
     milestoneInfo.style.fontSize = '13px';
-    milestoneInfo.style.color = '#555';
+    milestoneInfo.style.color = 'var(--gl-text-color-subtle, #555)';
     milestoneInfo.textContent = `Current Milestone: ${milestoneName}`;
     container.appendChild(milestoneInfo);
   }
@@ -6520,7 +6517,7 @@ window.SummaryView = class SummaryView {
 
   addAssigneeRowToElement(row, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
     if (!name) name = "Unknown User";
-    row.style.borderBottom = '1px solid #eee';
+    row.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     if (isPotential) {
       row.style.opacity = '0.75';
       row.style.fontStyle = 'italic';
@@ -6552,13 +6549,13 @@ window.SummaryView = class SummaryView {
       img.style.objectFit = 'cover';
       avatar.appendChild(img);
     } else {
-      avatar.style.backgroundColor = '#e0e0e0';
+      avatar.style.backgroundColor = 'var(--gl-background-color-strong, #e0e0e0)';
       avatar.style.display = 'flex';
       avatar.style.alignItems = 'center';
       avatar.style.justifyContent = 'center';
       avatar.style.fontSize = '10px';
       avatar.style.fontWeight = 'bold';
-      avatar.style.color = '#666';
+      avatar.style.color = 'var(--gl-text-color-subtle, #666)';
       const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
       avatar.textContent = initials || '?';
     }
@@ -6607,7 +6604,7 @@ window.SummaryView = class SummaryView {
     const distributionCell = document.createElement('td');
     distributionCell.style.textAlign = 'right';
     distributionCell.style.padding = '8px 0 8px 15px';
-    distributionCell.style.color = '#666';
+    distributionCell.style.color = 'var(--gl-text-color-subtle, #666)';
     distributionCell.style.fontSize = '12px';
     distributionCell.style.width = '180px';
     distributionCell.style.minWidth = '180px';
@@ -6625,7 +6622,7 @@ window.SummaryView = class SummaryView {
       const distributionText = distributionValues.map((hours, index) => {
         let spanHTML = `<span style="`;
         if (hours === 0) {
-          spanHTML += `color:#aaa;`;
+          spanHTML += `color:var(--gl-text-color-subtle, #aaa);`;
         }
         if (index === distributionValues.length - 1 && hours > 0 ||
             index === distributionValues.length - 2 && hours > 0 ||
@@ -6648,7 +6645,7 @@ window.SummaryView = class SummaryView {
       const distributionText = distributionValues.map((hours, index) => {
         let spanHTML = `<span style="`;
         if (hours === 0) {
-          spanHTML += `color:#aaa;`;
+          spanHTML += `color:var(--gl-text-color-subtle, #aaa);`;
         }
         if ((index === distributionValues.length - 1 || index === distributionValues.length - 2) && hours > 0) {
           spanHTML += `color:#28a745;`;
@@ -6659,7 +6656,7 @@ window.SummaryView = class SummaryView {
       distributionCell.innerHTML = distributionText;
     } else {
       const emptyText = boardNames.map(() => {
-        return `<span style="color:#aaa;">0h</span>`;
+        return `<span style="color:var(--gl-text-color-subtle, #aaa);">0h</span>`;
       }).join('/');
       distributionCell.innerHTML = emptyText;
     }
@@ -6680,7 +6677,7 @@ window.SummaryView = class SummaryView {
     loadingIndicator.textContent = 'Loading board configuration...';
     loadingIndicator.style.padding = '15px';
     loadingIndicator.style.textAlign = 'center';
-    loadingIndicator.style.color = '#666';
+    loadingIndicator.style.color = 'var(--gl-text-color-subtle, #666)';
     container.appendChild(loadingIndicator);
     const fetchedBoardNames = await fetchAllBoards();
     try {
@@ -6704,7 +6701,7 @@ window.SummaryView = class SummaryView {
     const boardNames = fetchedBoardNames && fetchedBoardNames.length > 0 ? fetchedBoardNames : Object.keys(boardData || {});
     table.style.tableLayout = 'fixed';
     const totalRow = document.createElement('tr');
-    totalRow.style.borderBottom = '2px solid #ddd';
+    totalRow.style.borderBottom = '2px solid var(--gl-border-color-default, #ddd)';
     totalRow.style.fontWeight = 'bold';
     const totalLabelCell = document.createElement('td');
     const totalLink = document.createElement('a');
@@ -6729,7 +6726,7 @@ window.SummaryView = class SummaryView {
     const totalDistributionCell = document.createElement('td');
     totalDistributionCell.style.textAlign = 'right';
     totalDistributionCell.style.padding = '8px 0 8px 15px';
-    totalDistributionCell.style.color = '#666';
+    totalDistributionCell.style.color = 'var(--gl-text-color-subtle, #666)';
     totalDistributionCell.style.fontSize = '12px';
     if (boardNames.length > 0 && boardData) {
       const distributionValues = boardNames.map(boardName => {
@@ -6745,7 +6742,7 @@ window.SummaryView = class SummaryView {
             index === distributionValues.length - 2) {
           spanHTML += `color:#28a745;`;
         }else if (hours === 0) {
-          spanHTML += `color:#aaa;`;
+          spanHTML += `color:var(--gl-text-color-subtle, #aaa);`;
         }
         spanHTML += `">${hours}h</span>`;
         return spanHTML;
@@ -6796,9 +6793,9 @@ window.SummaryView = class SummaryView {
       separatorCell.colSpan = 3;
       separatorCell.style.padding = '10px 0 5px 32px';
       separatorCell.style.fontSize = '12px';
-      separatorCell.style.color = '#666';
+      separatorCell.style.color = 'var(--gl-text-color-subtle, #666)';
       separatorCell.style.fontStyle = 'italic';
-      separatorCell.style.borderTop = '1px solid #eee';
+      separatorCell.style.borderTop = '1px solid var(--gl-border-color-default, #eee)';
       separatorCell.textContent = 'Previously Active Members:';
       separatorRow.appendChild(separatorCell);
       table.appendChild(separatorRow);
@@ -6820,9 +6817,9 @@ window.SummaryView = class SummaryView {
       separatorCell.colSpan = 3;
       separatorCell.style.padding = '10px 0 5px 32px';
       separatorCell.style.fontSize = '12px';
-      separatorCell.style.color = '#666';
+      separatorCell.style.color = 'var(--gl-text-color-subtle, #666)';
       separatorCell.style.fontStyle = 'italic';
-      separatorCell.style.borderTop = '1px solid #eee';
+      separatorCell.style.borderTop = '1px solid var(--gl-border-color-default, #eee)';
       const headerContainer = document.createElement('div');
       headerContainer.style.display = 'flex';
       headerContainer.style.alignItems = 'center';
@@ -7078,7 +7075,7 @@ window.SummaryView = class SummaryView {
   }
   addAssigneeRowToElement(row, name, hours, boardNames, boardAssigneeData, isPotential = false, historyStats = null, historyboardAssigneeData = null) {
     if (!name) name = "Unknown User";
-    row.style.borderBottom = '1px solid #eee';
+    row.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     if (isPotential) {
       row.style.opacity = '0.75';
       row.style.fontStyle = 'italic';
@@ -7110,13 +7107,13 @@ window.SummaryView = class SummaryView {
       img.style.objectFit = 'cover';
       avatar.appendChild(img);
     } else {
-      avatar.style.backgroundColor = '#e0e0e0';
+      avatar.style.backgroundColor = 'var(--gl-background-color-strong, #e0e0e0)';
       avatar.style.display = 'flex';
       avatar.style.alignItems = 'center';
       avatar.style.justifyContent = 'center';
       avatar.style.fontSize = '10px';
       avatar.style.fontWeight = 'bold';
-      avatar.style.color = '#666';
+      avatar.style.color = 'var(--gl-text-color-subtle, #666)';
       const initials = name.split(' ').map(part => part.charAt(0)).slice(0, 2).join('').toUpperCase();
       avatar.textContent = initials || '?';
     }
@@ -7165,7 +7162,7 @@ window.SummaryView = class SummaryView {
     const distributionCell = document.createElement('td');
     distributionCell.style.textAlign = 'right';
     distributionCell.style.padding = '8px 0 8px 15px';
-    distributionCell.style.color = '#666';
+    distributionCell.style.color = 'var(--gl-text-color-subtle, #666)';
     distributionCell.style.fontSize = '12px';
     distributionCell.style.width = '180px';
     distributionCell.style.minWidth = '180px';
@@ -7188,7 +7185,7 @@ window.SummaryView = class SummaryView {
             issuesWithNeedsMergeLabels && issuesWithNeedsMergeLabels[boardNames[index]]) {
           spanHTML += `color:#28a745;`;
         }else if (hours === 0) {
-          spanHTML += `color:#aaa;`;
+          spanHTML += `color:var(--gl-text-color-subtle, #aaa);`;
         }
         spanHTML += `">${hours}h</span>`;
         return spanHTML;
@@ -7206,7 +7203,7 @@ window.SummaryView = class SummaryView {
       const distributionText = distributionValues.map((hours, index) => {
         let spanHTML = `<span style="`;
         if (hours === 0) {
-          spanHTML += `color:#aaa;`;
+          spanHTML += `color:var(--gl-text-color-subtle, #aaa);`;
         }
         if ((index === distributionValues.length - 1 || index === distributionValues.length - 2) && hours > 0) {
           spanHTML += `color:#28a745;`;
@@ -7217,7 +7214,7 @@ window.SummaryView = class SummaryView {
       distributionCell.innerHTML = distributionText;
     } else {
       const emptyText = boardNames.map(() => {
-        return `<span style="color:#aaa;">0h</span>`;
+        return `<span style="color:var(--gl-text-color-subtle, #aaa);">0h</span>`;
       }).join('/');
       distributionCell.innerHTML = emptyText;
     }
@@ -7313,7 +7310,7 @@ window.BoardsView = class BoardsView {
       const emptyMessage = document.createElement('div');
       emptyMessage.textContent = 'No boards with time estimates found.';
       emptyMessage.style.padding = '15px';
-      emptyMessage.style.color = '#666';
+      emptyMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       emptyMessage.style.fontStyle = 'italic';
       emptyMessage.style.textAlign = 'center';
       boardsList.appendChild(emptyMessage);
@@ -7339,7 +7336,7 @@ window.BoardsView = class BoardsView {
       display: 'flex',
       justifyContent: 'space-between',
       padding: '5px',
-      backgroundColor: '#f5f5f5',
+      backgroundColor: 'var(--gl-background-color-subtle, #f5f5f5)',
       borderRadius: '3px',
       cursor: 'pointer',
       fontWeight: 'bold'
@@ -7367,7 +7364,7 @@ window.BoardsView = class BoardsView {
       const noAssigneesMsg = document.createElement('div');
       noAssigneesMsg.textContent = 'No assignee data available for this board.';
       noAssigneesMsg.style.padding = '8px 0';
-      noAssigneesMsg.style.color = '#666';
+      noAssigneesMsg.style.color = 'var(--gl-text-color-subtle, #666)';
       noAssigneesMsg.style.fontStyle = 'italic';
       boardDetails.appendChild(noAssigneesMsg);
     }
@@ -7381,7 +7378,7 @@ window.BoardsView = class BoardsView {
     assigneeTable.style.borderCollapse = 'collapse';
     assigneeTable.style.marginTop = '5px';
     const headerRow = document.createElement('tr');
-    headerRow.style.borderBottom = '1px solid #ddd';
+    headerRow.style.borderBottom = '1px solid var(--gl-border-color-default, #ddd)';
     const nameHeader = document.createElement('th');
     nameHeader.textContent = 'Assignee';
     nameHeader.style.textAlign = 'left';
@@ -7405,7 +7402,7 @@ window.BoardsView = class BoardsView {
       const assigneeInfo = assigneeData[assigneeName];
       const assigneeHours = formatHours(assigneeInfo.timeEstimate);
       const assigneeRow = document.createElement('tr');
-      assigneeRow.style.borderBottom = '1px solid #eee';
+      assigneeRow.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
       const nameCell = document.createElement('td');
       nameCell.textContent = assigneeName;
       nameCell.style.padding = '3px 0';
@@ -7474,7 +7471,7 @@ window.SprintManagementView = class SprintManagementView {
     const milestoneInfo = document.createElement('div');
     milestoneInfo.style.padding = '10px';
     milestoneInfo.style.margin = '0 10px';
-    milestoneInfo.style.backgroundColor = '#f8f9fa';
+    milestoneInfo.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     milestoneInfo.style.borderRadius = '6px';
     milestoneInfo.style.fontWeight = 'bold';
     if (this.sprintState.currentMilestone) {
@@ -7490,9 +7487,9 @@ window.SprintManagementView = class SprintManagementView {
     stepsContainer.style.gap = '5px';
     stepsContainer.style.marginTop = '';
     stepsContainer.style.padding = '15px';
-    stepsContainer.style.backgroundColor = '#f8f9fa';
+    stepsContainer.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     stepsContainer.style.borderRadius = '6px';
-    stepsContainer.style.border = '1px solid #dee2e6';
+    stepsContainer.style.border = '1px solid var(--gl-border-color-default, #dee2e6)';
     stepsContainer.style.margin = '10px 10px 0';
     if (this.sprintState.newMilestoneCreated === undefined) this.sprintState.newMilestoneCreated = false;
     if (this.sprintState.survivorsSet === undefined) this.sprintState.survivorsSet = false;
@@ -7919,7 +7916,7 @@ window.SprintManagementView = class SprintManagementView {
     lockedContainer.style.alignItems = 'center';
     lockedContainer.style.justifyContent = 'center';
     lockedContainer.style.padding = '40px';
-    lockedContainer.style.backgroundColor = '#f8f9fa';
+    lockedContainer.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     lockedContainer.style.borderRadius = '6px';
     lockedContainer.style.margin = '10px';
     lockedContainer.style.textAlign = 'center';
@@ -7930,10 +7927,10 @@ window.SprintManagementView = class SprintManagementView {
     const message = document.createElement('h3');
     message.textContent = 'Sprint Management is Locked';
     message.style.marginBottom = '15px';
-    message.style.color = '#495057';
+    message.style.color = 'var(--gl-text-color-subtle, #495057)';
     const instruction = document.createElement('p');
     instruction.innerHTML = 'Sprint Management is only available when URL contains <strong>exactly</strong> <code>?milestone_title=Started</code> with no other parameters';
-    instruction.style.color = '#6c757d';
+    instruction.style.color = 'var(--gl-text-color-subtle, #6c757d)';
     instruction.style.marginBottom = '20px';
     const link = document.createElement('a');
     const currentUrl = new URL(window.location.href);
@@ -8224,7 +8221,7 @@ window.SprintManagementView = class SprintManagementView {
     const button = document.createElement('button');
     button.textContent = title;
     button.style.padding = '12px 16px';
-    button.style.backgroundColor = enabled ? color : '#6c757d';
+    button.style.backgroundColor = enabled ? color : 'var(--gl-text-color-subtle, #6c757d)';
     button.style.color = 'white';
     button.style.border = 'none';
     button.style.borderRadius = '4px';
@@ -8537,25 +8534,25 @@ window.SprintManagementView = class SprintManagementView {
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">Total Tickets:</label>
-                    <input type="number" id="edit-total-tickets" value="${this.sprintState.totalTickets || 0}" min="0" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <input type="number" id="edit-total-tickets" value="${this.sprintState.totalTickets || 0}" min="0" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--gl-border-color-default, #ccc);">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">Closed Tickets:</label>
-                    <input type="number" id="edit-closed-tickets" value="${this.sprintState.closedTickets || 0}" min="0" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <input type="number" id="edit-closed-tickets" value="${this.sprintState.closedTickets || 0}" min="0" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--gl-border-color-default, #ccc);">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">Total Hours:</label>
-                    <input type="number" id="edit-total-hours" value="${this.sprintState.totalHours || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <input type="number" id="edit-total-hours" value="${this.sprintState.totalHours || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--gl-border-color-default, #ccc);">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">Closed Hours:</label>
-                    <input type="number" id="edit-closed-hours" value="${this.sprintState.closedHours || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <input type="number" id="edit-closed-hours" value="${this.sprintState.closedHours || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--gl-border-color-default, #ccc);">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">Extra Closed Hours:</label>
-                    <input type="number" id="edit-extra-hours" value="${this.sprintState.extraHoursClosed || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <input type="number" id="edit-extra-hours" value="${this.sprintState.extraHoursClosed || 0}" min="0" step="0.1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--gl-border-color-default, #ccc);">
                 </div>
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gl-border-color-default, #eee);">
                     <button id="delete-sprint-btn" style="width: 100%; padding: 8px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Delete Current Sprint Data</button>
                 </div>
             </div>
@@ -8622,14 +8619,13 @@ window.SprintManagementView = class SprintManagementView {
     modalOverlay.style.justifyContent = 'center';
     modalOverlay.style.alignItems = 'center';
     const modalContent = document.createElement('div');
-    modalContent.className = 'gsh-panel';
-    modalContent.style.backgroundColor = 'white';
+    modalContent.style.backgroundColor = 'var(--gl-background-color-default, white)';
     modalContent.style.borderRadius = '6px';
     modalContent.style.padding = '20px';
     modalContent.style.width = '500px';
     modalContent.style.maxWidth = '90%';
     const modalHeader = document.createElement('div');
-    modalHeader.style.borderBottom = '1px solid #eee';
+    modalHeader.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
     modalHeader.style.paddingBottom = '10px';
     modalHeader.style.marginBottom = '15px';
     modalHeader.style.display = 'flex';
@@ -8659,7 +8655,7 @@ window.SprintManagementView = class SprintManagementView {
       modalBody.appendChild(content);
     }
     const modalFooter = document.createElement('div');
-    modalFooter.style.borderTop = '1px solid #eee';
+    modalFooter.style.borderTop = '1px solid var(--gl-border-color-default, #eee)';
     modalFooter.style.paddingTop = '15px';
     modalFooter.style.display = 'flex';
     modalFooter.style.justifyContent = 'flex-end';
@@ -8679,9 +8675,9 @@ window.SprintManagementView = class SprintManagementView {
     const dataContainer = document.createElement('div');
     dataContainer.style.margin = '10px';
     dataContainer.style.padding = '15px';
-    dataContainer.style.backgroundColor = '#f8f9fa';
+    dataContainer.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     dataContainer.style.borderRadius = '6px';
-    dataContainer.style.border = '1px solid #dee2e6';
+    dataContainer.style.border = '1px solid var(--gl-border-color-default, #dee2e6)';
     const titleEl = document.createElement('h3');
     titleEl.textContent = 'Current Sprint Data';
     titleEl.style.margin = '0 0 15px 0';
@@ -8693,7 +8689,7 @@ window.SprintManagementView = class SprintManagementView {
       row.style.justifyContent = 'space-between';
       row.style.marginBottom = '8px';
       row.style.padding = '5px 0';
-      row.style.borderBottom = '1px solid #eee';
+      row.style.borderBottom = '1px solid var(--gl-border-color-default, #eee)';
       const labelEl = document.createElement('div');
       labelEl.textContent = label;
       labelEl.style.fontWeight = 'bold';
@@ -8889,9 +8885,9 @@ window.SprintManagementView = class SprintManagementView {
     const historySection = document.createElement('div');
     historySection.style.margin = '10px';
     historySection.style.padding = '15px';
-    historySection.style.backgroundColor = '#f8f9fa';
+    historySection.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
     historySection.style.borderRadius = '6px';
-    historySection.style.border = '1px solid #dee2e6';
+    historySection.style.border = '1px solid var(--gl-border-color-default, #dee2e6)';
 
     const titleEl = document.createElement('h3');
     titleEl.textContent = 'Sprint History';
@@ -8914,7 +8910,7 @@ window.SprintManagementView = class SprintManagementView {
         th.textContent = text;
         th.style.padding = '8px';
         th.style.textAlign = 'left';
-        th.style.borderBottom = '2px solid #dee2e6';
+        th.style.borderBottom = '2px solid var(--gl-border-color-default, #dee2e6)';
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);
@@ -8923,11 +8919,11 @@ window.SprintManagementView = class SprintManagementView {
       const tbody = document.createElement('tbody');
       this.sprintHistory.forEach(sprint => {
         const row = document.createElement('tr');
-        row.style.borderBottom = '1px solid #dee2e6';
+        row.style.borderBottom = '1px solid var(--gl-border-color-default, #dee2e6)';
         row.style.transition = 'background-color 0.2s';
         row.style.cursor = 'pointer';
         row.addEventListener('mouseenter', () => {
-          row.style.backgroundColor = '#f1f1f1';
+          row.style.backgroundColor = 'var(--gl-background-color-subtle, #f1f1f1)';
         });
         row.addEventListener('mouseleave', () => {
           row.style.backgroundColor = '';
@@ -8970,7 +8966,7 @@ window.SprintManagementView = class SprintManagementView {
       const noHistoryMessage = document.createElement('div');
       noHistoryMessage.textContent = 'No sprint history available yet.';
       noHistoryMessage.style.padding = '10px';
-      noHistoryMessage.style.color = '#666';
+      noHistoryMessage.style.color = 'var(--gl-text-color-subtle, #666)';
       noHistoryMessage.style.fontStyle = 'italic';
       noHistoryMessage.style.textAlign = 'center';
       historySection.appendChild(noHistoryMessage);
@@ -9030,22 +9026,22 @@ window.SprintManagementView = class SprintManagementView {
           <h3 style="margin-top: 0; color: #1f75cb;">${sprint.milestone || 'Unnamed Sprint'}</h3>
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-              <div style="padding: 10px; background-color: #e9ecef; border-radius: 4px;">
+              <div style="padding: 10px; background-color: var(--gl-background-color-strong, #e9ecef); border-radius: 4px;">
                   <h4 style="margin-top: 0; font-size: 14px;">Tickets</h4>
                   <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">
                       ${sprint.closedTickets}/${sprint.totalTickets}
                   </div>
-                  <div style="font-size: 14px; color: #6c757d;">
+                  <div style="font-size: 14px; color: var(--gl-text-color-subtle, #6c757d);">
                       ${ticketCompletion.toFixed(2)}% completed
                   </div>
               </div>
               
-              <div style="padding: 10px; background-color: #e9ecef; border-radius: 4px;">
+              <div style="padding: 10px; background-color: var(--gl-background-color-strong, #e9ecef); border-radius: 4px;">
                   <h4 style="margin-top: 0; font-size: 14px;">Hours</h4>
                   <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">
                       ${totalClosedHours}/${sprint.totalHours}h
                   </div>
-                  <div style="font-size: 14px; color: #6c757d;">
+                  <div style="font-size: 14px; color: var(--gl-text-color-subtle, #6c757d);">
                       ${hourCompletion.toFixed(2)}% completed
                   </div>
               </div>
@@ -9054,15 +9050,15 @@ window.SprintManagementView = class SprintManagementView {
           <div style="margin-bottom: 20px;">
               <h4 style="margin-bottom: 10px; font-size: 16px;">Sprint Details</h4>
               <table style="width: 100%; border-collapse: collapse;">
-                  <tr style="border-bottom: 1px solid #dee2e6;">
+                  <tr style="border-bottom: 1px solid var(--gl-border-color-default, #dee2e6);">
                       <td style="padding: 8px; font-weight: bold;">Started:</td>
                       <td style="padding: 8px;">${startDate.toLocaleString()}</td>
                   </tr>
-                  <tr style="border-bottom: 1px solid #dee2e6;">
+                  <tr style="border-bottom: 1px solid var(--gl-border-color-default, #dee2e6);">
                       <td style="padding: 8px; font-weight: bold;">Completed:</td>
                       <td style="padding: 8px;">${endDate.toLocaleString()}</td>
                   </tr>
-                  <tr style="border-bottom: 1px solid #dee2e6;">
+                  <tr style="border-bottom: 1px solid var(--gl-border-color-default, #dee2e6);">
                       <td style="padding: 8px; font-weight: bold;">Carried Over Hours:</td>
                       <td style="padding: 8px;">${sprint.extraHoursClosed || 0}h</td>
                   </tr>
@@ -9085,7 +9081,7 @@ window.SprintManagementView = class SprintManagementView {
               <h4 style="margin-bottom: 10px; font-size: 16px;">User Performance</h4>
               <table style="width: 100%; border-collapse: collapse;">
                   <thead>
-                      <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                      <tr style="background-color: var(--gl-background-color-subtle, #f8f9fa); border-bottom: 2px solid var(--gl-border-color-default, #dee2e6);">
                           <th style="padding: 8px; text-align: left;">User</th>
                           <th style="padding: 8px; text-align: center;">Tickets</th>
                           <th style="padding: 8px; text-align: center;">Completion</th>
@@ -9098,7 +9094,7 @@ window.SprintManagementView = class SprintManagementView {
       sortedUsers.forEach(([name, data]) => {
         const userTicketCompletion = data.totalTickets > 0 ? (data.closedTickets / data.totalTickets * 100).toFixed(0) : 0;
         content += `
-              <tr style="border-bottom: 1px solid #dee2e6;">
+              <tr style="border-bottom: 1px solid var(--gl-border-color-default, #dee2e6);">
                   <td style="padding: 8px;">${name}</td>
                   <td style="padding: 8px; text-align: center;">${data.closedTickets}/${data.totalTickets}</td>
                   <td style="padding: 8px; text-align: center;">${userTicketCompletion}%</td>
@@ -9118,7 +9114,7 @@ window.SprintManagementView = class SprintManagementView {
       content += `
           <div style="margin-top: 20px;">
               <h4 style="margin-bottom: 10px; font-size: 16px;">Closed Issues (${sprint.closedTicketsList.length})</h4>
-              <div style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px; background-color: #f8f9fa;">
+              <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--gl-border-color-default, #dee2e6); border-radius: 4px; padding: 10px; background-color: var(--gl-background-color-subtle, #f8f9fa);">
     `;
       if (regularClosed.length > 0) {
         content += `
@@ -9126,7 +9122,7 @@ window.SprintManagementView = class SprintManagementView {
                     <ul style="margin: 0; padding-left: 20px;">
       `;
         regularClosed.forEach(ticket => {
-          content += `<li style="margin-bottom: 5px;">${ticket.title} <span style="color: #6c757d; font-size: 12px;">#${ticket.id}</span></li>`;
+          content += `<li style="margin-bottom: 5px;">${ticket.title} <span style="color: var(--gl-text-color-subtle, #6c757d); font-size: 12px;">#${ticket.id}</span></li>`;
         });
         content += `
                     </ul>
@@ -9140,7 +9136,7 @@ window.SprintManagementView = class SprintManagementView {
                     <ul style="margin: 0; padding-left: 20px;">
       `;
         needsMerge.forEach(ticket => {
-          content += `<li style="margin-bottom: 5px;">${ticket.title} <span style="color: #6c757d; font-size: 12px;">#${ticket.id}</span></li>`;
+          content += `<li style="margin-bottom: 5px;">${ticket.title} <span style="color: var(--gl-text-color-subtle, #6c757d); font-size: 12px;">#${ticket.id}</span></li>`;
         });
         content += `
                     </ul>
@@ -9261,7 +9257,7 @@ window.SprintManagementView = class SprintManagementView {
                 <p>Copy the text below to save your sprint data:</p>
                 <textarea id="export-data-textarea" 
                     style="width: 100%; height: 120px; padding: 8px; border-radius: 4px; 
-                    border: 1px solid #ccc; font-family: monospace; font-size: 12px;"
+                    border: 1px solid var(--gl-border-color-default, #ccc); font-family: monospace; font-size: 12px;"
                     readonly>${base64Data}</textarea>
                 <div style="display: flex; justify-content: space-between;">
                     <button id="copy-export-data" 
@@ -9305,7 +9301,7 @@ window.SprintManagementView = class SprintManagementView {
                 <p>Paste the export data string below:</p>
                 <textarea id="import-data-textarea" 
                     style="width: 100%; height: 120px; padding: 8px; border-radius: 4px; 
-                    border: 1px solid #ccc; font-family: monospace; font-size: 12px;"
+                    border: 1px solid var(--gl-border-color-default, #ccc); font-family: monospace; font-size: 12px;"
                     placeholder="Paste your export data here..."></textarea>
                 <div style="display: flex; justify-content: center; gap: 10px;">
                     <button id="import-data-button" 
@@ -9824,7 +9820,7 @@ window.BulkCommentsView = class BulkCommentsView {
           statusEl.style.color = 'green';
         } else {
           statusEl.textContent = 'No issues selected. Click "Select Issues" to choose issues.';
-          statusEl.style.color = '#666';
+          statusEl.style.color = 'var(--gl-text-color-subtle, #666)';
         }
       }
       if (this.selectionDisplay) {
@@ -10003,7 +9999,7 @@ window.BulkCommentsView = class BulkCommentsView {
       const statusEl = document.getElementById('comment-status');
       if (statusEl) {
         statusEl.textContent = 'No issues selected. Click "Select" to choose issues.';
-        statusEl.style.color = '#666';
+        statusEl.style.color = 'var(--gl-text-color-subtle, #666)';
       }
 
       this.notification.info('All issues deselected');
@@ -10059,7 +10055,7 @@ window.BulkCommentsView = class BulkCommentsView {
     const statusEl = document.getElementById('comment-status');
     if (statusEl) {
       statusEl.textContent = 'Selection cleared. Ready to select new issues.';
-      statusEl.style.color = '#666';
+      statusEl.style.color = 'var(--gl-text-color-subtle, #666)';
     }
   }
   render() {
@@ -10108,9 +10104,9 @@ window.BulkCommentsView = class BulkCommentsView {
   addCommentSection(container) {
     const commentSection = document.createElement('div');
     commentSection.classList.add('api-section');
-    commentSection.style.backgroundColor = '#f5f5f5';
+    commentSection.style.backgroundColor = 'var(--gl-background-color-subtle, #f5f5f5)';
     commentSection.style.borderRadius = '8px';
-    commentSection.style.border = '1px solid #e0e0e0';
+    commentSection.style.border = '1px solid var(--gl-border-color-default, #e0e0e0)';
     this.selectionDisplay.createSelectionContainer(commentSection);
     this.createCommentInput(commentSection);
     this.createActionButtons(commentSection);
@@ -10190,7 +10186,7 @@ window.BulkCommentsView = class BulkCommentsView {
       placeholder.style.alignItems = 'center';
       placeholder.style.marginBottom = '8px';
       placeholder.style.height = '36px';
-      placeholder.style.border = '1px solid #ddd';
+      placeholder.style.border = '1px solid var(--gl-border-color-default, #ddd)';
       placeholder.style.borderRadius = '4px';
       placeholder.style.padding = '6px 10px';
       const label = document.createElement('div');
@@ -10200,7 +10196,7 @@ window.BulkCommentsView = class BulkCommentsView {
       const dropdown = document.createElement('div');
       dropdown.style.flex = '1';
       dropdown.style.height = '24px';
-      dropdown.style.backgroundColor = '#eee';
+      dropdown.style.backgroundColor = 'var(--gl-background-color-strong, #eee)';
       dropdown.style.marginLeft = '10px';
       dropdown.style.borderRadius = '4px';
       placeholder.appendChild(label);
@@ -10216,7 +10212,7 @@ window.BulkCommentsView = class BulkCommentsView {
     commentInput.style.padding = '8px';
     commentInput.style.marginBottom = '12px';
     commentInput.style.borderRadius = '4px';
-    commentInput.style.border = '1px solid #ccc';
+    commentInput.style.border = '1px solid var(--gl-border-color-default, #ccc)';
     commentInput.style.minHeight = '60px';
     commentInput.style.fontSize = '14px';
     commentInput.style.transition = 'border-color 0.2s ease';
@@ -10228,7 +10224,7 @@ window.BulkCommentsView = class BulkCommentsView {
       commentInput.style.boxShadow = '0 0 0 2px rgba(31, 117, 203, 0.2)';
     });
     commentInput.addEventListener('blur', () => {
-      commentInput.style.borderColor = '#ccc';
+      commentInput.style.borderColor = 'var(--gl-border-color-default, #ccc)';
       commentInput.style.boxShadow = 'none';
     });
     container.appendChild(commentInput);
@@ -10308,7 +10304,7 @@ window.BulkCommentsView = class BulkCommentsView {
     }
     if (this.commentInput) {
       this.commentInput.disabled = true;
-      this.commentInput.style.backgroundColor = '#f9f9f9';
+      this.commentInput.style.backgroundColor = 'var(--gl-background-color-subtle, #f9f9f9)';
     }
   }
   hideLoadingState() {
@@ -10318,13 +10314,13 @@ window.BulkCommentsView = class BulkCommentsView {
       if (count > 0) {
         statusEl.textContent = `${count} issue${count !== 1 ? 's' : ''} selected.`;
         statusEl.style.color = '#28a745';
-        statusEl.style.backgroundColor = '#f8f9fa';
-        statusEl.style.border = '1px solid #e9ecef';
+        statusEl.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
+        statusEl.style.border = '1px solid var(--gl-border-color-default, #e9ecef)';
       } else {
         statusEl.textContent = 'Select issues to add comments.';
-        statusEl.style.color = '#666';
-        statusEl.style.backgroundColor = '#f8f9fa';
-        statusEl.style.border = '1px solid #e9ecef';
+        statusEl.style.color = 'var(--gl-text-color-subtle, #666)';
+        statusEl.style.backgroundColor = 'var(--gl-background-color-subtle, #f8f9fa)';
+        statusEl.style.border = '1px solid var(--gl-border-color-default, #e9ecef)';
       }
     }
     const commentInput = document.getElementById('issue-comment-input');
@@ -10639,7 +10635,7 @@ window.StatsView = class StatsView {
     soonTitle.style.color = '#1f75cb';
     const soonDesc = document.createElement('p');
     soonDesc.textContent = 'Detailed team and individual performance statistics will be available here soon.';
-    soonDesc.style.color = '#666';
+    soonDesc.style.color = 'var(--gl-text-color-subtle, #666)';
     soonDesc.style.maxWidth = '500px';
     comingSoonContainer.appendChild(soonIcon);
     comingSoonContainer.appendChild(soonTitle);
@@ -10693,8 +10689,8 @@ window.UIManager = class UIManager {
       position: 'fixed',
       bottom: '15px',
       right: '15px',
-      backgroundColor: 'white',
-      border: '1px solid #ddd',
+      backgroundColor: 'var(--gl-background-color-default, white)',
+      border: '1px solid var(--gl-border-color-default, #ddd)',
       borderRadius: '4px',
       padding: '10px',
       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -10870,7 +10866,7 @@ window.UIManager = class UIManager {
     this.boardStats = document.createElement('div');
     this.boardStats.id = 'board-stats-summary';
     this.boardStats.style.fontSize = '13px';
-    this.boardStats.style.color = '#555';
+    this.boardStats.style.color = 'var(--gl-text-color-subtle, #555)';
     this.boardStats.style.marginBottom = '10px';
     this.boardStats.style.display = 'flex';
     this.boardStats.style.justifyContent = 'space-between';
@@ -11128,7 +11124,7 @@ window.UIManager = class UIManager {
       this.versionDisplay = document.createElement('div');
       this.versionDisplay.id = 'gitlab-helper-version';
       this.versionDisplay.style.fontSize = '10px';
-      this.versionDisplay.style.color = '#888';
+      this.versionDisplay.style.color = 'var(--gl-text-color-subtle, #888)';
       this.versionDisplay.style.position = 'absolute';
       this.versionDisplay.style.top = '6px'; // Position at the top near the tabs
       this.versionDisplay.style.right = '5px'; // Right position to be next to tab controls
@@ -11276,15 +11272,6 @@ function injectCustomCSS() {
       display: flex;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-    
-    .gl-dark #assignee-time-summary,
-    .gl-dark .gsh-panel {
-      filter: invert(0.9) hue-rotate(180deg);
-    }
-    .gl-dark #assignee-time-summary img,
-    .gl-dark .gsh-panel img {
-      filter: invert(1) hue-rotate(180deg);
     }
   `;
   document.head.appendChild(style);
@@ -11593,7 +11580,7 @@ function waitForBoards() {
     statusDiv = document.createElement('div');
     statusDiv.id = 'board-stats-summary';
     statusDiv.style.fontSize = '13px';
-    statusDiv.style.color = '#555';
+    statusDiv.style.color = 'var(--gl-text-color-subtle, #555)';
     statusDiv.style.marginBottom = '10px';
     if (window.uiManager?.container) {
       window.uiManager.container.appendChild(statusDiv);
